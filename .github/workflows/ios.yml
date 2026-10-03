@@ -126,9 +126,13 @@ jobs:
       # ───────────────────────────────────────────────────────────────────────
       #  Compilation.
       #
-      #  POURQUOI PAS DE `set -e` ICI
-      #  L'échec de xcodebuild doit être CAPTURÉ, pas provoquer une sortie
-      #  immédiate : sinon on ne peut pas extraire les erreurs avant de sortir.
+      #  POURQUOI `set +e` — ET PAS SEULEMENT UN COMMENTAIRE
+      #  Le shell par défaut d'un `run:` est `bash -e`. Avec `-e`, l'échec de
+      #  xcodebuild TERMINE le script immédiatement : `code=$?` n'est jamais
+      #  atteint, et le bloc qui réémet les erreurs ne s'exécute pas.
+      #  Mesuré : la première version de ce pas annonçait en commentaire
+      #  « l'échec est capturé », mais ne désactivait pas `-e` — aucune
+      #  annotation n'a été produite, et seul « exit code 65 » est apparu.
       #
       #  POURQUOI LES ERREURS SONT RÉÉMISES EN ANNOTATIONS
       #  Le journal complet exige une authentification pour être téléchargé
@@ -138,6 +142,7 @@ jobs:
       # ───────────────────────────────────────────────────────────────────────
       - name: Compiler (simulateur)
         run: |
+          set +e
           xcodebuild build \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
