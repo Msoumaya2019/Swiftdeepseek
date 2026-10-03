@@ -1,0 +1,32 @@
+// Base.xcconfig
+// Réglages communs aux configurations Debug et Release.
+//
+// `#include?` (avec le point d'interrogation) inclut le fichier S'IL EXISTE.
+// C'est ce qui permet au dépôt de rester sans secret : `Secrets.xcconfig` est
+// ignoré par Git, et la compilation fonctionne quand même sans lui — l'écran de
+// configuration de l'application explique alors ce qui manque, au lieu de
+// laisser l'application se fermer sans rien dire.
+
+#include? "Secrets.xcconfig"
+
+// Valeurs de repli : vides si `Secrets.xcconfig` est absent.
+// Ce sont des variables de compilation, recopiées dans Info.plist.
+SUPABASE_URL =
+SUPABASE_ANON_KEY =
+
+// ─────────────────────────────────────────────────────────────────────────────
+//  PIÈGE DES xcconfig — À NE PAS OUBLIER
+// ─────────────────────────────────────────────────────────────────────────────
+//  Dans un xcconfig, `//` commence un commentaire, MÊME AU MILIEU D'UNE VALEUR.
+//  Écrire directement
+//
+//      SUPABASE_URL = https://mon-projet.supabase.co      ← FAUX
+//
+//  ne produit pas l'URL attendue : tout ce qui suit `//` est supprimé, et la
+//  valeur devient `https:`. L'application se lance alors avec une adresse
+//  invalide, sans message clair.
+//
+//  D'où `SLASH`, défini ci-dessous : il permet d'écrire les deux barres
+//  obliques sans jamais les faire apparaître littéralement. Utiliser
+//  `$(SLASH)$(SLASH)` partout où une URL est nécessaire.
+SLASH = /

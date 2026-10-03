@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<!-- Notifications push : c'est CE jeton APNs qui sera enregistré, mais
+	     toujours avec le MÊME `user_id` que l'application React Native. Le
+	     système de notifications existant n'est donc pas cassé : il reçoit un
+	     appareil de plus pour la même personne.
+
+	     `development` convient aux compilations de test. Passer à `production`
+	     pour TestFlight et l'App Store. Cette valeur ne prend effet qu'une fois
+	     la signature configurée : les compilations non signées de l'intégration
+	     continue l'ignorent. -->
+	<key>aps-environment</key>
+	<string>development</string>
+</dict>
+</plist>

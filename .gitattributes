@@ -1,0 +1,26 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Fins de ligne : LF partout.
+#
+#  Le dépôt est ÉCRIT sous Windows et COMPILÉ sur macOS. Sans cette règle,
+#  `core.autocrlf=true` — le réglage par défaut de Git pour Windows — réécrit
+#  les fichiers en CRLF à chaque extraction. Deux conséquences mesurables :
+#
+#    - un `Makefile` en CRLF échoue sur macOS (« missing separator ») ;
+#    - toute empreinte calculée sur une copie de travail cesse de correspondre
+#      à celle du blob, sans que `git status` le signale.
+#
+#  Mesuré à la création du dépôt : les blobs étaient déjà en LF, donc cette
+#  règle ne change rien au contenu versionné — elle empêche la dérive à venir.
+# ─────────────────────────────────────────────────────────────────────────────
+* text=auto eol=lf
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Binaires : jamais convertis, jamais « normalisés ».
+#  Les 604 pages du Coran de Médine (Resources/Mushaf/*.png) en dépendent : une
+#  conversion de fin de ligne y corromprait l'image.
+# ─────────────────────────────────────────────────────────────────────────────
+*.png binary
+*.jpg binary
+*.jpeg binary
+*.pdf binary
+*.ipa binary

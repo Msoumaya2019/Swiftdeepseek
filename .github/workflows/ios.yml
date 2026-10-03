@@ -1,0 +1,198 @@
+# .github/workflows/ios.yml
+#
+# CE QUE FAIT CE FLUX
+#   Il génère le projet Xcode, le COMPILE, joue les tests, puis produit un IPA
+#   NON SIGNÉ (installable via AltStore, Sideloadly, TrollStore… — pas via
+#   l'App Store, qui exige une signature Apple).
+#
+# POURQUOI CE FLUX EXISTE
+#   Le dépôt a été écrit sans Mac. Rien ne prouve qu'un code Swift compile tant
+#   qu'un compilateur Swift ne l'a pas vu. Ce flux est donc la seule preuve
+#   réelle : il compile pour de bon, à chaque poussée.
+#
+# RUNNER macOS SUR UN DÉPÔT PUBLIC
+#   Les minutes de runner macOS sont gratuites pour les dépôts publics. Si le
+#   dépôt repasse en privé, ce flux consomme le quota macOS (×10 par rapport à
+#   Linux) — à garder en tête.
+#
+# SECRETS
+#   Les deux secrets ci-dessous sont FACULTATIFS : sans eux, la compilation
+#   passe quand même (Config/Base.xcconfig prévoit des valeurs vides), et
+#   l'application affiche un écran expliquant ce qui manque.
+#   Ne jamais mettre la clé `service_role` ici — seulement la clé publiable.
+
+name: iOS — compilation, tests et IPA non signé
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: ios-${{ github.ref }}
+  cancel-in-progress: true
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Droits du jeton, réduits au strict nécessaire.
+#  Ce flux LIT le dépôt et publie un artefact : il n'écrit jamais dedans. Sans
+#  ce bloc, le jeton reçoit les droits par défaut, plus larges que nécessaire.
+#
+#  À noter, car c'est le piège : un `permissions` de travail REMPLACE celui-ci,
+#  il ne s'y ajoute pas. Le jour où une étape fera un `gh release create`, il
+#  faudra `contents: write` sur le travail concerné — sinon l'étape échouera à
+#  la toute fin, après une compilation de quinze minutes. Le contrôle
+#  `scripts/verifier-flux.mjs` refuse précisément cette combinaison.
+# ─────────────────────────────────────────────────────────────────────────────
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Compiler, tester, empaqueter
+    runs-on: macos-15
+    timeout-minutes: 60
+
+    env:
+      SCHEME: Swiftdeepseek
+      PROJECT: Swiftdeepseek.xcodeproj
+      BUNDLE_ID: fr.swiftdeepseek.app
+
+    steps:
+      - name: Récupérer le dépôt
+        uses: actions/checkout@v4
+
+      # ───────────────────────────────────────────────────────────────────────
+      #  Garde-fou : ce flux ne doit jamais s'exécuter dans le dépôt React
+      #  Native. Le dépôt de référence est en LECTURE SEULE.
+      # ───────────────────────────────────────────────────────────────────────
+      - name: Vérifier le dépôt cible
+        run: |
+          set -euo pipefail
+          echo "Dépôt en cours : $GITHUB_REPOSITORY"
+          if [ "$GITHUB_REPOSITORY" != "Msoumaya2019/Swiftdeepseek" ]; then
+            echo "::error::Ce flux ne doit s'exécuter que dans Msoumaya2019/Swiftdeepseek (dépôt en écriture). Dépôt vu : $GITHUB_REPOSITORY"
+            exit 1
+          fi
+
+      # ───────────────────────────────────────────────────────────────────────
+      #  Contrôle statique des flux, AVANT les étapes longues.
+      #  Il coûte une seconde ; la compilation qui suit en coûte quinze. Un
+      #  `run:` invalide ou une action non épinglée se voit donc ici, et non
+      #  après l'installation de XcodeGen.
+      #  Aucune dépendance : Node est déjà présent sur les exécuteurs GitHub.
+      # ───────────────────────────────────────────────────────────────────────
+      - name: Vérifier les flux de travail
+        run: node scripts/verifier-flux.mjs
+
+      - name: Version de Xcode
+        run: |
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Installer XcodeGen
+        run: |
+          brew install xcodegen
+          xcodegen --version
+
+      # ───────────────────────────────────────────────────────────────────────
+      #  Configuration Supabase (facultative).
+      #  Les deux secrets sont NON secrets par nature (clé publiable), mais on
+      #  les garde hors du dépôt pour que le dépôt reste vierge de toute valeur
+      #  d'environnement.
+      #  `SLASH` contourne le fait que « // » commence un commentaire dans un
+      #  xcconfig — sans lui, l'URL deviendrait « https: ».
+      # ───────────────────────────────────────────────────────────────────────
+      - name: Écrire Config/Secrets.xcconfig
+        env:
+          SUPABASE_URL_VALUE: ${{ secrets.SUPABASE_URL }}
+          SUPABASE_KEY_VALUE: ${{ secrets.SUPABASE_ANON_KEY }}
+        run: |
+          set -euo pipefail
+          if [ -z "${SUPABASE_URL_VALUE:-}" ] || [ -z "${SUPABASE_KEY_VALUE:-}" ]; then
+            echo "::warning::SUPABASE_URL ou SUPABASE_ANON_KEY absent. La compilation continue ; l'application affichera un écran de configuration."
+            exit 0
+          fi
+          {
+            echo "SUPABASE_URL = ${SUPABASE_URL_VALUE//\//\$(SLASH)}"
+            echo "SUPABASE_ANON_KEY = ${SUPABASE_KEY_VALUE}"
+          } > Config/Secrets.xcconfig
+          echo "Config/Secrets.xcconfig écrit ($(wc -c < Config/Secrets.xcconfig) octets)."
+
+      - name: Générer le projet Xcode
+        run: xcodegen generate --spec project.yml
+
+      - name: Compiler (simulateur)
+        run: |
+          set -euo pipefail
+          xcodebuild build \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -destination 'generic/platform=iOS Simulator' \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build-simulator.log | tail -40
+          # Le journal complet est conservé en artefact ; on n'affiche que la fin
+          # pour ne pas noyer l'erreur utile s'il y en a une.
+
+      - name: Jouer les tests
+        run: |
+          set -euo pipefail
+          xcodebuild test \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Debug \
+            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build-tests.log | tail -60
+
+      # ───────────────────────────────────────────────────────────────────────
+      #  Archive NON SIGNÉE puis ré-empaquetage manuel en .ipa.
+      #  `xcodebuild -exportArchive` refuse de produire un IPA sans signature :
+      #  on reconstruit donc l'archive nous-mêmes, ce qui est exactement ce que
+      #  fait `-exportArchive` en interne.
+      # ───────────────────────────────────────────────────────────────────────
+      - name: Archive non signée
+        run: |
+          set -euo pipefail
+          xcodebuild archive \
+            -project "$PROJECT" \
+            -scheme "$SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath build/Swiftdeepseek.xcarchive \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGNING_ALLOWED=NO \
+            | tee build-archive.log | tail -40
+
+      - name: Empaqueter l'IPA
+        run: |
+          set -euo pipefail
+          APP="build/Swiftdeepseek.xcarchive/Products/Applications/Swiftdeepseek.app"
+          test -d "$APP" || { echo "::error::Application introuvable dans l'archive."; exit 1; }
+          rm -rf build/Payload build/Swiftdeepseek-unsigned.ipa
+          mkdir -p build/Payload
+          cp -R "$APP" build/Payload/
+          # Vérification : la ressource coranique doit être DANS le paquet. Un
+          # paquet sans ses données se lance et se ferme aussitôt.
+          test -f "build/Payload/Swiftdeepseek.app/verses.json" \
+            || { echo "::error::verses.json absent du paquet : les ressources ne sont pas embarquées."; exit 1; }
+          test -d "build/Payload/Swiftdeepseek.app/Mushaf" \
+            || { echo "::error::Dossier Mushaf absent du paquet : les pages ne sont pas embarquées."; exit 1; }
+          echo "Pages embarquées : $(ls build/Payload/Swiftdeepseek.app/Mushaf | wc -l)"
+          (cd build && zip -qry Swiftdeepseek-unsigned.ipa Payload)
+          ls -lh build/Swiftdeepseek-unsigned.ipa
+
+      - name: Publier les artefacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: Swiftdeepseek-unsigned-ipa
+          path: |
+            build/Swiftdeepseek-unsigned.ipa
+            build-simulator.log
+            build-tests.log
+            build-archive.log
+          if-no-files-found: error
+          retention-days: 30

@@ -1,0 +1,127 @@
+# project.yml — description du projet Xcode.
+#
+# POURQUOI CE FICHIER PLUTÔT QU'UN project.pbxproj ÉCRIT À LA MAIN
+#   Le dépôt a été écrit sans Mac. Un `project.pbxproj` contient des centaines
+#   d'identifiants internes ; l'écrire à la main sans pouvoir ouvrir Xcode
+#   revient à livrer un fichier non vérifiable, et une seule référence fausse
+#   rend le projet impossible à ouvrir.
+#   Ce fichier-ci est lisible, relu facilement, et génère le projet :
+#
+#       xcodegen generate            # produit Swiftdeepseek.xcodeproj
+#       make project                 # même chose, via le Makefile
+#
+#   L'intégration continue fait exactement cela, puis compile réellement
+#   (`.github/workflows/ios.yml`). Le fichier `.xcodeproj` est donc un produit
+#   dérivé, pas une source — et il est ignoré par Git pour ne jamais devenir un
+#   artefact périmé.
+
+name: Swiftdeepseek
+
+options:
+  bundleIdPrefix: fr.swiftdeepseek
+  deploymentTarget:
+    iOS: "16.0"
+  createIntermediateGroups: true
+  groupSortPosition: top
+  generateEmptyDirectories: false
+
+configs:
+  Debug: debug
+  Release: release
+
+settings:
+  base:
+    SWIFT_VERSION: "5.0"
+    ENABLE_USER_SCRIPT_SANDBOXING: NO
+    # Aucune dépendance externe : le projet ne doit rien avoir à télécharger
+    # pour se compiler.
+    CLANG_ENABLE_MODULES: YES
+
+fileGroups:
+  - Config
+  - scripts
+  - README.md
+  - SWIFT_MIGRATION.md
+  - SUPABASE_COMPATIBILITY.md
+  - LOCAL_DATA_MIGRATION.md
+  - Makefile
+  - project.yml
+
+targets:
+
+  # ---------------------------------------------------------------- application
+  Swiftdeepseek:
+    type: application
+    platform: iOS
+    sources:
+      - path: App
+        excludes:
+          - Info.plist
+      - path: Core
+      - path: Networking
+      - path: Storage
+      - path: Services
+      - path: Repositories
+      - path: Theme
+      - path: ViewModels
+      - path: Features
+      # Les JSON sont copiés à la racine du paquet : `Quran.load()` les cherche
+      # par leur nom, sans sous-dossier.
+      - path: Resources/Data
+      # Les 604 pages du Coran de Médine DOIVENT rester dans un dossier nommé
+      # `Mushaf` dans le paquet : `QuranSourceService.imageURL()` les cherche
+      # avec `subdirectory: "Mushaf"`. D'où `type: folder` (référence de
+      # dossier), qui recopie l'arborescence telle quelle au lieu de
+      # l'aplatir.
+      - path: Resources/Mushaf
+        type: folder
+    configFiles:
+      Debug: Config/Debug.xcconfig
+      Release: Config/Release.xcconfig
+    settings:
+      base:
+        PRODUCT_NAME: Swiftdeepseek
+        # Bundle identifier PROPRE à cette application. Celui de l'application
+        # React Native (`fr.coranmemoire.app`) n'est pas touché : les deux
+        # applications peuvent coexister sur le même appareil.
+        PRODUCT_BUNDLE_IDENTIFIER: fr.swiftdeepseek.app
+        INFOPLIST_FILE: App/Info.plist
+        CODE_SIGN_ENTITLEMENTS: App/Swiftdeepseek.entitlements
+        TARGETED_DEVICE_FAMILY: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        GENERATE_INFOPLIST_FILE: NO
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ENABLE_BITCODE: NO
+        SWIFT_TREAT_WARNINGS_AS_ERRORS: NO
+
+  # ---------------------------------------------------------------------- tests
+  SwiftdeepseekTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: Tests
+    dependencies:
+      - target: Swiftdeepseek
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: fr.swiftdeepseek.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/Swiftdeepseek.app/Swiftdeepseek"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+
+schemes:
+  Swiftdeepseek:
+    build:
+      targets:
+        Swiftdeepseek: all
+        SwiftdeepseekTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - SwiftdeepseekTests
+    archive:
+      config: Release

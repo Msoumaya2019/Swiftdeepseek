@@ -1,0 +1,36 @@
+# ─────────────────────────────────────────────────────────────────────────────
+#  Secrets — ne jamais committer
+# ─────────────────────────────────────────────────────────────────────────────
+Config/Secrets.xcconfig
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Produit dérivé : le projet Xcode est GÉNÉRÉ par XcodeGen depuis project.yml
+#  (`make project`). Le committer ferait vivre deux sources de vérité, dont une
+#  qui vieillit en silence. Voir l'en-tête de project.yml.
+# ─────────────────────────────────────────────────────────────────────────────
+Swiftdeepseek.xcodeproj/
+*.xcworkspace/
+xcuserdata/
+*.xcuserstate
+*.xcscmblueprint
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Compilation
+# ─────────────────────────────────────────────────────────────────────────────
+build/
+DerivedData/
+*.ipa
+*.xcarchive
+*.dSYM.zip
+*.moved-aside
+*.hmap
+*.ipa.tmp
+.swiftpm/
+
+# ─────────────────────────────────────────────────────────────────────────────
+#  Système
+# ─────────────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+*.swp
+*~

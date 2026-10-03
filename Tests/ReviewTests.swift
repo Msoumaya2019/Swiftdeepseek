@@ -1,0 +1,309 @@
+// ReviewTests.swift
+// Les règles de révision et de consolidation.
+//
+// Ces valeurs vivent dans le document synchronisé : les cycles de 7/14/21/30
+// jours, les quantités 1 Nisf / 1 Hizb / 1 Juz / 2 Juz, et les consolidations
+// J+1 / J+3 / J+7. Elles doivent rester exactement celles de l'application
+// React Native, sinon les deux clients ne compteraient plus la même chose.
+
+import XCTest
+@testable import Swiftdeepseek
+
+final class ReviewTests: XCTestCase {
+
+    // MARK: Constantes partagées
+
+    func testConstantsMatchTheReactNativeValues() {
+        XCTAssertEqual(Review.consolidationOffsets, [1, 3, 7])
+        XCTAssertEqual(Review.cycleOptions, [7, 14, 21, 30])
+        XCTAssertEqual(Review.quantityOptions, ["nisf", "hizb", "juz", "juz2"])
+    }
+
+    func testReviewCycleDaysDefaultsToSeven() {
+        XCTAssertEqual(Review.reviewCycleDays(Program.defaultState()), 7)
+        var state = Program.defaultState()
+        state.reviewSettings = ReviewSettings(enabled: true, cycleDays: 21)
+        XCTAssertEqual(Review.reviewCycleDays(state), 21)
+    }
+
+    func testReviewsAreEnabledUnlessExplicitlyDisabled() {
+        XCTAssertTrue(Review.reviewsEnabled(Program.defaultState()))
+        var state = Program.defaultState()
+        state.reviewSettings = ReviewSettings(enabled: false, cycleDays: 7)
+        XCTAssertFalse(Review.reviewsEnabled(state))
+    }
+
+    // MARK: Quantités lisibles
+
+    func testReviewQuantityNamesUnitsTheWayTheAppDoes() {
+        XCTAssertEqual(Review.reviewQuantity([Int]()), "0 verset")
+
+        let hizb = Quran.hizbs[0]
+        XCTAssertEqual(Review.reviewQuantity(Array(hizb.start...hizb.end)), "1 Hizb")
+
+        let nisf = Quran.halves[0]
+        XCTAssertEqual(Review.reviewQuantity(Array(nisf.start...nisf.end)), "1 Nisf")
+
+        let rub = Quran.quarters[0]
+        XCTAssertEqual(Review.reviewQuantity(Array(rub.start...rub.end)), "1 Rubu’")
+    }
+
+    func testReviewQuantityFallsBackToVerses() {
+        XCTAssertEqual(Review.reviewQuantity([1]), "1 verset")
+        XCTAssertEqual(Review.reviewQuantity([1, 2]), "2 versets")
+    }
+
+    func testReviewQuantityIsStableRegardlessOfOrderOrRepetition() {
+        let range = Array(Quran.halves[0].start...Quran.halves[0].end)
+        let shuffled = Array(range.reversed()) + range
+        XCTAssertEqual(Review.reviewQuantity(shuffled), Review.reviewQuantity(range))
+    }
+
+    // MARK: Répartition du corpus
+
+    func testPartitioningAnEmptyCorpusYieldsNothing() {
+        XCTAssertTrue(Review.partitionReviewCorpus([], length: 7).isEmpty)
+    }
+
+    func testPartitioningKeepsEveryVerseExactlyOnce() {
+        let corpus = Array(1...700)
+        let days = Review.partitionReviewCorpus(corpus, length: 7)
+        XCTAssertEqual(days.count, 7, "Le cycle doit comporter exactement le nombre de jours demandé.")
+        XCTAssertEqual(Set(days.flatMap { $0 }), Set(corpus), "Des versets ont été perdus ou dupliqués.")
+    }
+
+    func testPartitioningTheWholeQuranKeepsEveryVerse() {
+        let corpus = Array(1...6236)
+        let days = Review.partitionReviewCorpus(corpus, length: 30)
+        XCTAssertEqual(days.count, 30)
+        XCTAssertEqual(Set(days.flatMap { $0 }), Set(corpus))
+    }
+
+    // MARK: Cycle
+
+    func testCreateCycleOnlyTakesEstablishedVerses() {
+        // Un verset appris il y a moins de sept jours n'entre pas encore dans le
+        // cycle : il passe d'abord par les consolidations J+1/J+3/J+7.
+        var state = Program.defaultState()
+        let today = "2026-10-05"
+        state.knowledge = Dictionary(uniqueKeysWithValues: (1...20).map { (String($0), Mastery.perfect) })
+        state.memorizedAt = Dictionary(uniqueKeysWithValues: (1...20).map { (String($0), DateKeys.addDays(today, -30)) })
+        state.reviewModelStartedAt = today
+
+        let cycle = Review.createCycle(state, at: today, index: 1)
+        XCTAssertEqual(cycle.corpus, Array(1...20))
+        XCTAssertEqual(cycle.days.count, 7)
+        XCTAssertTrue(cycle.completed.isEmpty)
+        XCTAssertTrue(cycle.assignments.isEmpty)
+        XCTAssertEqual(cycle.startDate, today)
+        XCTAssertEqual(cycle.index, 1)
+    }
+
+    func testRecentlyLearnedVersesStayOutOfTheCycle() {
+        var state = Program.defaultState()
+        let today = "2026-10-05"
+        state.knowledge = Dictionary(uniqueKeysWithValues: (1...20).map { (String($0), Mastery.perfect) })
+        state.memorizedAt = Dictionary(uniqueKeysWithValues: (1...20).map { (String($0), DateKeys.addDays(today, -2)) })
+        state.reviewModelStartedAt = today
+
+        let cycle = Review.createCycle(state, at: today, index: 1)
+        XCTAssertTrue(cycle.corpus.isEmpty, "Un verset appris il y a deux jours n'est pas encore du cycle.")
+    }
+
+    // MARK: Réglages
+
+    func testChangingTheCycleLengthKeepsThePreviousCycleInHistory() {
+        var state = Program.defaultState()
+        state.reviewCycle = ReviewCycle(
+            index: 1,
+            startDate: "2026-09-01",
+            lengthDays: 7,
+            corpus: [],
+            days: [],
+            completed: [],
+            assignments: [:]
+        )
+
+        let result = Review.setReviewCycle(state, cycleDays: 14, at: "2026-10-05")
+        XCTAssertEqual(result.reviewSettings?.cycleDays, 14)
+        XCTAssertEqual(result.reviewSettings?.mode, "cycle")
+        XCTAssertEqual(result.reviewCycleHistory?.count, 1)
+        XCTAssertEqual(result.reviewCycleHistory?.first?.lengthDays, 7)
+        XCTAssertEqual(result.reviewCycle?.index, 2)
+        XCTAssertEqual(result.reviewCycle?.lengthDays, 14)
+    }
+
+    func testSettingAQuantitySwitchesModeWithoutLosingHistory() {
+        var state = Program.defaultState()
+        state.reviewCycle = ReviewCycle(
+            index: 3,
+            startDate: "2026-09-01",
+            lengthDays: 7,
+            corpus: [],
+            days: [],
+            completed: [],
+            assignments: [:]
+        )
+
+        let result = Review.setReviewQuantity(state, quantity: "juz2", at: "2026-10-05")
+        XCTAssertEqual(result.reviewSettings?.mode, "quantity")
+        XCTAssertEqual(result.reviewSettings?.dailyQuantity, "juz2")
+        XCTAssertEqual(result.reviewCycleHistory?.count, 1)
+        XCTAssertEqual(result.reviewCycle?.index, 4)
+    }
+
+    // MARK: Consolidation
+
+    /// LA règle des consolidations : les échéances restent ancrées à la date
+    /// d'apprentissage. Faire une consolidation en avance ne la déplace pas —
+    /// sinon J+3 et J+7 glisseraient à chaque fois.
+    func testConsolidationDatesStayAnchoredToTheLearningDate() throws {
+        let learned = "2026-10-01"
+        var state = Program.defaultState()
+        state.knowledge = ["1": .perfect, "2": .perfect]
+        state.memorizedAt = ["1": learned, "2": learned]
+        state.reviewModelStartedAt = learned
+
+        let result = Review.completeConsolidation(
+            state,
+            range: VerseRange(start: 1, end: 2),
+            at: learned
+        )
+        let consolidation = try XCTUnwrap(result.reviewConsolidations?["1"])
+
+        XCTAssertEqual(consolidation.scheduledDates?["1"], DateKeys.addDays(learned, 1))
+        XCTAssertEqual(consolidation.scheduledDates?["3"], DateKeys.addDays(learned, 3))
+        XCTAssertEqual(consolidation.scheduledDates?["7"], DateKeys.addDays(learned, 7))
+        // La consolidation a été faite le jour de l'apprentissage…
+        XCTAssertEqual(consolidation.completed?["1"], learned)
+        // …mais l'échéance enregistrée n'a pas bougé.
+        XCTAssertNotEqual(consolidation.scheduledDates?["1"], learned)
+    }
+
+    func testConsolidationStepsAreConsumedInOrder() {
+        let learned = "2026-10-01"
+        var state = Program.defaultState()
+        state.knowledge = ["1": .perfect]
+        state.memorizedAt = ["1": learned]
+        state.reviewModelStartedAt = learned
+
+        let first = Review.completeConsolidation(state, range: VerseRange(start: 1, end: 1), at: learned)
+        XCTAssertEqual(first.reviewConsolidations?["1"]?.completed?["1"], learned)
+        XCTAssertNil(first.reviewConsolidations?["1"]?.completed?["3"])
+
+        let second = Review.completeConsolidation(first, range: VerseRange(start: 1, end: 1), at: "2026-10-04")
+        XCTAssertEqual(second.reviewConsolidations?["1"]?.completed?["3"], "2026-10-04")
+        XCTAssertNil(second.reviewConsolidations?["1"]?.completed?["7"])
+
+        let third = Review.completeConsolidation(second, range: VerseRange(start: 1, end: 1), at: "2026-10-08")
+        XCTAssertEqual(third.reviewConsolidations?["1"]?.completed?["7"], "2026-10-08")
+    }
+
+    func testNextConsolidationReportsTheFollowingStep() {
+        let learned = "2026-10-01"
+        var state = Program.defaultState()
+        state.knowledge = ["1": .perfect]
+        state.memorizedAt = ["1": learned]
+        state.reviewModelStartedAt = learned
+
+        let prepared = Review.prepareReviewSchedule(state, at: learned)
+        let next = Review.nextConsolidation(prepared, id: 1)
+        XCTAssertEqual(next?.offset, 1)
+        XCTAssertEqual(next?.due, DateKeys.addDays(learned, 1))
+    }
+
+    // MARK: Versets difficiles
+
+    func testDifficultyMarkingSurvivesUntilDeliberatelyRemoved() {
+        var state = Program.defaultState()
+        state.knowledge = ["1": .perfect]
+
+        let marked = Review.toggleDifficulty(state, id: 1, at: "2026-10-05")
+        XCTAssertTrue(Review.isDifficult(marked, 1))
+        XCTAssertEqual(marked.reviewPriorityDue?["1"], "2026-10-05")
+        XCTAssertEqual(marked.difficultyHistory?.count, 1)
+
+        let cleared = Review.toggleDifficulty(marked, id: 1, at: "2026-10-06")
+        XCTAssertFalse(Review.isDifficult(cleared, 1))
+        XCTAssertNil(cleared.reviewPriorityDue?["1"])
+        // L'historique conserve la trace des deux gestes.
+        XCTAssertEqual(cleared.difficultyHistory?.count, 2)
+    }
+
+    func testDifficultyMarkingIgnoresOutOfRangeVerses() {
+        let state = Program.defaultState()
+        XCTAssertEqual(Review.toggleDifficulty(state, id: 0).difficultyMarkers?.count, 0)
+        XCTAssertEqual(Review.toggleDifficulty(state, id: 9999).difficultyMarkers?.count, 0)
+    }
+
+    // MARK: Plan du jour
+
+    func testReviewPlanOfAnEmptyAccountHasNothingToDo() {
+        let plan = Review.reviewPlan(Program.defaultState(), at: "2026-10-05")
+        XCTAssertTrue(plan.session.isEmpty)
+        XCTAssertTrue(plan.recent.isEmpty)
+        XCTAssertTrue(plan.priority.isEmpty)
+        XCTAssertTrue(plan.habitual.isEmpty)
+        XCTAssertTrue(plan.consolidations.isEmpty)
+        XCTAssertEqual(plan.completeJuz, 0)
+        XCTAssertEqual(plan.completeRub, 0)
+        XCTAssertEqual(plan.completeNisf, 0)
+    }
+
+    func testReviewPlanSurfacesDueConsolidations() {
+        let today = "2026-10-05"
+        let learned = DateKeys.addDays(today, -3)
+        var state = Program.defaultState()
+        state.knowledge = Dictionary(uniqueKeysWithValues: (1...5).map { (String($0), Mastery.perfect) })
+        state.memorizedAt = Dictionary(uniqueKeysWithValues: (1...5).map { (String($0), learned) })
+        state.reviewModelStartedAt = learned
+
+        let plan = Review.reviewPlan(state, at: today)
+
+        XCTAssertFalse(plan.session.isEmpty, "Des consolidations sont dues : la séance ne peut pas être vide.")
+        // Les cinq versets se suivent dans la même sourate : ils forment une
+        // seule tâche, pas cinq.
+        XCTAssertEqual(plan.recent.count, 1)
+        XCTAssertEqual(plan.recent.first?.start, 1)
+        XCTAssertEqual(plan.recent.first?.end, 5)
+        XCTAssertEqual(plan.recent.first?.scheduledDate, DateKeys.addDays(learned, 1))
+        XCTAssertEqual(plan.consolidations.count, 1)
+    }
+
+    func testReviewPlanDoesNotRepeatAVerseAlreadyReviewedToday() {
+        let today = "2026-10-05"
+        let learned = DateKeys.addDays(today, -3)
+        var state = Program.defaultState()
+        state.knowledge = Dictionary(uniqueKeysWithValues: (1...5).map { (String($0), Mastery.perfect) })
+        state.memorizedAt = Dictionary(uniqueKeysWithValues: (1...5).map { (String($0), learned) })
+        state.reviewModelStartedAt = learned
+        // Les cinq versets ont déjà été revus aujourd'hui.
+        state.reviewHistory = [
+            ReviewEvent(
+                id: "e1",
+                date: today,
+                scheduledDate: DateKeys.addDays(learned, 1),
+                completedAt: "2026-10-05T08:00:00.000Z",
+                start: 1,
+                end: 5,
+                category: .recent,
+                grade: ReviewGrade.perfect.rawValue
+            )
+        ]
+
+        let plan = Review.reviewPlan(state, at: today)
+        XCTAssertTrue(plan.session.isEmpty, "Un verset déjà revu aujourd'hui ne doit pas être reproposé.")
+    }
+
+    func testReviewPlanRespectsDisabledReviews() {
+        var state = Program.defaultState()
+        state.reviewSettings = ReviewSettings(enabled: false, cycleDays: 7)
+        state.knowledge = ["1": .perfect]
+        state.memorizedAt = ["1": "2026-09-01"]
+
+        let plan = Review.reviewPlan(state, at: "2026-10-05")
+        XCTAssertTrue(plan.session.isEmpty)
+        XCTAssertTrue(plan.recent.isEmpty)
+        XCTAssertTrue(plan.priority.isEmpty)
+    }
+}
