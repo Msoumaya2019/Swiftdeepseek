@@ -123,18 +123,38 @@ jobs:
       - name: Générer le projet Xcode
         run: xcodegen generate --spec project.yml
 
+      # ───────────────────────────────────────────────────────────────────────
+      #  Compilation.
+      #
+      #  POURQUOI PAS DE `set -e` ICI
+      #  L'échec de xcodebuild doit être CAPTURÉ, pas provoquer une sortie
+      #  immédiate : sinon on ne peut pas extraire les erreurs avant de sortir.
+      #
+      #  POURQUOI LES ERREURS SONT RÉÉMISES EN ANNOTATIONS
+      #  Le journal complet exige une authentification pour être téléchargé
+      #  (HTTP 403 sans jeton). Les annotations de contrôle, elles, se lisent
+      #  publiquement. Un échec devient donc diagnosticable sans avoir à ouvrir
+      #  la page Actions — ce qui compte quand on écrit le code sans Mac.
+      # ───────────────────────────────────────────────────────────────────────
       - name: Compiler (simulateur)
         run: |
-          set -euo pipefail
           xcodebuild build \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Debug \
             -destination 'generic/platform=iOS Simulator' \
             CODE_SIGNING_ALLOWED=NO \
-            | tee build-simulator.log | tail -40
-          # Le journal complet est conservé en artefact ; on n'affiche que la fin
-          # pour ne pas noyer l'erreur utile s'il y en a une.
+            > build-simulator.log 2>&1
+          code=$?
+          tail -40 build-simulator.log
+          if [ "$code" -ne 0 ]; then
+            echo "::error::Compilation échouée (code $code). Erreurs du compilateur :"
+            grep -E 'error:' build-simulator.log | head -30 | sed 's/%/%25/g' | while IFS= read -r ligne; do
+              echo "::error::$ligne"
+            done
+            exit "$code"
+          fi
+          echo "Compilation réussie."
 
       - name: Jouer les tests
         run: |
