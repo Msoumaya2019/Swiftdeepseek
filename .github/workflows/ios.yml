@@ -60,8 +60,25 @@ jobs:
       BUNDLE_ID: fr.swiftdeepseek.app
 
     steps:
+      # ───────────────────────────────────────────────────────────────────────
+      #  POURQUOI CES VERSIONS D'ACTIONS, ET PAS v4
+      #  Une annotation publique du run a signalé :
+      #    « Node.js 20 is deprecated. The following actions target Node.js 20
+      #      but are being forced to run on Node.js 24 : actions/checkout@v4,
+      #      actions/upload-artifact@v4. »
+      #  Être épinglé ne suffit donc pas : on peut être épinglé à une version
+      #  dépréciée. Les cibles ci-dessous sont les plus PETITES qui déclarent
+      #  `runs.using: node24` — mesuré en lisant `action.yml` à chaque étiquette :
+      #    checkout        v4 = node20 | v5 = node24   <- v5 suffit
+      #    upload-artifact v4 = node20 | v5 = node20 (!) | v6 = node24  <- v6
+      #  Piège : monter `upload-artifact` de v4 à v5 NE corrige PAS
+      #  l'avertissement, v5 déclare encore node20.
+      #  upload-artifact v6 n'apporte qu'un changement de moteur (Node 24) et
+      #  exige un exécuteur >= 2.327.1 ; `macos-15` hébergé le dépasse. Aucune
+      #  rupture d'API : les entrées `name` / `path` sont inchangées.
+      # ───────────────────────────────────────────────────────────────────────
       - name: Récupérer le dépôt
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
 
       # ───────────────────────────────────────────────────────────────────────
       #  Garde-fou : ce flux ne doit jamais s'exécuter dans le dépôt React
@@ -230,7 +247,7 @@ jobs:
           ls -lh build/Swiftdeepseek-unsigned.ipa
 
       - name: Publier les artefacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: Swiftdeepseek-unsigned-ipa
           path: |
