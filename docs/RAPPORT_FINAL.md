@@ -292,10 +292,14 @@ licences incertaines. Vérifié : **aucun code Swift ne référence** `medallion
 | **#19** | `a23ba05` | **échec** — une assertion de test trop forte | — |
 | **#20** | `aa90394` | **success** | — |
 | **#21** | `0e4a19f` | **success** — documentation seule | 4 min 56 s |
+| **#22** | `ededb3b` | **success** — documentation seule | 5 min 34 s |
+| **#23** | `17ea205` | **annulé** — remplacé par #24 (`cancel-in-progress`) | 5 min 59 s |
+| **#24** | `17ea205` | **success** — mais la configuration restait vide (voir ci-dessous) | 4 min 26 s |
+| **#25** | `593b8b1` | **success** — ordre des `#include?` corrigé | 7 min 57 s |
 
-Le tableau s'arrête ici : un run déclenché par une modification de ce seul rapport
-ajouterait une ligne, et la ligne suivante ajouterait la suivante. Les runs
-ultérieurs ne sont donc pas consignés.
+Le tableau ne s'étend pas pour un run dont la seule cause est une modification de
+ce rapport : il s'étend quand un run **porte un fait**. Les runs #22 à #25 en
+portent deux — un défaut réel, et son correctif.
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
@@ -443,6 +447,60 @@ Le run #20 porte exactement les **deux** annotations d'un run vert : clés
 Supabase absentes (la compilation continue) et mise en file des exécuteurs macOS
 arm64.
 
+### Le défaut #24 : la configuration n'atteignait pas le binaire
+
+Le run #24 a été déclenché **après** la pose des deux secrets de dépôt, et il est
+vert. Il portait pourtant un défaut, invisible au verdict.
+
+**Ce qui a été mesuré.** L'étape « Écrire Config/Secrets.xcconfig » a bien écrit
+**137 octets** — les deux vraies valeurs. Et pourtant, dans l'IPA produite,
+`Payload/Swiftdeepseek.app/Info.plist` portait :
+
+```
+SUPABASE_URL      = ''
+SUPABASE_ANON_KEY = ''
+```
+
+Les clés étaient là, substituées, mais **vides**.
+
+**La cause.** Dans `Config/Base.xcconfig`, le `#include? "Secrets.xcconfig"` était
+écrit **avant** les deux valeurs de repli vides. Dans un xcconfig, la **dernière
+affectation gagne** : les replis écrasaient les vraies valeurs.
+
+**Pourquoi personne ne le voyait.** Les deux tests qui vérifient que la
+configuration arrive dans l'application se **sautent** quand elle paraît absente
+(`XCTSkipUnless(AppConfig.isConfigured)`). Le défaut rendait la configuration
+absente — donc les tests se sautaient, et le run restait vert. **Le défaut
+éteignait ses propres garde-fous.** Le journal, lui, ne disait rien : il annonçait
+« 110 tests, 3 ignorés », ce qui est un état supporté et documenté.
+
+**Comment il a été trouvé.** En lisant l'artefact plutôt que le verdict. Le journal
+du run est **tronqué** (`tail -60`) : les 43 lignes « Test Case » visibles sur 110
+ne montraient pas *quels* tests étaient ignorés. L'artefact, lui, contient
+`build-tests.log` **complet** — et l'`Info.plist` de l'application construite.
+C'est la seule mesure qui a parlé.
+
+**Le correctif, et sa preuve.** Les replis passent **avant** l'include (#25). Le
+même contrôle sur l'IPA donne alors :
+
+```
+SUPABASE_URL      = 'https://npbwnvrqmajwqtnncuyv.supabase.co'
+SUPABASE_ANON_KEY = 'sb_publishable_…'
+```
+
+Et le témoin indépendant : les tests ignorés passent de **3 à 1** — les deux tests
+`AppWiringTests` s'exécutent désormais, seul reste celui de la traversée du
+changement d'heure, sans rapport avec Supabase.
+
+**La garde.** Un pas de CI refuse désormais le cas « secret posé mais variable de
+compilation vide » : il lit la variable résolue par `xcodebuild -showBuildSettings`
+et échoue si elle est vide. Sans lui, la même panne pourrait se reproduire et se
+taire encore.
+
+**Un effet de bord à connaître.** Le flux porte `cancel-in-progress: true` sur le
+groupe `ios-main` : déclencher un run à la main **annule** le run du push en cours.
+C'est ce qui est arrivé au #23, qui n'est donc pas un échec mais une annulation.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a
@@ -514,24 +572,31 @@ arm64.
    vérification de la mission qui reste entièrement à faire.
 2. **Vérifier la compatibilité bidirectionnelle** : une action dans l'une des
    applications doit apparaître dans l'autre.
+3. **Autoriser `swiftdeepseek://auth` dans Supabase** — *Authentication* → *URL
+   Configuration* → *Redirect URLs*. Le projet porte `mailer_autoconfirm: false`
+   (mesuré), donc la confirmation d'inscription est **obligatoire** ; sans ce
+   schéma autorisé, le lien de confirmation et celui de réinitialisation ne
+   reviennent pas dans l'application. Détaillé dans `SUPABASE_COMPATIBILITY.md`
+   §1.1. **C'est le seul geste d'authentification qui ne se pose pas depuis le
+   dépôt.**
 
 **Puis, par ordre d'importance fonctionnelle** (détaillé dans `SWIFT_MIGRATION.md` §9) :
 
-3. **Téléchargement du Coran 1441** (§9.4) — **le seul manque du lecteur**. Tout
+4. **Téléchargement du Coran 1441** (§9.4) — **le seul manque du lecteur**. Tout
    le reste est en place : les quinze bandes sont rendues, la géométrie de leurs
    rectangles est lue et testée, la mise en évidence fonctionne pour cette source.
    Il manque les **9 060 images** (archive de 102 608 011 octets). L'édition est
    proposée, et une page absente le **dit** au lieu d'afficher une page blanche.
-4. « Tawjeed test 2 » et « Medine Test » (§9.3), **et la décision qui va avec**.
+5. « Tawjeed test 2 » et « Medine Test » (§9.3), **et la décision qui va avec**.
    Les éditions de Tajwid n'ont ni images ni rectangles : `QuranEdition.boundsSource`
    rend `nil`, ce qui produit **aucune** mise en évidence plutôt que celles du
    Coran de Médine appliquées à une autre image. Reste à choisir entre copier
    leurs ressources (51 Mo et 134 Mo) et laisser l'utilisateur choisir une édition
    disponible. Ce n'est pas un cas théorique : l'état initial vaut `coranTest`
    (voir §10).
-5. **Repères de progression de séance dans la marge** (`marginAnnotations`,
+6. **Repères de progression de séance dans la marge** (`marginAnnotations`,
    `MushafPage.tsx:53`) — dépend du suivi de séance (`sessionThrough`), non porté.
-6. Assistant d'objectif hebdomadaire, écran d'apparence, messagerie, groupes,
+7. Assistant d'objectif hebdomadaire, écran d'apparence, messagerie, groupes,
    quiz, notifications, récitations, mini-lecteur.
 
 *Déjà faites depuis la rédaction de la première version de ce rapport, et donc

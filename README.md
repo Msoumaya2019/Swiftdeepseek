@@ -53,6 +53,15 @@ avertissements) :
 > **Piège des `xcconfig`** : `//` commence un commentaire, même au milieu d'une
 > valeur. Une URL s'écrit donc `https:$(SLASH)$(SLASH)…`. Détail dans
 > `Config/Base.xcconfig`.
+>
+> **Second piège, plus sournois** : dans un `xcconfig`, la **dernière affectation
+> gagne**. Les valeurs de repli vides de `Base.xcconfig` doivent donc être
+> écrites **avant** le `#include?`, sinon elles écrasent `Secrets.xcconfig` sans
+> rien dire. C'est arrivé : l'application construite portait
+> `SUPABASE_URL = ''` alors que le fichier de secrets était correct — et les deux
+> tests qui l'auraient signalé se sautaient, précisément parce que la
+> configuration paraissait absente. Mesure et correctif dans
+> `Config/Base.xcconfig`, section « ORDRE DES LIGNES ».
 
 `Config/Secrets.xcconfig` est ignoré par Git. Sans lui, la compilation passe
 quand même : l'application affiche un écran qui explique ce qui manque, au lieu
@@ -134,10 +143,20 @@ Deux pièges, mesurés :
 
 ### État mesuré
 
-Dernier run vert : **#17**, **4 min 49 s**, les **13 étapes en `success`**, un
-artefact `Swiftdeepseek-unsigned-ipa` de **120 263 470 octets** — les 604 pages sont
-donc bien embarquées. **101 tests** sont joués à chaque run ; deux sont ignorés
-tant que les secrets Supabase ne sont pas posés (voir la section suivante).
+Dernier run vert : **#25**, **7 min 57 s**, les **14 étapes en `success`**, un
+artefact `Swiftdeepseek-unsigned-ipa` de **120 270 023 octets** — les 604 pages
+sont donc bien embarquées.
+
+**110 tests** sont exécutés à chaque run, et **un seul** est ignoré : celui de la
+traversée du changement d'heure, qui n'a rien à éprouver dans un fuseau sans
+heure d'été.
+
+Deux autres (`AppWiringTests`) ne s'exécutent que si la configuration Supabase est
+présente : ils vérifient que l'URL arrive **intacte** dans l'application — non
+tronquée par un `//` pris pour un commentaire — et que la clé embarquée n'est
+**jamais** une clé `service_role`. Les secrets du dépôt étant désormais posés, ils
+s'exécutent ; c'est en les réactivant qu'a été trouvé le défaut d'ordre des
+`#include?` décrit plus haut.
 
 Les actions sont épinglées à `checkout@v5` et `upload-artifact@v6`, les plus
 petites versions qui déclarent `node24` (v5 de `upload-artifact` déclare encore
@@ -236,7 +255,7 @@ la pagination du lecteur, intégré à SwiftUI par
 | `JSONValueTests` | La conservation des clés JSON inconnues — la condition de la compatibilité. |
 | `DateKeysTests` | Les dates « AAAA-MM-JJ » à midi local (jamais de décalage de fuseau). |
 | `VerseBoundsTests` | L'ordre des colonnes de `bounds.json` et la projection des rectangles. |
-| `AppWiringTests` | Le relais des services observables, et l'URL Supabase non tronquée par `//`. |
+| `AppWiringTests` | Le relais des services observables, l'URL Supabase non tronquée par `//`, et l'absence de clé `service_role` embarquée. |
 
 Le chargement d'une ressource embarquée est possible dans les tests parce que la
 cible de tests est **hébergée** dans l'application (`TEST_HOST` dans
