@@ -763,7 +763,7 @@ d'affichage faux), et 13 sur les translittérations du banc. **0 non détectée*
 parties qui ne se prouvent pas sans appareil. La **décision** de la boucle, elle,
 est désormais portée : §9.15.
 
-## 9.15 La boucle de répétition : une machine d'état, pour que l'indicible se teste
+### 9.15 La boucle de répétition : une machine d'état, pour que l'indicible se teste
 
 `Core/PassageAudio.swift` décide **quelle** position vient ensuite et **combien de
 temps** attendre. Il restait à décider **ce qu'on en fait** : charger, reprendre,
@@ -818,7 +818,7 @@ borne se déclenche à la bonne milliseconde sur un appareil. Ce sont les deux
 parties qui restent à écrire, et elles sont isolées dans l'exécuteur d'effets, qui
 ne contient aucune décision.
 
-## 9.16 L'écran des réglages : une vue qui ne décide de rien
+### 9.16 L'écran des réglages : une vue qui ne décide de rien
 
 `Features/Quran/AudioRepeatSettingsView.swift` est la vue de
 `PassageAudioPlayer.tsx:236-271`. Elle n'est prouvable ni par un test — il n'y a
@@ -881,7 +881,7 @@ que les six réglages **changent** la lecture — cela ne se voit qu'à l'oreill
 appareil. Ce que la vue **ne décidait** pas, en revanche, est désormais exécuté : la
 couche AVFoundation qui manquait est écrite, et c'est §9.17.
 
-## 9.17 L'exécuteur audio : traduire, et ne rien décider
+### 9.17 L'exécuteur audio : traduire, et ne rien décider
 
 `Core/PassageAudioEngine.swift` rendait des `[PassageAudioEffect]` que **personne**
 ne consommait : le moteur n'avait aucun appelant hors de ses tests, et « Lancer ce
@@ -988,7 +988,7 @@ le mot suivant**, et que la session audio tienne en arrière-plan. Aucun de ces 
 points ne se mesure sans appareil ; le reste de l'exécuteur se lit.
 
 
-## 9.18 Modifier son programme et ses connaissances : une couche qui manquait
+### 9.18 Modifier son programme et ses connaissances : une couche qui manquait
 
 **Ce qui était demandé, et ce que c'est dans l'original.** « Dans réglages, mets la
 possibilité de modifier son programme et ses connaissances » correspond, dans
@@ -1160,7 +1160,7 @@ réglages : affichage du Coran, notifications, sources, profil et compte, et l'*
 l'assistant (l'écran d'accueil qui demande le sexe et le prénom). Aucun bouton mort n'a été
 posé pour autant : l'écran ne montre que ce qui fonctionne.
 
-## 9.19 L'apparence : quatre décisions qui ne doivent pas vivre dans la vue
+### 9.19 L'apparence : quatre décisions qui ne doivent pas vivre dans la vue
 
 Le thème s'appliquait déjà — `AppViewModel.palette` reproduit `applyTheme` depuis le début.
 Ce qui manquait, c'est de pouvoir en **changer** : la première des lignes ⬜ de l'écran des
@@ -1192,7 +1192,7 @@ fixe, et le banc le compare à l'ordre d'insertion lu dans la référence.
 `value={state.accent ?? accent}` (`AppearanceScreen.tsx:6`) : à défaut, l'accent se déduit du
 thème — `classic` → vert, `feminine` → rose, sinon prune.
 
-### Le champ qui manquait, et pourquoi il n'est pas cosmétique
+#### Le champ qui manquait, et pourquoi il n'est pas cosmétique
 
 `Theme.Accent` n'avait que `label`, `primary` et `soft`. La référence en porte un quatrième :
 `swatch`. Ce n'est pas un ornement — c'est **la seule chose** qui distingue visuellement les
@@ -1217,7 +1217,7 @@ l'accent que s'il est donné **ou** si le thème est blanc. Le rond coché et la
 appliquée suivent deux règles voisines mais distinctes, et `AppearanceTests` fixe l'écart qui
 les sépare.
 
-### Le sous-titre, où deux caractères comptent
+#### Le sous-titre, où deux caractères comptent
 
 La carte des réglages affiche `\(nom du thème) · couleur d’accent` (`src/App.tsx:329`). Le
 séparateur est un **point médian** (U+00B7) entouré d'espaces, et l'apostrophe de `d’accent`
@@ -1230,7 +1230,7 @@ thème **inconnu** rend `undefined`, donc **rien**. Le portage rend la chaîne v
 ` · couleur d’accent` — un sous-titre amputé plutôt qu'un nom inventé. Ce n'est pas un cas
 d'école : une version plus ancienne peut avoir stocké une clé que celle-ci ne connaît plus.
 
-### Ce qui n'est pas porté, et pourquoi c'est dit
+#### Ce qui n'est pas porté, et pourquoi c'est dit
 
 **La section « Police de l'interface »** — trois choix (élégante, moderne, classique),
 `AppearanceScreen.tsx:6`. Le choix **écrit** bien `state.uiFont`, mais rien ici ne le lit :
@@ -1248,7 +1248,7 @@ bloc des ressources. Le banc ne se contente pas de constater l'absence : il vér
 l'écran n'invente **aucun substitut** — pas de bande de couleurs tirée de `swatches` (table
 déclarée mais **jamais rendue** dans l'original), aucun code couleur écrit en dur.
 
-### Vérification, et ce que le banc a appris sur lui-même
+#### Vérification, et ce que le banc a appris sur lui-même
 
 `_banc/verifier-apparence.mjs` — **63** contrôles, 0 échec. `_banc/falsifier-apparence.mjs` —
 **25** cas, 0 non conforme, **24** mutations détectées, chaque fichier restauré **octet pour

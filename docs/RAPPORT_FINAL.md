@@ -394,9 +394,11 @@ référence** `medallion.png`,
 | **#50** | `76d57a5` | **success** — les réglages : modifier son programme et ses connaissances (`SWIFT_MIGRATION.md` §9.18) ; **286 tests, 1 ignoré, 0 échec** ; IPA de 120 511 485 octets | 6 min 45 s |
 | **#51** | `54ef7be` | **success** — documentation seule ; c'est le run #50 qui porte les réglages | — |
 | **#52** | `085a7f4` | **success** — l'écran d'apparence (`SWIFT_MIGRATION.md` §9.19) ; **306 tests attendus, 1 ignoré, 0 échec** sur **seize** groupes — compte **déduit**, l'artefact étant inaccessible sans jeton (voir ci-dessous) ; IPA de 120 542 217 octets | 6 min 1 s |
+| **#53** | `f1517a1` | **success** — documentation seule ; c'est le run #52 qui porte l'écran d'apparence | 5 min 26 s |
 
-Le tableau ne s'étend pas pour un run dont la seule cause est une modification de
-ce rapport : il s'étend quand un run **porte un fait**. Les runs #22 à #25 en
+Le tableau s'étend aussi pour un run qui ne porte qu'une modification de
+documentation : il est alors marqué « documentation seule ». Il s'étend surtout quand un run
+**porte un fait**. Les runs #22 à #25 en
 portent deux ; #28 à #30 en portent trois — une constante fausse, une exigence
 que j'avais inventée, et une résolution de méthode ; #31 porte le correctif de
 l'édition affichée ; #33 et #36 ne portent rien, et c'est dit ; #34 et #35 portent
@@ -420,7 +422,8 @@ celles-là aussi valent d'être racontées — elles disent la **limite** des ba
 run où la cible de tests compile **et** s'exécute avec le nouveau groupe. #51 ne
 porte rien, et c'est dit ; #52 porte l'**écran d'apparence** et le champ `swatch`
 qui manquait sur `Theme.Accent` — le run dont le compte de tests est **déduit**
-faute d'artefact accessible, et la déduction est expliquée plus bas.
+faute d'artefact accessible, et la déduction est expliquée plus bas. #53 ne porte
+rien non plus — il compile une correction de documentation —, et c'est dit.
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non

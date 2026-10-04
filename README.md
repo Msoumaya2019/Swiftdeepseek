@@ -158,6 +158,10 @@ embarquées. Le numéro est **ancré sur un commit**, et non « le dernier » : 
 poussée de documentation ajoute un run, si bien qu'une formule au superlatif serait
 périmée dès son écriture.
 
+Un run n° **53** (`f1517a1`), **documentation seule**, est vert ensuite : **16 / 16**
+étapes en `success`, **5 min 26 s**, **une** annotation — le message de file d'attente
+macOS. Il ne porte **aucun fait**, et c'est le n° 52 qui reste la référence.
+
 **306 tests** sont déclarés, répartis sur **seize groupes**, et **un seul** est
 ignoré : celui de la traversée du changement d'heure, qui n'a rien à éprouver dans
 un fuseau sans heure d'été. Le groupe **`AppearanceTests`** en porte **20**, et
