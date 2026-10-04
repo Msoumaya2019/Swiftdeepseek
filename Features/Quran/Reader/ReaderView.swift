@@ -67,6 +67,7 @@ public struct ReaderView: View {
                     difficulty: difficultIDs,
                     bookmarks: bookmarkIDs,
                     playing: model.audio.currentVerseID,
+                    session: readerSession,
                     style: VerseHighlightStyle.from(model.palette),
                     onPageChange: { _ in }
                 )
@@ -170,6 +171,27 @@ public struct ReaderView: View {
     /// consolidation (`App.tsx:511` : `reviewing && !reader.consolidation`).
     private var isReviewing: Bool {
         request.reviewTask != nil && !request.consolidation
+    }
+
+    /// La séance à représenter dans la marge de la page, ou `nil` pour une
+    /// lecture libre.
+    ///
+    /// Toute la dérivation d'`App.tsx:477-481` — quel suivi lire, quelle plage
+    /// afficher, jusqu'où la séance est validée — vit dans
+    /// `MarginAnnotations.session(...)`, où elle est éprouvable sans interface.
+    /// Ici il n'y a que le passage des quatre entrées de la demande.
+    ///
+    /// `revisionId` n'existe pas dans `ReaderRequest` : une révision est
+    /// toujours ouverte avec une `reviewTask` (`ReviewDashboardView.open`), donc
+    /// la condition de l'original se réduit à ces trois-là.
+    private var readerSession: MarginAnnotations.Session? {
+        MarginAnnotations.session(
+            learningSessionID: request.sessionID,
+            reviewTaskID: request.reviewTask?.id,
+            isConsolidation: request.consolidation,
+            requestRange: request.range,
+            state: model.state
+        )
     }
 
     /// Le premier décalage de consolidation encore en attente pour le verset de

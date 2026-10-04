@@ -27,6 +27,8 @@
 //     disponible qu'en partie — on affiche un texte qui le dit.
 //   - Mise en évidence des versets (difficile, signet, lecture) posée par-dessus
 //     la page, dans la même boîte qu'elle — voir `VerseHighlightView`.
+//   - Repères de progression de séance dans la marge, quand une séance est
+//     ouverte — voir `VerseMarginView` et `MarginAnnotations`.
 
 import SwiftUI
 import UIKit
@@ -79,6 +81,7 @@ final class MushafPageViewController: UIViewController {
     private var bandImageViews: [UIImageView] = []
     private let medallionView = VerseMedallionView()
     private let highlightView = VerseHighlightView()
+    private let marginView = VerseMarginView()
     private let spinner = UIActivityIndicatorView(style: .medium)
     private let placeholderLabel = UILabel()
     private var loadTask: Task<Void, Never>?
@@ -90,6 +93,8 @@ final class MushafPageViewController: UIViewController {
         imageSize: CGSize,
         medallions: [VerseMarkers.Marker] = [],
         highlights: [VerseBounds.Highlight] = [],
+        marginRegions: [MarginAnnotations.Region] = [],
+        session: MarginAnnotations.Session? = nil,
         style: VerseHighlightStyle = .from(Theme.white)
     ) {
         self.page = page
@@ -102,14 +107,29 @@ final class MushafPageViewController: UIViewController {
         highlightView.imageSize = imageSize
         highlightView.highlights = highlights
         highlightView.style = style
+        marginView.imageSize = imageSize
+        marginView.padding = banded ? 0 : 2
+        marginView.regions = marginRegions
+        marginView.session = session
     }
 
     /// Met à jour la mise en évidence **sans reconstruire la page**. C'est ce qui
     /// permet de marquer un verset comme difficile et de voir le rouge apparaître
     /// immédiatement, sans que l'image soit rechargée ni la page reconstruite.
-    func apply(highlights: [VerseBounds.Highlight], style: VerseHighlightStyle) {
+    ///
+    /// La séance suit le même chemin : `through` peut avancer pendant que la
+    /// page reste affichée, et le rail doit suivre sans recharger l'image.
+    ///
+    /// `session` n'a **pas** de valeur par défaut, et c'est voulu : un appel qui
+    /// l'omettrait effacerait silencieusement les repères d'une séance ouverte.
+    func apply(
+        highlights: [VerseBounds.Highlight],
+        style: VerseHighlightStyle,
+        session: MarginAnnotations.Session?
+    ) {
         highlightView.style = style
         highlightView.highlights = highlights
+        marginView.session = session
     }
 
     @available(*, unavailable)
@@ -174,6 +194,18 @@ final class MushafPageViewController: UIViewController {
         highlightView.frame = layoutBox
         view.addSubview(highlightView)
 
+        // Les repères de séance EN DERNIER : l'ordre d'ajout est l'ordre de
+        // dessin, et l'original les place après les mises en évidence et les
+        // icônes de signet (`MushafPage.tsx:53`, après `</Pressable>`). Une
+        // pastille de séance passe donc au-dessus d'une mise en évidence.
+        //
+        // EUX SEULS SE DESSINENT DANS LA VUE ENTIÈRE, et non dans la zone de
+        // page : le diamètre d'une pastille dépend de la place libre à gauche de
+        // la page, que la zone de page aurait déjà retirée. Voir
+        // `VerseMarginView`.
+        marginView.frame = view.bounds
+        view.addSubview(marginView)
+
         spinner.translatesAutoresizingMaskIntoConstraints = false
         spinner.hidesWhenStopped = true
 
@@ -223,6 +255,8 @@ final class MushafPageViewController: UIViewController {
         }
         medallionView.frame = box
         highlightView.frame = box
+        // La vue entière, et non `box` : voir `viewDidLoad`.
+        marginView.frame = view.bounds
     }
 
     // MARK: Chargement
@@ -317,6 +351,14 @@ struct MushafPageController: UIViewControllerRepresentable {
     var bookmarks: Set<Int> = []
     var playing: Int?
 
+    /// La séance à représenter dans la marge, ou `nil` pour une lecture libre.
+    ///
+    /// C'est la dérivation d'`App.tsx:477-481` qui décide — voir
+    /// `MarginAnnotations.session(...)`. Le lecteur la calcule depuis
+    /// `ReaderRequest` et l'état, et la passe ici : le contrôleur de pages n'a
+    /// pas à savoir pourquoi une séance est ouverte.
+    var session: MarginAnnotations.Session?
+
     var style: VerseHighlightStyle = .from(Theme.white)
 
     var onPageChange: (Int) -> Void
@@ -354,7 +396,8 @@ struct MushafPageController: UIViewControllerRepresentable {
         // chemin, la mise en évidence ne suivrait qu'au changement de page.
         current.apply(
             highlights: context.coordinator.highlights(for: current.page),
-            style: style
+            style: style,
+            session: session
         )
     }
 
@@ -407,6 +450,19 @@ struct MushafPageController: UIViewControllerRepresentable {
             return VerseMarkers.markers(page: page, source: source)
         }
 
+        /// Les régions de la page, pour les repères de séance.
+        ///
+        /// Elles ne dépendent PAS de la séance : ce sont les rectangles de la
+        /// page, dont `MarginAnnotations` tire les groupes. Les recalculer à
+        /// chaque changement de séance serait du travail perdu, mais elles
+        /// doivent venir de la **même** source que les mises en évidence — lire
+        /// les rectangles du Coran de Médine pour une page du 1441 ne donnerait
+        /// aucun repère, et rien pour le signaler.
+        func marginRegions(for page: Int) -> [MarginAnnotations.Region] {
+            guard let source = parent.edition.boundsSource else { return [] }
+            return MarginAnnotations.regions(page: page, source: source)
+        }
+
         func makePage(_ number: Int) -> UIViewController {
             let clamped = min(max(number, 1), QuranSourceService.totalPages)
             let edition = parent.edition
@@ -417,6 +473,8 @@ struct MushafPageController: UIViewControllerRepresentable {
                 imageSize: parent.source.geometry(for: edition).size,
                 medallions: medallions(for: clamped),
                 highlights: highlights(for: clamped),
+                marginRegions: marginRegions(for: clamped),
+                session: parent.session,
                 style: parent.style
             )
         }

@@ -14,9 +14,11 @@
 //   Repris : les rectangles (rouge clair pour un verset difficile, vert pour un
 //   signet, surbrillance pour le verset en lecture), leurs opacités, leurs coins
 //   arrondis, et l'icône de signet sur le bord droit.
-//   Non repris : les repères de progression de séance dans la marge
-//   (`MushafPage.tsx:53`, `marginAnnotations`). Ils dépendent du suivi de séance
-//   (`sessionThrough`), qui n'est pas encore porté — voir `SWIFT_MIGRATION.md`.
+//   Non repris ICI : les repères de progression de séance dans la marge
+//   (`MushafPage.tsx:53`). Ils le sont désormais, mais par une autre vue —
+//   `VerseMarginView` — parce qu'ils ne se dessinent pas dans la même boîte :
+//   le diamètre d'une pastille dépend de la place libre à gauche de la page,
+//   donc de la vue entière. Voir `MarginAnnotations`.
 
 import SwiftUI
 import UIKit
