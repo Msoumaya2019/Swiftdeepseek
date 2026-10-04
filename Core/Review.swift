@@ -266,6 +266,29 @@ public enum Review {
         return marker.user != nil || marker.admin != nil
     }
 
+    /// Tous les versets marqués difficiles, sous forme d'ensemble.
+    ///
+    /// Reproduit la dérivation de `App.tsx:499` :
+    ///
+    ///     Object.keys(state.difficultyMarkers ?? {})
+    ///       .filter(id => state.difficultyMarkers?.[id]?.user || state.difficultyMarkers?.[id]?.admin)
+    ///       .map(Number)
+    ///
+    /// — c'est-à-dire le prédicat de `isDifficult` appliqué à toutes les clés.
+    /// Un marqueur dont `user` et `admin` sont absents (marquage retiré) est donc
+    /// exclu, ce qui est le comportement voulu : l'affichage rouge dure
+    /// « jusqu'à retrait délibéré ».
+    ///
+    /// Une clé qui n'est pas un entier est ignorée plutôt que de faire échouer
+    /// la conversion : ces données viennent du document partagé, écrit par deux
+    /// applications.
+    public static func difficultIDs(_ state: AppState) -> Set<Int> {
+        Set((state.difficultyMarkers ?? [:]).compactMap { key, marker in
+            guard marker.user != nil || marker.admin != nil else { return nil }
+            return Int(key)
+        })
+    }
+
     // MARK: Consolidation
 
     /// `consolidationFor` — `src/core/review.ts:70`.

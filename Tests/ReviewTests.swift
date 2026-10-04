@@ -212,6 +212,163 @@ final class ReviewTests: XCTestCase {
         XCTAssertEqual(next?.due, DateKeys.addDays(learned, 1))
     }
 
+    // MARK: Notation d'une tâche de révision
+
+    /// `gradeReviewTask` n'était couvert par aucun test avant d'être branché
+    /// dans la barre d'actions du lecteur (`ReaderView.gradeBar`). Ces règles
+    /// décident de ce que voit la personne le lendemain : elles méritent d'être
+    /// tenues par un test, pas seulement par une relecture.
+
+    /// Le barème décide de l'échéance — `src/core/review.ts:153` :
+    /// `due[id] = addDays(at, grade === 'rework' ? 1 : 2)`.
+    func testReworkSchedulesTheVerseSoonerThanHesitant() {
+        let at = "2026-10-05"
+
+        let rework = Review.gradeReviewTask(
+            gradedState(at: at),
+            task: reviewTask(start: 1, end: 1),
+            grade: .rework,
+            at: at
+        )
+        XCTAssertEqual(rework.reviewPriorityDue?["1"], DateKeys.addDays(at, 1))
+
+        let hesitant = Review.gradeReviewTask(
+            gradedState(at: at),
+            task: reviewTask(start: 1, end: 1),
+            grade: .hesitant,
+            at: at
+        )
+        XCTAssertEqual(hesitant.reviewPriorityDue?["1"], DateKeys.addDays(at, 2))
+    }
+
+    /// `perfect` efface la priorité d'un verset **non marqué**, mais repousse
+    /// d'un cycle complet un verset **encore marqué** — il ne l'efface pas.
+    ///
+    /// L'état de départ porte volontairement une priorité déjà due : sans elle,
+    /// l'assertion « effacée » serait vraie même si le code ne faisait rien.
+    func testPerfectClearsAnUnmarkedVerseButPostponesAMarkedOne() {
+        let at = "2026-10-05"
+        let alreadyDue = ["1": DateKeys.addDays(at, -1)]
+
+        var unmarked = gradedState(at: at)
+        unmarked.reviewPriorityDue = alreadyDue
+        let cleared = Review.gradeReviewTask(
+            unmarked,
+            task: reviewTask(start: 1, end: 1),
+            grade: .perfect,
+            at: at
+        )
+        XCTAssertNil(cleared.reviewPriorityDue?["1"])
+
+        var marked = gradedState(at: at)
+        marked.reviewPriorityDue = alreadyDue
+        marked.difficultyMarkers = [
+            "1": DifficultyMarker(
+                user: DifficultyMarker.Entry(createdAt: "2026-09-01", comment: nil),
+                admin: nil
+            )
+        ]
+        let postponed = Review.gradeReviewTask(
+            marked,
+            task: reviewTask(start: 1, end: 1),
+            grade: .perfect,
+            at: at
+        )
+        XCTAssertEqual(
+            postponed.reviewPriorityDue?["1"],
+            DateKeys.addDays(at, Review.reviewCycleDays(marked))
+        )
+    }
+
+    /// Toute note autre que `perfect` marque le verset comme **difficile** —
+    /// c'est ce qui le fait apparaître en rouge clair dans le lecteur.
+    func testAnyGradeButPerfectMarksTheVerseAsDifficult() {
+        let at = "2026-10-05"
+
+        for grade in [ReviewGrade.rework, .hesitant] {
+            let next = Review.gradeReviewTask(
+                gradedState(at: at),
+                task: reviewTask(start: 1, end: 1),
+                grade: grade,
+                at: at
+            )
+            XCTAssertTrue(Review.isDifficult(next, 1), "\(grade) doit marquer le verset")
+        }
+
+        let perfect = Review.gradeReviewTask(
+            gradedState(at: at),
+            task: reviewTask(start: 1, end: 1),
+            grade: .perfect,
+            at: at
+        )
+        XCTAssertFalse(Review.isDifficult(perfect, 1))
+    }
+
+    /// LA règle de la date prévue : une révision faite **en avance** garde la
+    /// date qui lui avait été assignée. `event.date` est le jour réel,
+    /// `event.scheduledDate` celui du programme — et c'est le second qui décide
+    /// de l'historique. Une séance faite en avance ne doit pas déplacer sa date.
+    func testGradingKeepsTheScheduledDateEvenWhenDoneEarly() {
+        let scheduled = "2026-10-20"
+        let early = "2026-10-05"
+
+        let next = Review.gradeReviewTask(
+            gradedState(at: early),
+            task: reviewTask(start: 1, end: 1, scheduledDate: scheduled),
+            grade: .perfect,
+            at: early
+        )
+
+        let event = next.reviewHistory?.last
+        XCTAssertEqual(event?.date, early)
+        XCTAssertEqual(event?.scheduledDate, scheduled)
+        XCTAssertNotNil(event?.completedAt)
+    }
+
+    /// La première consolidation **due** est consommée par la notation : c'est
+    /// le même verset qui avance dans J+1 / J+3 / J+7.
+    func testGradingConsumesTheFirstDueConsolidation() {
+        let learned = "2026-10-01"
+        let at = "2026-10-02"
+
+        var state = Program.defaultState()
+        state.knowledge = ["1": .perfect]
+        state.memorizedAt = ["1": learned]
+        state.reviewModelStartedAt = learned
+
+        let next = Review.gradeReviewTask(
+            state,
+            task: reviewTask(start: 1, end: 1),
+            grade: .perfect,
+            at: at
+        )
+        XCTAssertEqual(next.reviewConsolidations?["1"]?.completed?["1"], at)
+        XCTAssertNil(next.reviewConsolidations?["1"]?.completed?["3"])
+    }
+
+    // MARK: Fabriques des tests de notation
+
+    /// Un état où le verset 1 est connu, et où le programme de révision est déjà
+    /// préparé pour `at` — donc prêt à être noté.
+    private func gradedState(at: String) -> AppState {
+        var state = Program.defaultState()
+        state.knowledge = ["1": .perfect]
+        state.memorizedAt = ["1": "2026-09-01"]
+        state.reviewModelStartedAt = "2026-09-01"
+        return Review.prepareReviewSchedule(state, at: at)
+    }
+
+    private func reviewTask(start: Int, end: Int, scheduledDate: String? = nil) -> ReviewTask {
+        ReviewTask(
+            id: "tache-\(start)-\(end)",
+            start: start,
+            end: end,
+            scheduledDate: scheduledDate,
+            category: .habitual,
+            label: "Révision"
+        )
+    }
+
     // MARK: Versets difficiles
 
     func testDifficultyMarkingSurvivesUntilDeliberatelyRemoved() {
@@ -234,6 +391,48 @@ final class ReviewTests: XCTestCase {
         let state = Program.defaultState()
         XCTAssertEqual(Review.toggleDifficulty(state, id: 0).difficultyMarkers?.count, 0)
         XCTAssertEqual(Review.toggleDifficulty(state, id: 9999).difficultyMarkers?.count, 0)
+    }
+
+    /// L'ensemble des versets à afficher en rouge — `App.tsx:499` :
+    ///
+    ///     Object.keys(state.difficultyMarkers ?? {})
+    ///       .filter(id => state.difficultyMarkers?.[id]?.user || state.difficultyMarkers?.[id]?.admin)
+    ///       .map(Number)
+    ///
+    /// Un marqueur posé par l'utilisateur compte, un marqueur posé par un
+    /// encadrant compte, les deux ensemble comptent. Un marqueur dont les deux
+    /// entrées sont absentes ne compte pas : c'est le cas défensif, les deux
+    /// applications supprimant la clé au retrait.
+    func testDifficultIDsCollectsMarkersFromBothOrigins() {
+        let user = DifficultyMarker.Entry(createdAt: "2026-10-01", comment: nil)
+        let admin = DifficultyMarker.Entry(createdAt: "2026-10-02", comment: "à revoir")
+
+        var state = Program.defaultState()
+        state.difficultyMarkers = [
+            "12": DifficultyMarker(user: user, admin: nil),
+            "13": DifficultyMarker(user: nil, admin: admin),
+            "14": DifficultyMarker(user: user, admin: admin),
+            "15": DifficultyMarker(user: nil, admin: nil),
+            "abc": DifficultyMarker(user: user, admin: nil)
+        ]
+
+        XCTAssertEqual(Review.difficultIDs(state), [12, 13, 14])
+    }
+
+    func testDifficultIDsIsEmptyWithoutMarkers() {
+        XCTAssertTrue(Review.difficultIDs(Program.defaultState()).isEmpty)
+    }
+
+    /// L'ensemble doit rester d'accord avec `isDifficult` : l'affichage en rouge
+    /// et le bouton de marquage ne doivent jamais dire deux choses différentes.
+    func testDifficultIDsAgreesWithIsDifficult() {
+        let state = Review.toggleDifficulty(Program.defaultState(), id: 2, at: "2026-10-05")
+
+        let ids = Review.difficultIDs(state)
+        XCTAssertEqual(ids, [2])
+        for id in 1...3 {
+            XCTAssertEqual(ids.contains(id), Review.isDifficult(state, id), "verset \(id)")
+        }
     }
 
     // MARK: Plan du jour

@@ -186,21 +186,90 @@ relevée dans `QuranSourceService.coran1441ArchiveURL`.
 signature Apple n'est configurée : les compilations de l'intégration continue
 sont **non signées**. Voir `README.md` § « Ce qu'il reste à faire côté Apple ».
 
-### 9.6 Notation des révisions non branchée
+### 9.6 Notation des révisions : branchée, et testée depuis peu
 
-`Review.gradeReviewTask` est écrit et testé, et la demande d'ouverture du lecteur
-porte bien `reviewTask` et `consolidation`. Mais l'écran qui permet de choisir
-« parfait / hésitant / erreurs / à réapprendre » n'existe pas encore : depuis le
-lecteur, une séance d'apprentissage se termine (`completeSession`), une tâche de
-révision ne se note pas encore.
+**Correction d'une affirmation fausse de ce document.** Une version précédente
+annonçait `Review.gradeReviewTask` « écrit et testé ». Il était écrit, mais
+**aucun test ne le couvrait** — la vérification a été faite en cherchant les
+appels dans `Tests/` : zéro. Cinq tests ont été ajoutés (`ReviewTests.swift`) :
+le report à J+1 après « à retravailler » contre J+2 après « hésitant », la
+levée du marquage difficile par « parfait », le marquage par toute autre note,
+la conservation de la date prévue quand la révision est faite en avance, et la
+consommation de la première consolidation due.
 
-### 9.7 Versets difficiles : affichage rouge à faire
+La notation est désormais **branchée dans le lecteur** (`ReaderView`) :
+
+- la barre de notation n'apparaît que pour une **tâche de révision**
+  (`reviewTask != nil`) et jamais pendant une consolidation — `App.tsx:476` et
+  `App.tsx:511` ;
+- trois notes, avec les mêmes icônes, libellés et ordre que
+  `RevisionBottomActionBar.tsx:7` : `check` « Parfait », `signal` « Quelques
+  hésitations », `refresh` « À retravailler », puis une barre de séparation, puis
+  `play` « Écouter » ;
+- pour une **consolidation**, l'action de droite devient
+  « Valider la consolidation · J+n », le décalage `n` étant celui de la première
+  consolidation due — `App.tsx:474` et `App.tsx:511`.
+
+**Deux vocabulaires de notes coexistent dans l'application d'origine, et il ne
+faut pas les confondre** : `perfect | hesitant | rework` pour les *tâches de
+révision* (`program.ts:23`), et `perfect | hesitant | errors | relearn` pour les
+*révisions de verset* (`program.ts:11`). Le lecteur utilise le premier.
+
+Reste à faire : le cinquième bouton de l'original, « Ma voix » (`onRecord`).
+L'enregistrement des récitations n'est pas implémenté côté Swift ; un bouton sans
+effet aurait été pire que son absence, il n'est donc pas repris.
+
+### 9.7 Versets difficiles : affichage rouge en place
 
 Le marquage et le stockage (`difficultyMarkers`, `reviewPriorityDue`,
-`difficultyHistory`) sont en place et partagés. L'affichage en rouge léger dans
-le lecteur — apprentissage, révision, consolidation — reste à faire.
+`difficultyHistory`) étaient en place et partagés ; l'affichage, lui, manquait, et
+`Resources/Data/bounds.json` — 604 pages, 13 766 rectangles — **n'était lu par
+aucun code Swift**. C'est fait, en trois pièces :
 
-### 9.8 Poids des ressources
+| Fichier | Rôle |
+| --- | --- |
+| `Core/VerseBounds.swift` | lit `bounds.json`, rend les rectangles en coordonnées d'image, et les projette à l'écran |
+| `Features/Quran/Reader/VerseHighlightView.swift` | dessine les rectangles et l'icône de signet |
+| `Features/Quran/Reader/MushafPageViewController.swift` | porte la vue de mise en évidence, par-dessus l'image |
+
+Sont repris de `MushafPage.tsx:51-52` : le rouge `#E85B5B` du verset difficile
+(opacité 0,18), le vert du signet (0,18), la surbrillance du verset en lecture
+(0,42), les coins arrondis à 4, et l'icône de signet sur le bord droit.
+
+**Deux points de vigilance, tous deux couverts par des tests :**
+
+1. **L'ordre des colonnes de `bounds.json` est `x1, x2, y1, y2`** — et non
+   `x1, y1, x2, y2`. Lu dans le mauvais ordre, 6 425 lignes sur 13 766 ont une
+   taille négative : elles seraient écartées en silence, et le défaut
+   ressemblerait à une erreur de projection.
+2. **La projection tient compte des bandes vides de `scaleAspectFit`.** Utiliser
+   la boîte de la vue au lieu de la boîte de l'image dessinée décale la mise en
+   évidence vers le haut — d'environ 400 pt sur une vue 1200 × 3000.
+
+Reste à faire : les **repères de progression de séance** dans la marge
+(`MushafPage.tsx:53`, `marginAnnotations`), qui dépendent du suivi de séance
+(`sessionThrough`) — non porté. Et les libellés d'accessibilité par verset mis en
+évidence : l'image de page est un élément d'accessibilité unique, ses sous-vues
+sont donc ignorées.
+
+### 9.8 Objets observables imbriqués : un défaut silencieux, corrigé
+
+`AppViewModel` expose `audio`, `sync` et `connectivity` comme des objets
+observables **séparés** de lui-même. SwiftUI ne réévalue une vue que pour les
+objets qu'elle observe : une vue qui lit `model.audio.isPlaying` s'affichait donc
+correctement une fois, puis **ne se mettait plus jamais à jour**. Le bouton
+lecture/pause du mini-lecteur restait figé, et la mise en évidence du verset en
+cours de récitation ne pouvait pas suivre.
+
+Corrigé dans `AppViewModel.init` : les trois `objectWillChange` sont relayés vers
+celui du modèle. Un test le verrouille (`Tests/AppWiringTests.swift`), et il est
+falsifiable — retirer le relais le fait échouer.
+
+Le défaut mérite d'être noté parce qu'il est **invisible** : l'écran s'affiche, la
+compilation est verte, rien ne signale l'absence de mise à jour. La règle à
+retenir : tout service observable exposé par le modèle doit être relayé.
+
+### 9.9 Poids des ressources
 
 Le paquet embarque environ **123 Mo** de ressources (604 pages + JSON). C'est le
 prix de la lecture hors ligne immédiate. Si la taille devient un problème, la

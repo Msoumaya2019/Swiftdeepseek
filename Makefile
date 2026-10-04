@@ -69,10 +69,21 @@ build: project
 		-destination 'generic/platform=iOS Simulator' \
 		CODE_SIGNING_ALLOWED=NO
 
+#  Le simulateur est résolu À L'EXÉCUTION plutôt que nommé en dur.
+#  Nommer « iPhone 16 » a déjà fait échouer un flux : le même fichier passait, puis
+#  ne passait plus, parce que le contenu de l'image de l'exécuteur avait changé.
+#  `xcrun simctl` dit ce qui est réellement installé. Voir SWIFT_MIGRATION.md §9.
 test: project
+	@DEVICE="$$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $$2; exit}')"; \
+	if [ -z "$$DEVICE" ]; then \
+		echo "Aucun simulateur iPhone disponible. Appareils vus :"; \
+		xcrun simctl list devices available | head -40; \
+		exit 1; \
+	fi; \
+	echo "Simulateur : $$DEVICE"; \
 	xcodebuild test \
 		-project $(PROJECT) -scheme $(SCHEME) -configuration Debug \
-		-destination 'platform=iOS Simulator,name=iPhone 16' \
+		-destination "id=$$DEVICE" \
 		CODE_SIGNING_ALLOWED=NO
 
 archive: project

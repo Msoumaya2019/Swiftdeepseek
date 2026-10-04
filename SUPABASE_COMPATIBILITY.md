@@ -117,6 +117,55 @@ Fonctions RPC : `accept_friend`, `accept_group_invite`,
 
 ---
 
+### 1.5 Ce qui a été MESURÉ sur le projet réel
+
+Ces quatre appels ont été passés sur le projet `npbwnvrqmajwqtnncuyv` avec la clé
+publiable, le 4 octobre 2026. Ils ne modifient rien : ce sont des lectures. Ils
+remplacent une supposition (« la clé doit être bonne ») par une mesure.
+
+| Appel | Code | Ce que ça prouve |
+|---|---|---|
+| `GET /auth/v1/health` | 200 | Le projet existe et GoTrue répond. |
+| `GET /auth/v1/settings` | 200 | **La clé est acceptée.** Une clé refusée donnerait 401. Le fournisseur `email` est actif, l'inscription est ouverte, la confirmation d'adresse est **exigée** (`mailer_autoconfirm: false`). |
+| `POST /auth/v1/token?grant_type=password` (identifiants volontairement faux) | 400 `invalid_credentials` | **La clé n'est pas en cause** : c'est le couple adresse/mot de passe qui est refusé. Une clé invalide donnerait `invalid_api_key`. |
+| `GET /rest/v1/user_state?select=user_id` | 401 `42501` | Le rôle `anon` n'a **aucun privilège** sur `user_state`. |
+
+### Le point important : `anon` n'a pas le droit de lire `user_state`
+
+La réponse exacte est :
+
+    {"code":"42501","message":"permission denied for table user_state",
+     "hint":"Grant the required privileges to the current role with:
+             GRANT SELECT ON public.user_state TO anon;"}
+
+C'est une information utile pour ce client, et elle est **rassurante** :
+
+- RLS ne s'applique qu'aux rôles qui ont déjà le privilège sur la table. Ici,
+  l'accès est refusé **avant** RLS, au niveau du privilège : un visiteur non
+  connecté ne peut donc pas même atteindre les politiques.
+- Conséquence pour l'application Swift : **elle doit être authentifiée avant de
+  lire quoi que ce soit**, exactement comme l'application React Native. Il n'y a
+  pas de « mode invité » à prévoir — et il ne faut pas en ajouter un.
+- Le rôle `authenticated`, lui, doit avoir le privilège (l'application React
+  Native fonctionne). **Non vérifié ici** : le confirmer demande un compte réel,
+  ce que fait l'étape 10 de la première mission (« tester avec un compte
+  existant »). C'est le seul point de ce document qui reste à mesurer.
+
+### Ce que la racine PostgREST renvoie, et pourquoi ce n'est pas une erreur
+
+`GET /rest/v1/` répond **401** avec :
+
+    {"message":"Secret API key required",
+     "hint":"Only secret API keys can be used for this endpoint."}
+
+Ce n'est **pas** un signe que la clé est mauvaise : Supabase réserve désormais la
+racine PostgREST (la description OpenAPI) aux clés secrètes. La clé publiable y
+est refusée par conception. Tester la validité d'une clé publiable sur cette
+adresse mène donc à une conclusion fausse — c'est un piège à connaître, et
+`/auth/v1/settings` est le bon point de contrôle.
+
+---
+
 ## 2. Ce qui est INTERDIT
 
 Ces opérations casseraient l'application React Native en production, pour des

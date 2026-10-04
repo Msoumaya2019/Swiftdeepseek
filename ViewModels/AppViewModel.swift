@@ -52,6 +52,19 @@ public final class AppViewModel: ObservableObject {
             .sink { [weak self] value in self?.state = value }
             .store(in: &cancellables)
 
+        // Les services sont des objets observables SÉPARÉS du modèle. Sans ce
+        // relais, une vue qui lit `model.audio.isPlaying` ou
+        // `model.connectivity.isOffline` ne serait jamais réévaluée quand la
+        // valeur change : le bouton lecture/pause du mini-lecteur resterait figé,
+        // la mise en évidence du verset en cours de récitation ne suivrait pas,
+        // et une bannière « hors ligne » n'apparaîtrait jamais. Le défaut est
+        // silencieux — la vue s'affiche, simplement elle ne se met plus à jour.
+        for publisher in [audio.objectWillChange, sync.objectWillChange, connectivity.objectWillChange] {
+            publisher
+                .sink { [weak self] _ in self?.objectWillChange.send() }
+                .store(in: &cancellables)
+        }
+
         audio.select(reciter: Reciter.find(repository.state.audioPreferences?.reciterId))
     }
 

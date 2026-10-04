@@ -56,6 +56,10 @@ public struct ReaderView: View {
                     page: $page,
                     edition: edition,
                     source: model.sources,
+                    difficulty: difficultIDs,
+                    bookmarks: bookmarkIDs,
+                    playing: model.audio.currentVerseID,
+                    style: VerseHighlightStyle.from(model.palette),
                     onPageChange: { _ in }
                 )
                 .accessibilityLabel("Moushaf, page \(page)")
@@ -122,7 +126,40 @@ public struct ReaderView: View {
 
     // MARK: Barre d'actions
 
+    /// Vrai quand le lecteur a été ouvert pour une **révision** — et non pour une
+    /// simple lecture, ni pour une consolidation.
+    ///
+    /// Reproduit `App.tsx:476` : `reviewing = !!(reviewTask || revisionId || consolidation)`,
+    /// combiné au fait que la barre de notation est masquée pendant une
+    /// consolidation (`App.tsx:511` : `reviewing && !reader.consolidation`).
+    private var isReviewing: Bool {
+        request.reviewTask != nil && !request.consolidation
+    }
+
+    /// Le premier décalage de consolidation encore en attente pour le verset de
+    /// début — 1, 3 ou 7. C'est celui que le bouton valide.
+    ///
+    /// Reproduit `App.tsx:474` :
+    /// `([1,3,7] as const).find(o => !state.reviewConsolidations?.[range.start]?.completed[o])`.
+    /// `nextConsolidation` lit les consolidations **stockées** et applique le même
+    /// critère, sans avoir à rejouer la recherche à la main.
+    private var pendingConsolidationOffset: Int? {
+        guard let start = request.range?.start else { return nil }
+        return Review.nextConsolidation(model.state, id: start)?.offset
+    }
+
     private var actionBar: some View {
+        VStack(spacing: 0) {
+            if isReviewing { gradeBar }
+            iconBar
+        }
+        .background(model.palette.paper)
+        .overlay(alignment: .top) {
+            Rectangle().fill(model.palette.line).frame(height: 1)
+        }
+    }
+
+    private var iconBar: some View {
         HStack(spacing: Theme.Spacing.lg) {
             actionButton("speaker.wave.2", showAudio ? "Masquer l'audio" : "Écouter") {
                 showAudio.toggle()
@@ -141,24 +178,114 @@ public struct ReaderView: View {
                 model.update { Review.toggleDifficulty($0, id: currentVerseID) }
             }
             Spacer()
-            if let range = request.range, let sessionID = request.sessionID {
-                Button("Valider") {
-                    model.update { Program.completeSession($0, id: sessionID, memorized: true) }
-                    dismiss()
-                }
-                .buttonStyle(.borderedProminent)
-                .tint(model.palette.green)
-                .font(.system(size: Theme.Typography.body, weight: .semibold))
-                .accessibilityHint("Marque la séance comme apprise")
-                .opacity(range.start > 0 ? 1 : 1)
-            }
+            trailingAction
         }
         .padding(.horizontal, Theme.Spacing.lg)
         .padding(.vertical, Theme.Spacing.md)
-        .background(model.palette.paper)
-        .overlay(alignment: .top) {
-            Rectangle().fill(model.palette.line).frame(height: 1)
+    }
+
+    /// L'action de droite dépend de **pourquoi** le lecteur a été ouvert. C'est
+    /// le seul endroit où les trois cas se distinguent.
+    @ViewBuilder
+    private var trailingAction: some View {
+        if request.consolidation {
+            // Reproduit `App.tsx:511` :
+            //   <Button onPress={validateConsolidation}>Valider la consolidation · J+{offset}</Button>
+            // Le repli à 7 suit l'original (`consolidationOffset ?? 7`) : il ne
+            // devrait pas servir, `pendingConsolidationOffset` étant non nul dès
+            // lors qu'une consolidation reste due.
+            Button("Valider la consolidation · J+\(pendingConsolidationOffset ?? 7)") {
+                completeConsolidation()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(model.palette.green)
+            .font(.system(size: Theme.Typography.body, weight: .semibold))
+            .accessibilityHint("Marque cette consolidation comme faite")
+
+        } else if request.range != nil, let sessionID = request.sessionID {
+            // La présence d'un `range` est la condition ; sa valeur n'est pas lue.
+            // (La version précédente portait `.opacity(range.start > 0 ? 1 : 1)`,
+            // qui ne changeait rien — les deux branches valaient 1.)
+            Button("Valider") {
+                model.update { Program.completeSession($0, id: sessionID, memorized: true) }
+                dismiss()
+            }
+            .buttonStyle(.borderedProminent)
+            .tint(model.palette.green)
+            .font(.system(size: Theme.Typography.body, weight: .semibold))
+            .accessibilityHint("Marque la séance comme apprise")
         }
+    }
+
+    /// Barre de notation d'une révision.
+    ///
+    /// Reproduit `RevisionBottomActionBar.tsx:7` — **mêmes icônes, mêmes
+    /// libellés, même ordre**, et la même barre verticale de séparation avant la
+    /// partie audio :
+    ///
+    ///     ['check','Parfait','perfect']
+    ///     ['signal','Quelques hésitations','hesitant']
+    ///     ['refresh','À retravailler','rework']
+    ///     — séparation —
+    ///     ['play','Écouter','audio']
+    ///
+    /// Les trois notes sont celles du vocabulaire des **tâches de révision**
+    /// (`perfect | hesitant | rework`). L'application d'origine en a un SECOND,
+    /// pour les révisions de versets (`errors | relearn`) — ne pas confondre :
+    /// voir `Core/AppState.swift` et `SWIFT_MIGRATION.md` §9.6.
+    ///
+    /// L'original comporte un cinquième bouton, « Ma voix » (`onRecord`). Il n'est
+    /// pas repris : l'enregistrement des récitations n'est pas implémenté côté
+    /// Swift, et un bouton sans effet serait pire que son absence.
+    private var gradeBar: some View {
+        HStack(spacing: Theme.Spacing.xs) {
+            gradeButton("check", "Parfait") { grade(.perfect) }
+            gradeButton("signal", "Quelques hésitations") { grade(.hesitant) }
+            gradeButton("refresh", "À retravailler") { grade(.rework) }
+
+            Rectangle()
+                .fill(model.palette.line)
+                .frame(width: 1)
+                .padding(.vertical, Theme.Spacing.sm)
+
+            gradeButton("play", "Écouter") {
+                showAudio.toggle()
+                if showAudio { model.audio.play(verseID: currentVerseID) }
+            }
+        }
+        .padding(.horizontal, Theme.Spacing.sm)
+        .padding(.top, Theme.Spacing.sm)
+    }
+
+    private func gradeButton(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            VStack(spacing: Theme.Spacing.xs) {
+                Image(systemName: symbol)
+                    .font(.system(size: 20))
+                Text(label)
+                    .font(.system(size: Theme.Typography.metadata, weight: .semibold))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(2)
+            }
+            .frame(maxWidth: .infinity, minHeight: 56)
+        }
+        .foregroundStyle(model.palette.green)
+        .background(model.palette.soft, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
+        .accessibilityLabel(label)
+    }
+
+    private func grade(_ grade: ReviewGrade) {
+        guard let task = request.reviewTask else { return }
+        model.update { Review.gradeReviewTask($0, task: task, grade: grade) }
+        dismiss()
+    }
+
+    private func completeConsolidation() {
+        guard let range = request.range else { return }
+        model.update {
+            Review.completeConsolidation($0, range: range, targetOffset: pendingConsolidationOffset)
+        }
+        dismiss()
     }
 
     private func actionButton(_ symbol: String, _ label: String, action: @escaping () -> Void) -> some View {
@@ -259,6 +386,22 @@ public struct ReaderView: View {
 
     private var currentVerseID: Int {
         request.range?.start ?? Quran.pageRange(page)?.start ?? 1
+    }
+
+    /// Les versets marqués **difficiles** — mis en évidence en rouge léger sur la
+    /// page, jusqu'à retrait délibéré du marquage.
+    ///
+    /// La dérivation (clé entière, `user` ou `admin` présent) vit dans
+    /// `Review.difficultIDs`, où elle est éprouvable sans interface.
+    private var difficultIDs: Set<Int> {
+        Review.difficultIDs(model.state)
+    }
+
+    /// Les versets marqués d'un **signet**, retirés exclus — `visibleBookmarks`,
+    /// `src/core/bookmarks.ts:18`. Les marques de suppression sont conservées dans
+    /// l'état, d'où le filtre sur `deletedAt`.
+    private var bookmarkIDs: Set<Int> {
+        Set(Bookmark.visible(model.state).map(\.verseId))
     }
 
     private var isBookmarked: Bool {

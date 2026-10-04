@@ -16,6 +16,8 @@
 //   - Ratio des pages préservé : `scaleAspectFit`, jamais d'étirement.
 //   - Aucune page blanche : si une page n'est pas disponible, on affiche un
 //     indicateur de chargement.
+//   - Mise en évidence des versets (difficile, signet, lecture) posée par-dessus
+//     l'image, dans la même boîte qu'elle — voir `VerseHighlightView`.
 
 import SwiftUI
 import UIKit
@@ -55,14 +57,30 @@ final class MushafPageViewController: UIViewController {
     let page: Int
     private let imageURL: URL?
     private let imageView = UIImageView()
+    private let highlightView = VerseHighlightView()
     private let spinner = UIActivityIndicatorView(style: .medium)
     private let placeholderLabel = UILabel()
     private var loadTask: Task<Void, Never>?
 
-    init(page: Int, imageURL: URL?) {
+    init(
+        page: Int,
+        imageURL: URL?,
+        highlights: [VerseBounds.Highlight] = [],
+        style: VerseHighlightStyle = .from(Theme.white)
+    ) {
         self.page = page
         self.imageURL = imageURL
         super.init(nibName: nil, bundle: nil)
+        highlightView.highlights = highlights
+        highlightView.style = style
+    }
+
+    /// Met à jour la mise en évidence **sans reconstruire la page**. C'est ce qui
+    /// permet de marquer un verset comme difficile et de voir le rouge apparaître
+    /// immédiatement, sans que l'image soit rechargée ni la page reconstruite.
+    func apply(highlights: [VerseBounds.Highlight], style: VerseHighlightStyle) {
+        highlightView.style = style
+        highlightView.highlights = highlights
     }
 
     @available(*, unavailable)
@@ -94,6 +112,14 @@ final class MushafPageViewController: UIViewController {
         view.addSubview(spinner)
         view.addSubview(placeholderLabel)
 
+        // La mise en évidence est posée PAR-DESSUS l'image, dans l'imageView :
+        // elle partage donc exactement sa boîte, et suit ses changements de
+        // taille sans qu'aucune contrainte supplémentaire soit nécessaire.
+        // `imageView.clipsToBounds` garantit en prime qu'un rectangle ne peut pas
+        // déborder de la page.
+        highlightView.translatesAutoresizingMaskIntoConstraints = false
+        imageView.addSubview(highlightView)
+
         // LE POINT CENTRAL DU CENTRAGE VERTICAL :
         // la page est centrée dans l'espace que son conteneur lui laisse, quelle
         // que soit la hauteur de cet espace. Aucune marge haute fixe n'est
@@ -107,6 +133,11 @@ final class MushafPageViewController: UIViewController {
             imageView.bottomAnchor.constraint(equalTo: view.bottomAnchor, constant: -4),
             imageView.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             imageView.centerYAnchor.constraint(equalTo: view.centerYAnchor),
+
+            highlightView.leadingAnchor.constraint(equalTo: imageView.leadingAnchor),
+            highlightView.trailingAnchor.constraint(equalTo: imageView.trailingAnchor),
+            highlightView.topAnchor.constraint(equalTo: imageView.topAnchor),
+            highlightView.bottomAnchor.constraint(equalTo: imageView.bottomAnchor),
 
             spinner.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             spinner.centerYAnchor.constraint(equalTo: view.centerYAnchor),
@@ -168,6 +199,16 @@ struct MushafPageController: UIViewControllerRepresentable {
     @Binding var page: Int
     let edition: QuranEdition
     let source: QuranSourceService
+
+    /// Les versets à mettre en évidence, par identifiant. Ce sont les **états**,
+    /// pas les rectangles : les rectangles dépendent de la page, et c'est le
+    /// coordinateur qui les calcule pour la page qu'il construit.
+    var difficulty: Set<Int> = []
+    var bookmarks: Set<Int> = []
+    var playing: Int?
+
+    var style: VerseHighlightStyle = .from(Theme.white)
+
     var onPageChange: (Int) -> Void
 
     func makeUIViewController(context: Context) -> UIPageViewController {
@@ -189,11 +230,22 @@ struct MushafPageController: UIViewControllerRepresentable {
 
     func updateUIViewController(_ controller: UIPageViewController, context: Context) {
         context.coordinator.parent = self
+        guard let current = controller.viewControllers?.first as? MushafPageViewController else { return }
+
         // Changement de page piloté par l'extérieur (reprise de lecture, marque-page).
-        guard let current = controller.viewControllers?.first as? MushafPageViewController,
-              current.page != page else { return }
-        let direction: UIPageViewController.NavigationDirection = page > current.page ? .forward : .reverse
-        controller.setViewControllers([context.coordinator.makePage(page)], direction: direction, animated: false)
+        guard current.page == page else {
+            let direction: UIPageViewController.NavigationDirection = page > current.page ? .forward : .reverse
+            controller.setViewControllers([context.coordinator.makePage(page)], direction: direction, animated: false)
+            return
+        }
+
+        // Même page, mais les ensembles ont pu changer : marquer un verset comme
+        // difficile, poser ou retirer un signet, lancer une récitation. Sans ce
+        // chemin, la mise en évidence ne suivrait qu'au changement de page.
+        current.apply(
+            highlights: context.coordinator.highlights(for: current.page),
+            style: style
+        )
     }
 
     func makeCoordinator() -> Coordinator { Coordinator(parent: self) }
@@ -206,11 +258,27 @@ struct MushafPageController: UIViewControllerRepresentable {
             self.parent = parent
         }
 
+        /// Les rectangles de la page, projetés nulle part : ils restent en
+        /// coordonnées d'image, `VerseHighlightView` les projettera.
+        func highlights(for page: Int) -> [VerseBounds.Highlight] {
+            VerseBounds.highlights(
+                page: page,
+                difficulty: parent.difficulty,
+                bookmarks: parent.bookmarks,
+                playing: parent.playing
+            )
+        }
+
         func makePage(_ number: Int) -> UIViewController {
             let clamped = min(max(number, 1), QuranSourceService.totalPages)
             // `imageURL` est `nonisolated` sur l'acteur : l'appel est sûr ici.
             let url = Self.url(for: clamped, edition: parent.edition, source: parent.source)
-            return MushafPageViewController(page: clamped, imageURL: url)
+            return MushafPageViewController(
+                page: clamped,
+                imageURL: url,
+                highlights: highlights(for: clamped),
+                style: parent.style
+            )
         }
 
         private static func url(for page: Int, edition: QuranEdition, source: QuranSourceService) -> URL? {

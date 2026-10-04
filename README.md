@@ -197,6 +197,7 @@ Core/           Logique métier partagée — le contrat avec React Native
   Review.swift        Cycles, consolidations, versets difficiles
   WeeklyProgress.swift Objectif hebdomadaire, statistiques, régularité
   Quran.swift         Sourates, juz’, hizb, pages, versets
+  VerseBounds.swift   Rectangles des versets sur les pages (bounds.json)
   Bookmark.swift      Marque-pages
   DateKeys.swift      Dates « AAAA-MM-JJ » à midi local
   AppConfig.swift     Configuration publique
@@ -221,6 +222,22 @@ l'application utilisable sans réseau.
 `UIKit` est utilisé là où il apporte quelque chose : `UIPageViewController` pour
 la pagination du lecteur, intégré à SwiftUI par
 `UIViewControllerRepresentable`.
+
+### Ce que les tests verrouillent
+
+| Fichier | Ce qu'il empêche de casser |
+| --- | --- |
+| `OfflineMergeTests` | La fusion à trois voies : un client ne doit jamais écraser les données de l'autre. |
+| `ProgramTests` | Les cycles 7/14/21/30, les quantités 1 Nisf / 1 Hizb / 1 Juz / 2 Juz. |
+| `ReviewTests` | Les consolidations J+1 / J+3 / J+7, la notation des révisions, le marquage « difficile ». |
+| `JSONValueTests` | La conservation des clés JSON inconnues — la condition de la compatibilité. |
+| `DateKeysTests` | Les dates « AAAA-MM-JJ » à midi local (jamais de décalage de fuseau). |
+| `VerseBoundsTests` | L'ordre des colonnes de `bounds.json` et la projection des rectangles. |
+| `AppWiringTests` | Le relais des services observables, et l'URL Supabase non tronquée par `//`. |
+
+Le chargement d'une ressource embarquée est possible dans les tests parce que la
+cible de tests est **hébergée** dans l'application (`TEST_HOST` dans
+`project.yml`) : `Bundle.main` y est donc le paquet de l'application.
 
 ---
 
