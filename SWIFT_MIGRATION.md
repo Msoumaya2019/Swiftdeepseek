@@ -70,7 +70,7 @@
 | Lecture, pause, verset suivant / précédent | ✅ | ✅ | — | `Services/AudioService.swift` | `AVFoundation`, session `.playback`. |
 | Préchargement des versets suivants | ✅ | ✅ | — | `Services/AudioService.swift` | Trois versets d'avance. |
 | Mini-lecteur persistant | ✅ | ⬜ | — | `Features/Quran/Reader/ReaderView.swift` | La barre audio du lecteur existe (`audioBar` : lecture/pause, récitateur, verset courant). Il manque le **mini-lecteur global** — celui qui survit au changement d'onglet — et l'écran de réglages de §9.14. |
-| Répétition (passage / verset, nombre, silence, vitesse) | ✅ | 🟡 | — | `Core/PassageAudio.swift`, `Core/AudioRepeatPreferences.swift`, `Storage/LocalStore.swift` | Le **moteur** et les **six réglages** sont portés et éprouvés — 49 tests, `_banc/oracle-audio.mjs` — mais l'écran de réglages et la boucle AVFoundation restent. Réglages **locaux**, voir §9.13, §9.14 et `LOCAL_DATA_MIGRATION.md` §4 a). |
+| Répétition (passage / verset, nombre, silence, vitesse) | ✅ | 🟡 | — | `Core/PassageAudio.swift`, `Core/AudioRepeatPreferences.swift`, `Core/PassageAudioEngine.swift`, `Storage/LocalStore.swift` | Le **moteur**, les **six réglages** et la **machine d'état de la boucle** sont portés et éprouvés — **74 tests**, `_banc/oracle-audio.mjs` et `_banc/oracle-engine.mjs` — mais l'écran de réglages et la couche AVFoundation restent. Réglages **locaux**, voir §9.13 à §9.15 et `LOCAL_DATA_MIGRATION.md` §4 a). |
 | Lecture d'une sourate entière (fichier complet + horodatages) | ✅ | 🟡 | — | `Core/PassageAudio.swift` | `parseChapterAudio`, la validité d'un cache et l'avance d'affichage sont portés ; le téléchargement et le cache sur disque restent. |
 | Cache audio des versets | ✅ | 🟡 | — | `Services/AudioService.swift` | Cache en mémoire (`VerseAudioCache`) ; pas encore de cache sur disque. |
 
@@ -759,6 +759,62 @@ ligne de la table, une ligne **retirée** pour éprouver la complétude, un éta
 d'affichage faux), et 13 sur les translittérations du banc. **0 non détectée**, et les
 **trois** fichiers restaurés octet pour octet, empreinte SHA-256 à l'appui.
 
-**Ce qui reste.** L'écran de réglages et la boucle AVFoundation de 9.13 — les deux
-parties qui ne se prouvent pas sans appareil.
+**Ce qui reste.** L'écran de réglages et la **couche AVFoundation** — les deux
+parties qui ne se prouvent pas sans appareil. La **décision** de la boucle, elle,
+est désormais portée : §9.15.
+
+## 9.15 La boucle de répétition : une machine d'état, pour que l'indicible se teste
+
+`Core/PassageAudio.swift` décide **quelle** position vient ensuite et **combien de
+temps** attendre. Il restait à décider **ce qu'on en fait** : charger, reprendre,
+mettre en pause, planifier, s'arrêter. Cette décision vivait dans
+`src/PassageAudioPlayer.tsx`, mêlée aux appels AVFoundation — donc inéprouvable
+sans appareil.
+
+`Core/PassageAudioEngine.swift` l'en sépare. La machine rend la liste des
+**effets** à exécuter (`.load`, `.resume`, `.pause`, `.stop`, `.scheduleWait`,
+`.cancelWait`, `.setRate`, `.announceVerse`, `.fail`) et laisse l'objet dans son
+nouvel état. Aucun appel audio : un exécuteur traduit les effets.
+
+Quatre règles silencieuses y sont figées, et s'y tromper ne lève rien :
+
+1. **On ne conclut que sur `nil`.** Tant que `PassageAudio.next` rend une
+   position, on enchaîne — même si elle est identique à la courante.
+2. **Le silence choisi ne s'applique que sur un redémarrage de passage ou un
+   verset répété.** Ailleurs, la marge de 200 ms est seule.
+3. **Un verset qui suit immédiatement le courant, dans la même piste horodatée,
+   se reprend** au lieu d'être rechargé.
+4. **Mettre en pause pendant l'attente mémorise le temps restant** ; reprendre ne
+   rejoue pas l'attente entière.
+
+Le refus de lancer n'est pas réécrit : la machine emploie `launchError` de
+`AudioRepeatPreferences`, déjà éprouvé, et il est **plus étroit** que la
+normalisation de `:79` — `'1.5'` et `'5000'` sont refusés au lancement, alors que
+la normalisation en ferait 1 et 5000.
+
+**Le banc calcule les séquences, le test les recopie.** `_banc/oracle-engine.mjs`
+empaquette le vrai `src/core/audio.ts` — il n'en recalcule rien — et **extrait du
+TSX** les trois lignes qui décident de l'attente (`restart`, `repeatedVerse`,
+`wait`) ainsi que la ligne de continuation. Il les évalue telles quelles, puis
+joue **dix-huit scénarios** et imprime la séquence d'effets de chacun. Ces
+séquences sont celles que recopie `Tests/PassageAudioEngineTests.swift` : une
+valeur écrite de mémoire serait vue ici, et non au run — c'est exactement ce que
+le run #40 a coûté.
+
+La confrontation est **d'un seul tenant** : le banc exige la séquence entière, mise
+en forme retirée des deux côtés. Chercher chaque effet séparément ne dirait rien de
+l'ordre, et une séquence dont on retire un `pause` resterait « trouvée » parce que
+`pause` figure ailleurs dans le fichier.
+
+**Falsifié, et la falsification a trouvé un défaut dans le banc lui-même.** Sept
+mutations — quatre du moteur, trois du test — sont toutes détectées, les deux
+fichiers restaurés octet pour octet. Mais la **première** version du contrôle
+laissait passer le retrait d'un `pause` : la séquence cherchée figurait aussi dans
+un `XCTAssertNotEqual` de garde. La garde a été réécrite en contrôle d'**état**, et
+la raison est notée dans le test.
+
+**Ce que ces tests ne prouvent pas.** Qu'AVFoundation joue, ni que la minuterie de
+borne se déclenche à la bonne milliseconde sur un appareil. Ce sont les deux
+parties qui restent à écrire, et elles sont isolées dans l'exécuteur d'effets, qui
+ne contient aucune décision.
 
