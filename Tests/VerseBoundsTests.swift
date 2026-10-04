@@ -172,10 +172,20 @@ final class VerseBoundsTests: XCTestCase {
     /// Quand la vue est exactement au ratio de l'image, la projection ne change
     /// rien : c'est le cas qui montre que l'arithmétique est bien celle de
     /// l'original, `row[3] / sourceWidth * (width - padding * 2)`.
+    ///
+    /// Comparaison AVEC TOLÉRANCE, et non à l'identique : l'égalité exacte n'est
+    /// pas tenable ici. `979 / 3106 * 3106` vaut `979.0000000000001` en virgule
+    /// flottante — l'erreur est de 1e-13 point, soit douze ordres de grandeur
+    /// sous le pixel, mais `XCTAssertEqual` sur deux `CGRect` la refuse. C'est ce
+    /// qui a fait échouer le run #16.
     func testProjectionIsTheIdentityWhenTheViewMatchesTheImage() {
         let view = CGRect(origin: .zero, size: VerseBounds.imageSize)
         for row in VerseBounds.rows(page: 1) {
-            XCTAssertEqual(VerseBounds.project(row.rect, into: view), row.rect)
+            let projected = VerseBounds.project(row.rect, into: view)
+            XCTAssertEqual(projected.minX, row.rect.minX, accuracy: 0.001)
+            XCTAssertEqual(projected.minY, row.rect.minY, accuracy: 0.001)
+            XCTAssertEqual(projected.width, row.rect.width, accuracy: 0.001)
+            XCTAssertEqual(projected.height, row.rect.height, accuracy: 0.001)
         }
     }
 
