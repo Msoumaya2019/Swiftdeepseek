@@ -37,6 +37,8 @@ public final class AppViewModel: ObservableObject {
     private let store: LocalStore
     private let client: SupabaseRESTClient
     private var cancellables = Set<AnyCancellable>()
+    /// La dernière écriture des réglages de répétition, pour les **enchaîner**.
+    private var preferencesWrite: Task<Void, Never>?
 
     public init() {
         let client = SupabaseRESTClient(
@@ -58,10 +60,13 @@ public final class AppViewModel: ObservableObject {
         self.social = SocialService(client: client)
         self.coran1441 = Coran1441DownloadService()
         self.state = repository.state
-        // Lu **au démarrage**, pas à l'ouverture de l'écran : un réglage absent,
-        // illisible ou d'une forme inattendue rend les valeurs par défaut, jamais
-        // une erreur — l'application doit s'ouvrir hors ligne.
-        self.repeatPreferences = store.loadAudioPreferences()
+        // `LocalStore` est un **acteur** : sa lecture ne peut pas se faire ici,
+        // dans un `init` synchrone — le compilateur répond « call to
+        // actor-isolated instance method in a synchronous main actor-isolated
+        // context ». C'est exactement ce que le run #45 a relevé. Les valeurs par
+        // défaut tiennent donc jusqu'au chargement réel, qui a lieu dans
+        // `start()`, quelques microsecondes après le lancement.
+        self.repeatPreferences = .defaults
 
         // Les vues observent ce modèle ; on répercute les changements du dépôt.
         repository.$state
@@ -96,6 +101,12 @@ public final class AppViewModel: ObservableObject {
     // MARK: Démarrage
 
     public func start() async {
+        // Les réglages de répétition sont **locaux** : les lire ne dépend ni du
+        // réseau ni de la session. C'est ce qui permet à l'application de
+        // s'ouvrir hors ligne avec les réglages de l'utilisateur, et non avec
+        // ceux par défaut. Un fichier absent, illisible ou d'une forme
+        // inattendue rend les valeurs par défaut — jamais une erreur.
+        repeatPreferences = await store.loadAudioPreferences()
         await auth.restore()
         connectivity.start { [weak self] in
             await self?.sync.flush()
@@ -231,7 +242,16 @@ public final class AppViewModel: ObservableObject {
     public func setRepeatPreferences(_ updated: AudioRepeatPreferences) {
         guard updated != repeatPreferences else { return }
         repeatPreferences = updated
-        try? store.saveAudioPreferences(updated)
+        // `LocalStore` est un acteur : l'écriture est donc asynchrone. Les tâches
+        // sont **enchaînées** — deux pastilles touchées coup sur coup ne doivent
+        // pas laisser sur disque la valeur la plus ancienne. Des tâches non
+        // structurées ne sont pas garanties de démarrer dans l'ordre de création,
+        // et l'erreur serait silencieuse : le fichier resterait lisible.
+        let previous = preferencesWrite
+        preferencesWrite = Task { [store] in
+            _ = await previous?.value
+            try? await store.saveAudioPreferences(updated)
+        }
     }
 
     /// Lance la lecture d'un passage.
