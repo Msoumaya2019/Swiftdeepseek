@@ -69,8 +69,8 @@
 | Sept récitateurs, même liste | ✅ | ✅ | `user_state.audioPreferences` | `Services/AudioService.swift` | |
 | Lecture, pause, verset suivant / précédent | ✅ | ✅ | — | `Services/AudioService.swift` | `AVFoundation`, session `.playback`. |
 | Préchargement des versets suivants | ✅ | ✅ | — | `Services/AudioService.swift` | Trois versets d'avance. |
-| Mini-lecteur persistant | ✅ | ⬜ | — | — | La barre audio du lecteur existe ; le mini-lecteur global reste à faire. |
-| Répétition (passage / verset, nombre, silence, vitesse) | ✅ | 🟡 | — | `Core/PassageAudio.swift` | Le **moteur** est porté et éprouvé — 22 tests, `_banc/oracle-audio.mjs` — mais l'écran de réglages et la boucle AVFoundation restent. Réglages locaux côté RN, voir `LOCAL_DATA_MIGRATION.md` §4a. |
+| Mini-lecteur persistant | ✅ | ⬜ | — | `Features/Quran/Reader/ReaderView.swift` | La barre audio du lecteur existe (`audioBar` : lecture/pause, récitateur, verset courant). Il manque le **mini-lecteur global** — celui qui survit au changement d'onglet — et l'écran de réglages de §9.14. |
+| Répétition (passage / verset, nombre, silence, vitesse) | ✅ | 🟡 | — | `Core/PassageAudio.swift`, `Core/AudioRepeatPreferences.swift`, `Storage/LocalStore.swift` | Le **moteur** et les **six réglages** sont portés et éprouvés — 49 tests, `_banc/oracle-audio.mjs` — mais l'écran de réglages et la boucle AVFoundation restent. Réglages **locaux**, voir §9.13, §9.14 et `LOCAL_DATA_MIGRATION.md` §4 a). |
 | Lecture d'une sourate entière (fichier complet + horodatages) | ✅ | 🟡 | — | `Core/PassageAudio.swift` | `parseChapterAudio`, la validité d'un cache et l'avance d'affichage sont portés ; le téléchargement et le cache sur disque restent. |
 | Cache audio des versets | ✅ | 🟡 | — | `Services/AudioService.swift` | Cache en mémoire (`VerseAudioCache`) ; pas encore de cache sur disque. |
 
@@ -660,3 +660,105 @@ mode, silence, vitesse, arrêt automatique) et la boucle AVFoundation qui consom
 ces décisions. Les préférences restent **locales** : `LOCAL_DATA_MIGRATION.md` §4 a)
 a tranché « ne rien faire », donc aucune clé n'est ajoutée à `user_state` et les
 deux applications ne partagent pas ces réglages.
+
+### 9.14 Les six réglages de répétition — ce qui est stocké n'est pas ce qui décide
+
+Le moteur de 9.13 reçoit un nombre de répétitions. Ce nombre ne vient pas de ce que
+l'utilisateur voit : il vient de `PassageAudioPlayer.tsx:78-79`, qui le **dérive** de
+six réglages persistés sous `audio-repeat-preferences`. Cette dérivation tient en
+deux lignes, et trois de ses règles sont silencieuses.
+
+1. **`Number(customCount)` est le `Number()` de JavaScript**, pas un entier Swift.
+   `'0x10'` vaut 16, `'1e3'` vaut 1000, `'.5'` vaut 0,5, `'1.e3'` vaut 1000, `''`
+   vaut **0**, `'1,5'` ne vaut rien. Et tout ce qui n'est pas un entier strictement
+   positif retombe sur **1**, sans erreur. Le champ est un pavé numérique, mais le
+   fichier relu, lui, n'est pas forcément ce que le pavé produit.
+2. **Le nombre normalisé n'est pas le nombre validé.** `:79` accepte tout entier
+   strictement positif ; `:176` refuse de **lancer** au-delà de 999. Un « Autre » de
+   `5000` produit donc les deux à la fois : un compte de 5000 dans les réglages, et
+   un refus de lancement. Un « Autre » de `1.5` est ramené à 1 **et** refusé.
+3. **La validation au chargement est champ par champ, en égalité stricte.** `"3"`
+   n'est pas `3`, `4` n'est pas dans la liste, et un champ invalide garde sa valeur
+   par défaut **sans invalider les autres**. Un document qui n'est pas un objet —
+   `null`, un nombre, une chaîne, un tableau — rend les six défauts : l'original y
+   lit `prefs.countChoice`, qui vaut `undefined`, ce que `counts.includes` refuse.
+
+**Ce qui est stocké n'est pas ce qui est affiché.** `autoStop` reste **vrai** quand
+on choisit « en continu » ; c'est la case qui se **décoche** (`:248`, `:268` :
+`selected={autoStop&&countChoice!=='continuous'}`). Et le dénominateur `∞` apparaît
+pour **deux causes distinctes** (`:256`, `:258` : `countChoice==='continuous'||!autoStop`)
+— « en continu », ou l'arrêt automatique décoché — alors que la pastille de cycle
+rapide (`:241`) ne regarde que le compte. Trois expressions voisines, trois règles
+différentes. Ne jamais réécrire le réglage pour se simplifier l'affichage.
+
+**Une quatrième règle, dans le cycle rapide.** `:241` cycle sur
+`[1,2,3,5,10,'continuous']` — **six** valeurs, alors que la liste des pastilles en
+compte **sept** : « Autre » en est absent. Et un compte **hors liste** — un « Autre »
+de 4, de 20 ou de 5000 — donne `indexOf` = -1, donc `(0)%6` = 0, donc **1**. Ce n'est
+pas devinable, et c'est mesuré.
+
+**Où c'est écrit.** `Core/AudioRepeatPreferences.swift` pour la partie pure
+(`jsNumber`, `count`, `launchError`, `decode`, `encoded`, les trois expressions
+d'affichage, le cycle rapide), et `Storage/LocalStore.swift` pour le fichier
+`audio-repeat-preferences.json` — même forme que l'original, mêmes six clés, mais
+**local** : rien n'entre dans `user_state` (voir `LOCAL_DATA_MIGRATION.md` §4 a).
+Un fichier absent, illisible ou corrompu rend les défauts, jamais une erreur.
+
+**Trois divergences, mesurées et déclarées.**
+
+| Cas | L'original | Le portage | Pourquoi |
+| --- | --- | --- | --- |
+| `customCount` dont la valeur dépasse **2^53** | compte de cette valeur | compte de 1 | Un `Double` ne porte plus les entiers un à un au-delà, donc `Int` ne peut pas les recevoir. Le **lancement est refusé des deux côtés**, donc aucune lecture ne démarre avec ce compte. `2^53` lui-même est encore exact, et accepté. |
+| `1e999` et `1e-999` : la valeur **brute** | `Infinity`, `0` | dépend de `Double(_:)` | Le banc ne peut pas exercer le débordement de Foundation. Le **compte** est le même dans les trois cas (infini, zéro ou `nil`) : c'est donc la seule chose que le test y affirme. |
+
+**L'épreuve.** La section 13 de `_banc/oracle-audio.mjs` extrait **textuellement** du
+TSX la liste des répétitions, les six valeurs par défaut, la dérivation du compte,
+sa normalisation, le refus de lancement, la relecture, la forme écrite, le cycle
+rapide et les deux conditions d'affichage — et **refuse de compter si l'une de ces
+formes a changé**. Elle compare ensuite la formulation du portage à celle de
+l'original : **70** textes pour `Number()`, **84** états pour le compte et le refus,
+**56** documents pour la relecture, **2016** combinaisons pour l'aller-retour,
+**14** états d'affichage. Le tout avec **69 vérifications, 0 écart**.
+
+**Et la section 15 relit les listes figées DU TEST.** Le vert de la section 13 ne dit
+rien de ce que `Tests/AudioRepeatPreferencesTests.swift` porte **en dur** : ses deux
+boucles du refus de lancement, sa liste de documents « inchangés », sa table de
+`Number()` (70 lignes) et sa table d'affichage (14 états). La section 15 **lit ce
+fichier** — par comptage d'accolades, chaînes et commentaires ignorés, car ces listes
+portent des `{` et des `}` **dans** leurs chaînes — et confronte chaque entrée à la
+référence. Elle **refuse de conclure** si une forme a changé, si une boucle a disparu
+ou si une liste est vide. Un test de complétude ferme la table de `Number()` : ses
+textes doivent être **exactement** ceux du banc, ni un de moins ni un de plus.
+
+**Ce que la CI a trouvé, et que le banc ne voyait pas.** Le run n° **40** a rendu
+**228 tests, 1 ignoré, 2 échecs** — et les deux venaient de ce fichier de test, pas du
+portage : `1e3` rangé parmi les textes **acceptés** au lancement (il vaut 1000, donc
+refusé), et `customCount: "abc"` attendu comme retombant sur le défaut — or la règle de
+l'original est `typeof prefs.customCount === 'string'`, donc une chaîne est **gardée**,
+quelle qu'elle soit. Le banc, lui, avait les deux bonnes réponses : il les calcule. Ce
+qui manquait était un contrôle qui relise les listes **recopiées** dans le test. C'est
+la section 15 — et six mutations du fichier de test éprouvent qu'elle les voit.
+
+**Ce que le banc a trouvé, et qu'il ne cherchait pas.** La table de `Number()` a
+montré un texte dont la valeur dépasse 2^53 (`'99999999999999999999'`) : les 84
+états du compte n'allaient pas jusque-là, donc la divergence du portage y était
+**invisible**. Elle est désormais mesurée et déclarée, plutôt que laissée hors du
+banc. Et une mutation de la translittération — la chaîne vide qui ne vaut plus zéro
+— est restée **non détectée** : le banc comparait les deux décisions qui dérivent de
+la valeur, pas la valeur elle-même, et `0` comme `NaN` ramènent le compte à 1. La
+comparaison de la valeur brute a donc été promue en verdict.
+
+**Et le banc est falsifié.** `_banc/falsifier-audio.mjs` compte désormais **41
+mutations** : 5 sur `Core/PassageAudio.swift`, **16 sur `Core/AudioRepeatPreferences.swift`**
+(le cycle rapide qui inclut « Autre », la borne 999, le message, la chaîne vide, les
+littéraux `0x`, la forme canonique, la grammaire décimale, les deux affichages, le
+libellé, la clé écrite, la relecture, la borne 2^53…), **6 sur
+`Tests/AudioRepeatPreferencesTests.swift`** (un texte du mauvais côté du refus, un
+document déclaré inchangé qui garde en fait un champ, le compte et la valeur brute d'une
+ligne de la table, une ligne **retirée** pour éprouver la complétude, un état
+d'affichage faux), et 13 sur les translittérations du banc. **0 non détectée**, et les
+**trois** fichiers restaurés octet pour octet, empreinte SHA-256 à l'appui.
+
+**Ce qui reste.** L'écran de réglages et la boucle AVFoundation de 9.13 — les deux
+parties qui ne se prouvent pas sans appareil.
+

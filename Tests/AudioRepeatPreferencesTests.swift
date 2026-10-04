@@ -29,8 +29,11 @@
 //   avec `esbuild` et le fait tourner, puis il EXTRAIT textuellement du fichier
 //   les expressions qui décident — refusant de compter si leur forme a changé —
 //   et les compare à une translittération de ce portage. 70 textes pour
-//   `Number()`, 56 documents pour la relecture, 2016 combinaisons pour
-//   l'aller-retour, 14 états d'affichage, 76 ancres d'accord.
+//   `Number()`, 84 états de compte et de refus, 56 documents pour la relecture,
+//   2016 combinaisons pour l'aller-retour, 14 états d'affichage, 77 ancres
+//   d'accord — et la section 15 RELIT les listes figées de ce fichier pour les
+//   confronter à la référence, parce que deux valeurs écrites de mémoire y ont
+//   déjà coûté un run rouge.
 //
 // CE QUE CE FICHIER NE PROUVE PAS
 //   Pour deux textes — `1e999` et `1e-999` — la valeur brute dépend du
@@ -349,10 +352,15 @@ final class AudioRepeatPreferencesTests: XCTestCase {
     /// Le refus, et son message — repris tel quel de l'original, qui le remonte
     /// jusqu'à l'utilisateur.
     func testTheLaunchRefusalAndItsMessage() {
-        for text in ["0", "-5", "", "abc", "1.5", "1000", "5000", "1,5", "Infinity", "1e20"] {
+        // Les deux listes sont RELUES par le banc (section 15 de
+        // `_banc/oracle-audio.mjs`), qui confronte chaque texte au refus de
+        // l'original. C'est ce contrôle qui a rattrapé `1e3` : il vaut 1000, donc
+        // il est **refusé**, et le ranger parmi les acceptés était faux.
+        for text in ["0", "-0", "-5", "", "abc", "1.5", "1000", "5000", "1,5", "Infinity",
+                     "1e20", "1e3", "1.e3", "9007199254740993"] {
             XCTAssertNotNil(preferences(.custom, custom: text).launchError, text)
         }
-        for text in ["1", "20", "999", "007", " 12 ", "1e3", "0x10"] {
+        for text in ["1", "20", "999", "007", " 12 ", "0x10", ".5e2", "+7"] {
             XCTAssertNil(preferences(.custom, custom: text).launchError, text)
         }
         XCTAssertEqual(preferences(.custom, custom: "5000").launchError?.message,
@@ -441,12 +449,27 @@ final class AudioRepeatPreferencesTests: XCTestCase {
             "{\"speed\":2}",
             "{\"autoStop\":\"false\"}",
             "{\"autoStop\":0}",
-            "{\"autoStop\":null}",
-            "{\"countChoice\":4,\"customCount\":\"abc\",\"repeatMode\":\"x\",\"gap\":7,\"speed\":2,\"autoStop\":\"yes\"}"
+            "{\"autoStop\":null}"
         ]
+        // Cette liste est RELUE par le banc (section 15), qui vérifie que chaque
+        // document rend réellement les défauts : y laisser un document qui garde
+        // un champ fait tomber le banc, et non le test seul.
         for json in unchanged {
             XCTAssertEqual(decoded(json), .defaults, json)
         }
+
+        // Un champ **gardé** n'est pas un champ inchangé. `customCount` est lu dès
+        // qu'il est une CHAÎNE, quelle qu'elle soit : `"abc"` est donc conservé,
+        // alors que les cinq autres champs de ce document retombent sur leur
+        // défaut. C'est la règle de l'original (`typeof prefs.customCount ===
+        // 'string'`), et non une tolérance du portage.
+        let mixed = decoded("{\"countChoice\":4,\"customCount\":\"abc\",\"repeatMode\":\"x\",\"gap\":7,\"speed\":2,\"autoStop\":\"yes\"}")
+        XCTAssertEqual(mixed.countChoice, .times(3))
+        XCTAssertEqual(mixed.customCount, "abc")
+        XCTAssertEqual(mixed.repeatMode, .passage)
+        XCTAssertEqual(mixed.gap, 0)
+        XCTAssertEqual(mixed.speed, 1)
+        XCTAssertTrue(mixed.autoStop)
 
         // Un champ invalide n'invalide pas les autres.
         let subject = decoded("{\"countChoice\":\"custom\",\"gap\":3}")
@@ -486,8 +509,13 @@ final class AudioRepeatPreferencesTests: XCTestCase {
             XCTFail("la forme écrite doit être un objet")
             return
         }
-        XCTAssertEqual(Set(fields.keys),
-                       ["countChoice", "customCount", "repeatMode", "gap", "speed", "autoStop"])
+        // Comparé clé par clé plutôt qu'en un `Set` littéral : le littéral
+        // laisserait au compilateur le choix entre un tableau et un ensemble,
+        // et ce n'est pas le sujet du test.
+        XCTAssertEqual(fields.count, 6)
+        for key in ["countChoice", "customCount", "repeatMode", "gap", "speed", "autoStop"] {
+            XCTAssertNotNil(fields[key], "clé manquante : \(key)")
+        }
         XCTAssertEqual(fields["countChoice"], JSONValue.number(3))
         XCTAssertEqual(fields["customCount"], JSONValue.string("20"))
         XCTAssertEqual(fields["repeatMode"], JSONValue.string("passage"))

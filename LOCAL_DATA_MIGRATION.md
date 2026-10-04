@@ -152,6 +152,17 @@ verset par verset), silence entre les versets, vitesse, arrêt automatique.
   partagé. Rétrocompatible (l'application React Native l'ignorerait), mais cela
   demande une autorisation explicite.
 
+**Décision prise : l'option 1.** L'application Swift écrit **son propre** fichier
+local — `audio-repeat-preferences.json`, dans `Application Support`, à côté de
+`state.json` — en reprenant la **forme** de l'original : mêmes six clés, mêmes
+types. Rien n'est ajouté à `user_state.data`, et aucune migration n'a été
+demandée. La forme identique n'est pas de la coquetterie : elle rend les deux
+applications **comparables** — le même choix produit le même compte, le même
+refus de lancement, le même affichage — et un export éventuel n'aurait rien à
+traduire. Les fichiers locaux de deux applications ne se lisent pas entre eux
+(bacs à sable distincts) : ce qui est partagé ici, c'est la **règle**, pas le
+réglage.
+
 **b) `pending-avatar:<courriel>`** — une photo choisie mais dont l'envoi n'a pas
 abouti.
 

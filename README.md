@@ -263,6 +263,7 @@ la pagination du lecteur, intégré à SwiftUI par
 | `ProgramTests` | Les cycles 7/14/21/30, les quantités 1 Nisf / 1 Hizb / 1 Juz / 2 Juz. |
 | `ReviewTests` | Les consolidations J+1 / J+3 / J+7, la notation des révisions, le marquage « difficile ». |
 | `PassageAudioTests` | Les trois règles silencieuses de la répétition d'un passage — la répétition conservée en mode « passage », `continuous` qui ne change jamais de verset, la normalisation du nombre — et l'attente avant de rejouer, dont la marge de 200 ms est un plancher. |
+| `AudioRepeatPreferencesTests` | Les six réglages de répétition : le `Number()` de JavaScript sur le champ libre (soixante-dix textes figés), le nombre normalisé qui n'est pas le nombre validé (un « Autre » de 5000 compte 5000 **et** refuse de lancer), la relecture champ par champ en égalité stricte, et les deux affichages — la case qui se décoche et le `∞` — qui ne se déduisent pas du réglage. |
 | `JSONValueTests` | La conservation des clés JSON inconnues — la condition de la compatibilité. |
 | `DateKeysTests` | Les dates « AAAA-MM-JJ » à midi local (jamais de décalage de fuseau). |
 | `VerseBoundsTests` | L'ordre des colonnes de `bounds.json` et la projection des rectangles. |
