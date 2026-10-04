@@ -37,6 +37,11 @@ final class AppWiringTests: XCTestCase {
     /// Le récitateur choisi est **différent** du récitateur courant : le test ne
     /// dépend donc pas du fait que `@Published` annonce aussi une affectation
     /// sans changement de valeur.
+    ///
+    /// Attention à ne pas comparer `other` au récitateur APRÈS l'avoir affecté —
+    /// les deux sont alors égaux par construction. C'est l'erreur qu'a commise la
+    /// première version de ce test (échec #15) : elle échouait toujours, et pour
+    /// une raison qui n'avait rien à voir avec le relais testé.
     func testChangesToTheAudioServiceAreRepublishedByTheViewModel() throws {
         let model = AppViewModel()
 
@@ -44,14 +49,18 @@ final class AppWiringTests: XCTestCase {
         let token = model.objectWillChange.sink { _ in notifications += 1 }
         defer { token.cancel() }
 
-        let other = try XCTUnwrap(Reciter.all.first { $0 != model.audio.reciter })
-        let before = notifications
+        let before = model.audio.reciter
+        let other = try XCTUnwrap(
+            Reciter.all.first { $0 != before },
+            "Il faut au moins deux récitateurs distincts pour que ce test ait un sens."
+        )
+
         model.audio.select(reciter: other)
 
-        XCTAssertNotEqual(other, model.audio.reciter, "Le test doit changer réellement la valeur.")
+        XCTAssertEqual(model.audio.reciter, other, "La sélection doit avoir pris effet.")
         XCTAssertGreaterThan(
             notifications,
-            before,
+            0,
             "Un changement de l'audio doit être annoncé par le modèle : sans cela, aucune vue ne se réévalue."
         )
     }

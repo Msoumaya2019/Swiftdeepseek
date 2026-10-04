@@ -154,6 +154,33 @@ qu'un compilateur ne l'ait vu. C'est pourquoi :
 **Première chose à faire :** pousser et **vérifier que le flux passe**. Les
 corrections qui en découleront sont normales à ce stade.
 
+#### Lire un échec sans jeton d'accès
+
+Le journal d'un job n'est lisible qu'authentifié (403), mais **les annotations
+d'un contrôle sont publiques** dans le HTML du job. Deux pièges, tous deux vécus :
+
+- `GET /repos/{o}/{r}/actions/jobs/{id}` renvoie `annotations: []` **même sur un
+  job en échec**. Le HTML est la source pour la cause ; l'API, seulement pour
+  savoir quelle étape a échoué.
+- Compter les occurrences du mot `annotation-message` **surestime** : 91
+  occurrences pour 13 blocs sur un même job. Ce sont les **ouvreurs** de balise
+  qu'il faut compter.
+
+#### Les `note:` suffisent souvent à diagnostiquer
+
+L'échec #14 ne montrait, dans ses annotations, que des lignes `note:` — pas la
+ligne `error:` qui les avait produites. Cela n'a pas empêché le diagnostic, parce
+que la nature de la note dit de quoi il s'agit :
+
+| Note du compilateur | Ce qu'elle signifie |
+| --- | --- |
+| `add 'if #available' version check` | Le symbole existe, mais pas à partir de la cible de déploiement (ici iOS 16). C'était `CGRect: Hashable` — un `Set<CGRect>` dans un test. |
+| `add @available attribute to enclosing class/method` | Même cause, vue depuis chacun des englobants : la note la plus externe désigne la portée à annoter. |
+
+**Corollaire utile :** l'absence d'annotation sur un fichier **prouve** qu'il a
+compilé. Un échec de compilation se signale toujours, donc un fichier muet est un
+fichier accepté — c'est ainsi qu'on sait, sans jeton, que le reste du lot tient.
+
 ### 9.2 Contradiction entre la documentation et le code du dépôt de référence
 
 `LECTURE_MARQUES_PAGES.md:11` affirme que **Mishary Rashid Alafasy** est le
