@@ -99,8 +99,29 @@ public final class AppViewModel: ObservableObject {
         repository.state.lastRead?.page ?? 1
     }
 
+    /// L'édition que le lecteur **affiche**.
+    ///
+    /// Ce n'est pas toujours celle qui est enregistrée : une édition que cette
+    /// version ne sait pas rendre est remplacée à l'affichage, sans que la
+    /// préférence soit touchée — voir `QuranEdition.displayed(stored:)`.
     public var edition: QuranEdition {
-        QuranEdition(rawValue: repository.state.reader?.mushaf ?? "") ?? .medine
+        QuranEdition.displayed(stored: repository.state.reader?.mushaf)
+    }
+
+    /// La préférence d'affichage **telle qu'elle est enregistrée**, y compris
+    /// quand cette version ne sait pas la rendre.
+    public var storedEdition: QuranEdition? {
+        repository.state.reader?.mushaf.flatMap { QuranEdition(rawValue: $0) }
+    }
+
+    /// L'édition demandée par l'utilisateur que cette version ne sait pas
+    /// afficher, s'il y en a une.
+    ///
+    /// Sert à le **dire** dans le lecteur. Substituer une édition en silence
+    /// ferait passer une limite de cette version pour un choix ignoré.
+    public var substitutedEdition: QuranEdition? {
+        guard let stored = storedEdition, !stored.isAvailable else { return nil }
+        return stored
     }
 
     // MARK: Connexion

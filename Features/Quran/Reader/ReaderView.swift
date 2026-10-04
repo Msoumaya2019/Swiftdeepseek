@@ -49,6 +49,14 @@ public struct ReaderView: View {
                     }
                 )
 
+            // Le lecteur peut afficher une autre édition que celle qui est
+            // enregistrée (voir `QuranEdition.displayed(stored:)`). Le dire est
+            // le seul moyen de ne pas faire passer une limite de cette version
+            // pour un choix ignoré.
+            if let substituted = model.substitutedEdition {
+                substitutionNotice(substituted)
+            }
+
             // ZONE DE PAGE : tout l'espace qui reste. C'est elle qui centre.
             ZStack {
                 model.palette.cream
@@ -122,6 +130,34 @@ public struct ReaderView: View {
         .overlay(alignment: .bottom) {
             Rectangle().fill(model.palette.line).frame(height: 1)
         }
+    }
+
+    // MARK: Édition substituée
+
+    /// Dit quelle édition est affichée **à la place** de celle qui est
+    /// enregistrée, et pourquoi.
+    ///
+    /// Le cas n'est pas rare : l'application d'origine ouvre par défaut sur
+    /// « Coran avec règles de Tajwid » (`src/core/program.ts:57`), une édition
+    /// rendue dans un WebView et non reprise ici. Sans ce bandeau, un utilisateur
+    /// venu de l'application React Native verrait le Coran de Médine sans
+    /// explication.
+    ///
+    /// La préférence enregistrée n'est pas modifiée : elle reste `coranTest`
+    /// dans le document synchronisé, et l'autre application continue de
+    /// l'afficher telle quelle.
+    private func substitutionNotice(_ stored: QuranEdition) -> some View {
+        HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+            Image(systemName: "info.circle")
+            Text("« \(stored.label) » n'est pas encore lisible dans cette version. Affichage du \(edition.label).")
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .font(.system(size: Theme.Typography.metadata))
+        .foregroundStyle(model.palette.muted)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Theme.Spacing.lg)
+        .padding(.vertical, Theme.Spacing.sm)
+        .background(model.palette.soft)
     }
 
     // MARK: Barre d'actions

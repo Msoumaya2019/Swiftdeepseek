@@ -50,6 +50,40 @@ public enum QuranEdition: String, CaseIterable, Sendable {
         allCases.filter(\.isAvailable)
     }
 
+    /// L'édition affichée quand celle qui est **enregistrée** ne peut pas être
+    /// rendue par cette application.
+    ///
+    /// Le Coran de Médine est le seul repli possible : ses 604 pages sont dans
+    /// le paquet, alors que le Coran 1441 exige une installation de 102 Mo. Se
+    /// replier sur une édition non installée remplacerait un lecteur faux par un
+    /// lecteur vide — deux défauts au lieu d'un.
+    public static let fallback: QuranEdition = .medine
+
+    /// L'édition que le lecteur doit **afficher**, pour une préférence
+    /// enregistrée donnée.
+    ///
+    /// POURQUOI CETTE FONCTION EXISTE
+    ///   L'application d'origine ouvre sur `reader.mushaf == "coranTest"`
+    ///   (`src/core/program.ts:57`) : c'est sa valeur par défaut, donc celle de
+    ///   **tout** utilisateur qui n'a jamais touché au choix d'affichage. Cette
+    ///   édition est rendue par une page HTML dans un WebView
+    ///   (`src/coranTest/html.ts`) avec 607 polices `.woff2` — une chaîne de
+    ///   rendu que cette application n'a pas. Résoudre la préférence telle quelle
+    ///   ouvrait donc le lecteur sur une édition sans images : chaque page
+    ///   affichait « Cette page n'est pas encore disponible hors ligne », pour
+    ///   tout le monde, dès la première ouverture.
+    ///
+    /// CE QUE CETTE FONCTION NE FAIT PAS
+    ///   Elle ne réécrit **pas** la préférence enregistrée. `reader.mushaf` reste
+    ///   `coranTest` dans le document synchronisé, donc l'application React
+    ///   Native retrouve son édition de Tajwid. Le repli est une décision
+    ///   d'**affichage**, pas une correction de données : réécrire la préférence
+    ///   changerait ce que voit l'autre application.
+    public static func displayed(stored: String?) -> QuranEdition {
+        guard let stored, let edition = QuranEdition(rawValue: stored) else { return fallback }
+        return edition.isAvailable ? edition : fallback
+    }
+
     /// La source de rectangles de versets qui correspond à cette édition.
     ///
     /// `nil` veut dire « on ne sait pas où sont les versets sur ces pages » — et
