@@ -35,9 +35,14 @@ final class PassageAudioEngineTests: XCTestCase {
     }
 
     /// Amène la machine jusqu'à un état `playing` sur `position`.
+    ///
+    /// Les préférences viennent en **premier** et sans étiquette : un paramètre
+    /// étiqueté `range:` en tête obligerait tout appel à écrire `range:` même
+    /// quand seule la préférence change, et `playing(preferences(gap: 10))` ne
+    /// compilerait pas.
     private func playing(
-        range: VerseRange = VerseRange(start: 1, end: 7),
-        _ prefs: AudioRepeatPreferences? = nil
+        _ prefs: AudioRepeatPreferences? = nil,
+        range: VerseRange = VerseRange(start: 1, end: 7)
     ) -> PassageAudioEngine {
         var engine = PassageAudioEngine()
         _ = engine.begin(range: range, preferences: prefs ?? preferences())
