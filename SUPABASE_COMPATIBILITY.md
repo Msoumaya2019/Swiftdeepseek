@@ -30,6 +30,39 @@ C'est la raison pour laquelle cette application **ne crée aucun utilisateur**.
 n'ont réellement pas encore de compte : créer un second compte pour quelqu'un qui
 en a déjà un produirait exactement le doublon d'utilisateurs à éviter.
 
+### Les URL de redirection d'authentification — étape manuelle, PAS ENCORE FAITE
+
+L'application native utilise un schéma d'URL qui lui est **propre** —
+`swiftdeepseek://auth` (`Core/AppConfig.swift:71`) — et non celui de l'application
+React Native, `coranmemoire://auth` (`src/services/sync.ts:13`). Le choix est
+délibéré : deux applications distinctes ne doivent pas se disputer le même schéma
+au niveau du système.
+
+Ce schéma n'est employé que par deux gestes :
+
+| Geste | Appel |
+|---|---|
+| Réinitialisation du mot de passe | `Services/AuthService.swift:108` |
+| Renvoi de la confirmation d'inscription | `Services/AuthService.swift:112` |
+
+**Le projet Supabase doit donc autoriser `swiftdeepseek://auth`.** Mesuré sur le
+projet réel (`GET /auth/v1/settings`, HTTP 200) : `"mailer_autoconfirm": false`.
+La confirmation par e-mail est **obligatoire** — une inscription ne produit aucune
+session tant que le lien n'a pas été suivi.
+
+Comportement documenté par Supabase, et **non mesuré ici** : une adresse de retour
+absente de la liste autorisée n'est pas refusée, elle est **remplacée** par le
+*Site URL* du projet. La personne est bien confirmée, mais atterrit sur une page
+web au lieu de revenir dans l'application. C'est un défaut silencieux : aucune
+erreur n'est levée côté client.
+
+**Où le faire** : tableau de bord Supabase → *Authentication* → *URL
+Configuration* → *Redirect URLs* → ajouter `swiftdeepseek://auth`. **Conserver**
+`coranmemoire://auth`, dont l'application React Native a besoin.
+
+Cette étape vit dans la configuration du projet Supabase, pas dans le code : elle
+ne peut pas être posée par le dépôt, et **elle n'a pas encore été faite**.
+
 ### 1.2 Le document d'état : `public.user_state`
 
 C'est **le** point de compatibilité. Le schéma est volontairement minimal
