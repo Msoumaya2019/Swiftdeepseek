@@ -88,11 +88,28 @@ public enum DateKeys {
     }
 
     /// Reproduit `new Date(Math.max(Date.now(), a + 1, b + 1)).toISOString()`.
-    public static func maxISO(_ values: [Date?]) -> String {
-        var latest = Date()
-        for value in values.compactMap({ $0 }) where value >= latest {
-            latest = value.addingTimeInterval(0.001)
+    ///
+    /// Tout se calcule en **millisecondes entières**, comme le modèle JS :
+    /// `Date.now()` en rend une, et `toISOString()` n'écrit que trois décimales.
+    /// Comparer des `Date` de précision inférieure faisait rendre à `iso()` la
+    /// milliseconde de `previous` — donc une valeur **égale**, là où le JS en
+    /// rend une strictement supérieure. Mesuré : le run n° 54 a échoué sur
+    /// `testResetAdvancesTheTimestamp`, les deux lectures d'horloge étant
+    /// tombées dans la **même** milliseconde.
+    ///
+    /// `now` est injectable pour que ce cas — une fenêtre de moins d'une
+    /// milliseconde — se teste sans dépendre de l'horloge.
+    public static func maxISO(_ values: [Date?], now: Date = Date()) -> String {
+        var latest = milliseconds(now)
+        for value in values.compactMap({ $0 }) {
+            let candidate = milliseconds(value)
+            if candidate >= latest { latest = candidate + 1 }
         }
-        return iso(latest)
+        return iso(Date(timeIntervalSince1970: Double(latest) / 1000))
+    }
+
+    /// La milliseconde entière d'un instant — la granularité du modèle JS.
+    private static func milliseconds(_ date: Date) -> Int {
+        Int((date.timeIntervalSince1970 * 1000).rounded(.down))
     }
 }

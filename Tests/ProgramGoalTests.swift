@@ -462,6 +462,42 @@ final class ProgramGoalTests: XCTestCase {
         XCTAssertGreaterThan(oldAfter, Date(timeIntervalSince1970: 0))
     }
 
+    /// Les trois chaînes attendues viennent de `_banc/oracle-horodatage.mjs`,
+    /// qui les mesure sur le VRAI `resetAllProgress` de l'original. Le modèle JS
+    /// calcule en millisecondes **entières** (`Date.now()` en rend une,
+    /// `toISOString()` n'écrit que trois décimales), donc
+    /// `Math.max(now, previous + 1)` dépasse **toujours** `previous`.
+    ///
+    /// Le run n° 54 a échoué sur ce point précis : les deux lectures d'horloge
+    /// étaient tombées dans la **même** milliseconde, et le portage rendait alors
+    /// une valeur **égale**. `now` est injectable pour que ce cas se reproduise à
+    /// coup sûr, au lieu d'attendre une coïncidence d'horloge.
+    func testMaxISOAdvancesStrictlyEvenInTheSameMillisecond() throws {
+        let now = Date(timeIntervalSince1970: 1_800_000_000)   // 2027-01-15T08:00:00.000Z
+        // Une lecture d'horloge Swift tombe DANS la milliseconde, pas sur elle.
+        let later = now.addingTimeInterval(0.0004)
+
+        // `previous` à la même milliseconde que maintenant.
+        XCTAssertEqual(DateKeys.maxISO([now], now: later),
+                       "2027-01-15T08:00:00.001Z")
+
+        // `previous` une milliseconde avant : la remise à zéro prend « maintenant ».
+        let justBefore = now.addingTimeInterval(-0.001)
+        XCTAssertEqual(DateKeys.maxISO([justBefore], now: later),
+                       "2027-01-15T08:00:00.000Z")
+
+        // `previous` dans le futur : c'est « previous + 1 ms » qui l'emporte.
+        let future = now.addingTimeInterval(0.5)
+        XCTAssertEqual(DateKeys.maxISO([future], now: later),
+                       "2027-01-15T08:00:00.501Z")
+
+        // Et dans aucun cas la valeur rendue n'est égale à `previous`.
+        for previous in [now, justBefore, future] {
+            let rendered = try XCTUnwrap(DateKeys.parseISO(DateKeys.maxISO([previous], now: later)))
+            XCTAssertGreaterThan(rendered, previous)
+        }
+    }
+
     /// Une remise à zéro d'un état sans compte laisse `userId` à `nil` — et ne
     /// fabrique pas d'identifiant.
     func testResetDoesNotInventAUserId() {
