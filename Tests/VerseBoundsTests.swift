@@ -147,7 +147,14 @@ final class VerseBoundsTests: XCTestCase {
         let highlights = VerseBounds.highlights(page: 1, playing: 7)
         XCTAssertEqual(highlights.count, 3)
         XCTAssertTrue(highlights.allSatisfy { $0.verseID == 7 && $0.kind == .playing })
-        XCTAssertEqual(Set(highlights.map(\.rect)), Set(fragments.map(\.rect)))
+
+        // Comparaison des TABLEAUX, dans l'ordre, et non d'ensembles : d'une part
+        // `CGRect` ne conforme à `Hashable` qu'à partir d'un système plus récent
+        // que la cible iOS 16 du projet, d'autre part l'ordre est ici une
+        // propriété qu'on veut tenir — les rectangles doivent sortir dans l'ordre
+        // du document, sinon deux fragments d'un même verset se dessineraient
+        // dans un ordre arbitraire.
+        XCTAssertEqual(highlights.map(\.rect), fragments.map(\.rect))
     }
 
     // MARK: Constantes reprises de l'original
