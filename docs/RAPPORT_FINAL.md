@@ -13,7 +13,7 @@ Date : 4 octobre 2026.
 | Visibilité | **publique** (nécessaire : les exécuteurs macOS sont facturés sur un dépôt privé) |
 | Branche par défaut | `main` |
 | Taille | 116 710 Ko (mesurée par l'API GitHub) |
-| Commits | 19 |
+| Commits | 20 |
 | Fichiers suivis | 682 — dont **43 fichiers Swift** et **110 tests** déclarés |
 | Dépôt indépendant | oui — ni fourche, ni branche, ni sous-dossier, ni sous-module du dépôt de référence |
 
@@ -212,6 +212,19 @@ Lecteur plein écran du Moushaf, `Features/Quran/Reader/`.
   Moushaf Tajwid, Coran avec règles de Tajwid. **Seul le Coran de Médine est
   embarqué** (604 pages). Le téléchargement du Coran 1441 **n'est pas implémenté**
   — voir §11.
+- **Limite connue, à trancher par le propriétaire du projet.** L'état initial
+  repris de l'original donne `reader.mushaf = "coranTest"` (`Program.swift:94`,
+  d'après `program.ts`), et cette édition — « Coran avec règles de Tajwid » — n'a
+  **ni images ni rectangles** côté Swift (ressources non copiées, 51 Mo). Un
+  utilisateur qui arrive de l'application React Native avec cette préférence, ou
+  avec `tajweedPages`, voit donc le message « pas encore disponible » au lieu d'un
+  Moushaf. Le faire retomber **silencieusement** sur le Coran de Médine n'a pas
+  été fait, et c'est délibéré : `ReaderView` enregistre les marque-pages avec
+  `source: edition.rawValue`, donc un repli silencieux écrirait des marque-pages
+  marqués `traditional` pour un utilisateur dont la préférence est `coranTest` —
+  une divergence de données avec l'application React Native. Deux options
+  propres : soit **copier** les ressources de ces éditions, soit **afficher un
+  choix** plutôt que de décider à la place de l'utilisateur.
 - **Deux formes de page, et c'est la différence qui compte.** Le Coran de Médine
   est **une** image par page (`1920 × 3106`) ; le Coran 1441 est **quinze bandes
   par page** (`1440 × 232` chacune), empilées à pas constant
@@ -276,6 +289,8 @@ licences incertaines. Vérifié : **aucun code Swift ne référence** `medallion
 | **#16** | `c0bf461` | **échec** — égalité exacte sur un flottant | — |
 | **#17** | `3e63067` | **success** | 4 min 49 s |
 | **#18** | `a89cf04` | **success** — documentation seule | — |
+| **#19** | `a23ba05` | **échec** — une assertion de test trop forte | — |
+| **#20** | `aa90394` | **success** | — |
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
@@ -360,6 +375,69 @@ continue. Deux conséquences en ont été tirées :
 
 Run #17 est vert avec le troisième correctif, en 4 min 49 s.
 
+### L'échec #19 : un test plus fort que l'invariant qu'il décrit
+
+Quatrième échec de la même famille — compilation verte, tests rouges — et
+quatrième fois, la cause est dans le **test**.
+
+Ce test vérifiait que les bandes du Coran 1441 et les rectangles de ses versets
+se projettent au même endroit. Il affirmait **en plus** que leurs `minX` projetés
+sont **égaux**. C'est faux par construction : une bande couvre **toute la
+largeur** de la ligne, un verset n'en occupe qu'une **partie**. Neuf lignes de la
+page 1 ont donc échoué.
+
+Les valeurs publiées se relisent exactement, et c'est ce qui a permis de trancher
+sans deviner :
+
+```
+352,08 / 1440 × 390 = 95,355
+```
+
+`352,08` est le `x1` de la première ligne de la page 1, `1440` la largeur de sa
+page, `390` la largeur de la vue du test.
+
+Ce qui doit être **égal** : le haut et la hauteur — la ligne du verset *est* la
+bande, et le fichier porte `y1 = pas × ligne` avec une hauteur de 232 pour ses
+13 273 lignes, sans exception. Ce qui doit être **contenu** : l'étendue
+horizontale. L'assertion est désormais de cette forme, et le balayage porte sur
+quatre pages (58 lignes) au lieu d'une.
+
+**La leçon dépasse le correctif.** Une assertion plus forte que l'invariant
+qu'elle décrit n'est pas de la rigueur : c'est un défaut, et il échoue sur du code
+juste. Les échecs #14, #15 et #16 venaient d'assertions mal **écrites** ;
+celui-ci vient d'une assertion mal **conçue**.
+
+Run #20 est vert avec ce correctif.
+
+### Lire le verdict quand le quota d'API est épuisé
+
+Le run #20 a été jugé **sans l'API**. La sonde qui interrogeait
+`/actions/runs?head_sha=…` toutes les 20 secondes a épuisé les **60 requêtes par
+heure** en dix-huit minutes — et le refus ne ressemble pas à un refus :
+`workflow_runs` est simplement absent du corps, si bien que la sonde a conclu
+« aucun run pour ce commit » alors que le run tournait.
+
+Le repli est la **page HTML du run**, publique et sans quota :
+
+```bash
+curl -s -o run.html "https://github.com/Msoumaya2019/Swiftdeepseek/actions/runs/<id>"
+grep -o '<annotation-message' run.html | wc -l   # 2 sur un run vert, 12 sur un échec
+grep -c 'In progress' run.html                   # 1 = pas encore terminé
+```
+
+Deux précautions, toutes deux mesurées :
+
+- **`0` annotation ne veut pas dire « vert »**, cela peut vouloir dire « en
+  cours ». Il faut contrôler les deux : le nombre d'annotations **et** l'absence
+  de `In progress`.
+- **Le nombre d'annotations n'est pas le nombre d'échecs.** Dix lignes de test
+  échouaient ; **neuf** annotations ont été publiées. La dixième — la dernière —
+  n'est jamais apparue. Ce qui manque est toujours la fin de la liste.
+
+Le run #20 porte exactement les **deux** annotations d'un run vert : clés
+Supabase absentes (la compilation continue) et mise en file des exécuteurs macOS
+arm64.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a
@@ -413,6 +491,15 @@ Run #17 est vert avec le troisième correctif, en 4 min 49 s.
     au premier accès. Corrigé en deux `static let` distincts, dont chacun n'est
     initialisé qu'à son premier usage : le commentaire est désormais vrai par
     construction, et non par intention.
+11. **Une assertion plus forte que l'invariant qu'elle décrit** — quatrième échec
+    dû à un test, et le premier dû à sa *conception* plutôt qu'à son écriture.
+    Détail et valeurs en §12.
+12. **Un chemin de shell qui n'existe pas pour le binaire Windows.** Le sondeur
+    du run #20 écrivait sa page dans `/tmp/run-<id>.html` ; le `curl` de Git Bash
+    sous Windows n'a pas créé le fichier, `grep` a échoué, et le contrôle a rendu
+    **`annotations=0`** — le verdict rassurant, pour la mauvaise raison. Un
+    « zéro » produit par un échec de lecture est indistinguable d'un vrai zéro :
+    il faut vérifier que le fichier **existe** (`ls -l`) avant de compter dedans.
 
 ## 14. Étapes suivantes
 
@@ -430,10 +517,13 @@ Run #17 est vert avec le troisième correctif, en 4 min 49 s.
    rectangles est lue et testée, la mise en évidence fonctionne pour cette source.
    Il manque les **9 060 images** (archive de 102 608 011 octets). L'édition est
    proposée, et une page absente le **dit** au lieu d'afficher une page blanche.
-4. « Tawjeed test 2 » et « Medine Test » (§9.3). Les éditions de Tajwid n'ont ni
-   images ni rectangles : `QuranEdition.boundsSource` rend `nil`, ce qui produit
-   **aucune** mise en évidence plutôt que celles du Coran de Médine appliquées à
-   une autre image.
+4. « Tawjeed test 2 » et « Medine Test » (§9.3), **et la décision qui va avec**.
+   Les éditions de Tajwid n'ont ni images ni rectangles : `QuranEdition.boundsSource`
+   rend `nil`, ce qui produit **aucune** mise en évidence plutôt que celles du
+   Coran de Médine appliquées à une autre image. Reste à choisir entre copier
+   leurs ressources (51 Mo et 134 Mo) et laisser l'utilisateur choisir une édition
+   disponible. Ce n'est pas un cas théorique : l'état initial vaut `coranTest`
+   (voir §10).
 5. **Repères de progression de séance dans la marge** (`marginAnnotations`,
    `MushafPage.tsx:53`) — dépend du suivi de séance (`sessionThrough`), non porté.
 6. Assistant d'objectif hebdomadaire, écran d'apparence, messagerie, groupes,
