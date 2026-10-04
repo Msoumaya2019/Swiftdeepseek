@@ -228,6 +228,7 @@ la pagination du lecteur, intégré à SwiftUI par
 
 | Fichier | Contenu |
 |---|---|
+| `docs/RAPPORT_FINAL.md` | Rapport de la première mission : ce qui est fait, ce qui est vérifié, ce qui ne l'est pas |
 | `SWIFT_MIGRATION.md` | État de la reprise, fonction par fonction, avec les problèmes connus |
 | `SUPABASE_COMPATIBILITY.md` | Le contrat avec la base partagée : ce qui est interdit, autorisé, et la procédure d'arrêt-demande |
 | `LOCAL_DATA_MIGRATION.md` | Ce qui vit uniquement sur l'appareil dans l'application React Native, et ce qui se passe au passage |
