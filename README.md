@@ -143,14 +143,14 @@ Deux pièges, mesurés :
 
 ### État mesuré
 
-Run de référence — celui qui porte le correctif de configuration — : **#25**
-(`593b8b1`), **7 min 57 s**, les **14 étapes en `success`**, un artefact
-`Swiftdeepseek-unsigned-ipa` de **120 270 023 octets** — les 604 pages sont donc
+Run de référence — celui qui porte le correctif de l'édition affichée — : **#31**
+(`18ab77e`), **5 min 31 s**, les **16 étapes en `success`**, un artefact
+`Swiftdeepseek-unsigned-ipa` de **120 316 560 octets** — les 604 pages sont donc
 bien embarquées. Le numéro est **ancré sur un commit**, et non « le dernier » : une
 poussée de documentation ajoute un run, si bien qu'une formule au superlatif serait
 périmée dès son écriture.
 
-**140 tests** sont exécutés à chaque run, et **un seul** est ignoré : celui de la
+**152 tests** sont exécutés à chaque run, et **un seul** est ignoré : celui de la
 traversée du changement d'heure, qui n'a rien à éprouver dans un fuseau sans
 heure d'été.
 

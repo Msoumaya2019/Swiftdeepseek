@@ -365,15 +365,16 @@ Le paquet embarque **121,51 Mo** de ressources, mesurés : **112,73 Mo** pour le
 prix de la lecture hors ligne immédiate : aucune première ouverture n'attend un
 téléchargement.
 
-**Six de ces JSON ne sont lus par aucun code Swift**, et ils n'ont pas tous la
+**Cinq de ces JSON ne sont lus par aucun code Swift**, et ils n'ont pas tous la
 même raison :
 
 | Fichier | Lu par l'original ? | Pourquoi il est là |
 | --- | --- | --- |
 | `tajweed-text.json`, `tajweed-rules.json` | oui, mode `tajweed` | serviraient à l'édition « Lecture simplifiée » (§9.3) |
 | `mushaf-tajweed-bounds.json`, `mushaf-tajweed-dimensions.json` | oui, mode `tajweedPages` | mode **inatteignable** (§9.3) |
-| `coran_1441-markers.json` | oui, `MushafPage.tsx:49` | **manque réel** : voir §9.11 |
 | `coran_1441-headers.json` | **non, par personne** | poids mort |
+
+`coran_1441-markers.json` n'est plus dans cette liste : il est lu depuis §9.11.
 
 Si la taille devient un problème, la
 voie est de télécharger aussi le Coran de Médine, comme le Coran 1441 — au prix
@@ -435,19 +436,60 @@ là où un `String` était attendu. Écrit en deux temps (`guard let`, puis
 `QuranEdition(rawValue:)`), la même intention passe. Aucun contrôle local ne
 pouvait l'attraper : `scripts/verifier-flux.mjs` vérifie le flux, pas le Swift.
 
-### 9.11 Manque : les pastilles de numéro de verset du Coran 1441
+### 9.11 Les pastilles de numéro de verset du Coran 1441 — implémentées
 
-`Resources/Data/coran_1441-markers.json` est embarqué — **6 236** marqueurs, un
-par verset, sur les 604 pages — et **aucun code Swift ne le lit**.
+`Resources/Data/coran_1441-markers.json` était embarqué — **6 236** marqueurs, un
+par verset, sur les **604** pages — et **aucun code Swift ne le lisait**. Le
+lecteur affichait donc les quinze bandes du Coran 1441 sans aucun repère de
+verset : lisible, mais muet.
 
-L'original s'en sert dans la branche `coran_1441` (`MushafPage.tsx:49`) : pour
-chaque verset, une pastille de fond `#ECFDF5`, de bordure `#047857`, portant le
-numéro du verset en chiffres arabes orientaux (`٠١٢٣٤٥٦٧٨٩`), posée au début du
-verset. Le lecteur Swift affiche donc les quinze bandes **sans** ces pastilles.
+L'original s'en sert dans la branche `coran_1441` (`MushafPage.tsx:4` pour
+l'import, `:49` pour le rendu) : pour chaque verset, une pastille de fond
+`#ECFDF5`, de bordure `#047857`, portant le numéro du verset en chiffres arabes
+orientaux (`٠١٢٣٤٥٦٧٨٩`), posée au début du verset.
 
-Format, mesuré : `{ "<page>": [[sourate, verset, ligne, x, y], …] }`. La ligne est
-**0-basée** (`0` à `14`), la même convention que `coran_1441-bounds.json` ; `x`
-est une fraction de la largeur de page (`0,042` à `0,892`) et `y` une fraction de
-la hauteur de **bande** (`0,435` à `0,669`).
+**Format, mesuré.** `{ "<page>": [[sourate, verset, ligne, x, y], …] }`. La
+`ligne` est **0-basée** (`0` à `14`) — la convention des bandes du 1441, et non
+celle, 1-basée, de `bounds.json` ; `x` est une fraction de la largeur de page
+(`0,042` à `0,892`) et `y` une fraction de la hauteur de **bande** (`0,435` à
+`0,669`). Les deux dénominateurs ne sont pas les mêmes, et rien ne le signale à la
+lecture. Fichier vérifié à l'octet près contre
+`src/data/quran-tests/coran_1441-markers.json` : **200 110** octets, md5
+`552b038299ae128131ffbe8d94cd7704`.
 
-La donnée est déjà là : ce manque ne demande aucune ressource supplémentaire.
+**Où c'est écrit.** `Core/VerseMarkers.swift` porte le modèle, le chargement
+paresseux et la géométrie ; `Features/Quran/Reader/VerseMedallionView.swift`
+dessine ; `MushafPageViewController` ajoute la couche **avant** les mises en
+évidence, comme l'original place les pastilles dans le conteneur des bandes.
+
+**Le point qui évite la dérive.** La boîte d'une pastille passe par
+`VerseBounds.bandRect` — la **même** fonction qui place les quinze bandes. La
+pastille est donc solidaire de la bande qu'elle annote, et les deux ne peuvent pas
+diverger. C'est aussi ce qui la rend juste quand la vue n'a pas le ratio de la
+page : la formule de l'original (`(height - width * 232 / 1440) / 14 * line`)
+suppose ce ratio, et dérive sinon.
+
+**Les mesures reprises.** Diamètre `largeur × 0,05`, bordure `× 0,003`, police
+`× 0,025` — trois fractions de la **largeur de page**, calculées depuis la taille
+réelle de la vue pour que la pastille suive la rotation et le mini-lecteur.
+**Non repris** : le resserrement de ligne (`lineHeight: diameter * .8`,
+`includeFontPadding: false`), qui est un réglage de mise en page de React Native
+sans équivalent ici ; le glyphe est centré sur sa propre boîte.
+
+**La source compte.** `markers(page:source:)` rend une liste vide pour toute
+source autre que le 1441. Ces fractions se rapportent à la page du 1441 et leur
+`ligne` est l'indice d'une de ses quinze bandes : les projeter sur une page du
+Coran de Médine donnerait des pastilles à des endroits **plausibles** sur une
+image qui n'est pas la même — ce qui est pire que rien.
+
+**L'épreuve.** `Tests/VerseMarkersTests.swift` (12 tests) fixe la couverture
+(**604** pages, **6 236** marqueurs, 7 sur la page 1, 15 sur la 604), l'ordre des
+colonnes, la convention 0-basée vérifiée sur **tout** le fichier, la conversion
+des chiffres comparée à l'expression de l'original, deux boîtes mesurées hors du
+dépôt, et l'invariant « chaque pastille est dans sa bande » vérifié sur les
+**6 236** marqueurs, dans une vue dont le ratio **diffère** de celui de la page.
+
+**Une limite connue.** Le centrage vertical du chiffre se fait sur la boîte du
+glyphe, alors que l'original resserre la hauteur de ligne. Les deux donnent le
+même résultat à l'œil ; aucun test ne peut le trancher, faute de pouvoir dessiner
+sur cette machine.

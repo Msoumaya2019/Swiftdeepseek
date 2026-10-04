@@ -13,8 +13,8 @@ Date : 4 octobre 2026.
 | Visibilité | **publique** (nécessaire : les exécuteurs macOS sont facturés sur un dépôt privé) |
 | Branche par défaut | `main` |
 | Taille | 116 825 Ko (mesurée par l'API GitHub) |
-| Commits | 30 au commit `6d49506`, le correctif de l'édition affichée. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
-| Fichiers suivis | 687 — dont **48 fichiers Swift** et **140 tests** déclarés |
+| Commits | 31 au commit `18ab77e`, celui qui porte la correction de l'édition affichée. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
+| Fichiers suivis | 690 — dont **51 fichiers Swift** et **152 tests** déclarés |
 | Dépôt indépendant | oui — ni fourche, ni branche, ni sous-dossier, ni sous-module du dépôt de référence |
 
 ## 2. Dépôt de référence — intact, et aucun commit
@@ -56,7 +56,7 @@ La destination a été revérifiée **avant chaque poussée** de cette session.
 
 ## 4. Structure Swift créée
 
-Architecture MVVM, **48 fichiers Swift**, 687 fichiers suivis.
+Architecture MVVM, **51 fichiers Swift**, 690 fichiers suivis.
 
 ```
 App/            SwiftdeepseekApp, ContentView
@@ -260,6 +260,18 @@ Lecteur plein écran du Moushaf, `Features/Quran/Reader/`.
   les mises en évidence dans l'espace de l'image : les deux ne coïncident que si
   la vue a exactement le ratio de la page. Ici, elles coïncident toujours, et un
   test le fixe.
+- **Pastilles de numéro de verset du Coran 1441** — implémentées
+  (`SWIFT_MIGRATION.md` §9.11). `Core/VerseMarkers.swift` lit
+  `Resources/Data/coran_1441-markers.json` — **6 236** marqueurs sur **604** pages,
+  un par verset, jusqu'ici lus par aucun code — et
+  `Features/Quran/Reader/VerseMedallionView.swift` les dessine. Sont repris de
+  `MushafPage.tsx:49` le fond `#ECFDF5`, la bordure `#047857`, le diamètre
+  `largeur × 0,05`, l'épaisseur `× 0,003`, la police `× 0,025` et les chiffres
+  arabes orientaux (`٠١٢٣٤٥٦٧٨٩`). La boîte d'une pastille passe par
+  `VerseBounds.bandRect` : elle est donc **solidaire de la bande qu'elle annote**,
+  et les deux ne peuvent pas diverger — même quand la vue n'a pas le ratio de la
+  page, cas où la formule de l'original dérive. Un test vérifie l'invariant sur
+  les **6 236** marqueurs.
 - Audio : `AVFoundation`, récitateurs et correspondance d'audio repris de
   l'application d'origine.
 - **Mise en évidence des versets** : `Core/VerseBounds.swift` lit
@@ -332,12 +344,15 @@ référence** `medallion.png`,
 | **#28** | `4f07ea6` | **échec** — six échecs pour **une** constante fausse, un pour une exigence que j'avais inventée (voir ci-dessous) | — |
 | **#29** | `16ee5ca` | **success** — 130 tests | — |
 | **#30** | `6d49506` | **échec** — `flatMap` résolu sur `Sequence`, non sur `Optional` (`SWIFT_MIGRATION.md` §9.10) | — |
+| **#31** | `18ab77e` | **success** — 140 tests, 1 ignoré, 0 échec ; IPA de 120 316 560 octets | 5 min 31 s |
+| **#32** | *(le commit qui suit `18ab77e`)* | porte les **pastilles de numéro de verset** (`SWIFT_MIGRATION.md` §9.11) ; verdict inconnu au moment de la rédaction | — |
 
 Le tableau ne s'étend pas pour un run dont la seule cause est une modification de
 ce rapport : il s'étend quand un run **porte un fait**. Les runs #22 à #25 en
 portent deux ; #28 à #30 en portent trois — une constante fausse, une exigence
-que j'avais inventée, et une résolution de méthode. Les trois sont détaillés plus
-bas, parce qu'aucun n'a la cause que son message laissait croire.
+que j'avais inventée, et une résolution de méthode ; #31 porte le correctif de
+l'édition affichée. Les trois premiers sont détaillés plus bas, parce qu'aucun n'a
+la cause que son message laissait croire.
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
@@ -346,10 +361,11 @@ artefact de 120 263 470 octets**. La taille est le second témoin : elle prouve 
 les 604 pages sont réellement dans le paquet, et pas seulement que le fichier a
 été créé.
 
-Les **130 tests** de la cible de tests sont joués à chaque run. Deux d'entre eux
+Les **152 tests** de la cible de tests sont joués à chaque run. Deux d'entre eux
 (`AppWiringTests`) sont **ignorés** tant que les secrets `SUPABASE_URL` et
 `SUPABASE_ANON_KEY` ne sont pas posés sur le dépôt : ils vérifient la
-configuration, qui est alors absente. Ils s'activeront d'eux-mêmes.
+configuration, qui est alors absente. Ils s'activent d'eux-mêmes — mesuré, run
+#31 : `AppWiringTests` passe de « 3 tests, 2 ignorés » à « 3 tests, 0 ignoré ».
 
 L'IPA est **non signé** : il s'installe par sideloading, pas par l'App Store.
 
@@ -725,8 +741,10 @@ de pousser n'est pas un luxe, mais le seul filtre disponible.
 
 *Déjà faites depuis la rédaction de la première version de ce rapport, et donc
 retirées de cette liste : la notation des révisions dans l'interface (§10, barre
-d'action), l'affichage rouge des versets difficiles (§10, `VerseBounds`), et la
-consommation de `ReaderRequest.reviewTask` et `.consolidation` par le lecteur.*
+d'action), l'affichage rouge des versets difficiles (§10, `VerseBounds`), la
+consommation de `ReaderRequest.reviewTask` et `.consolidation` par le lecteur, et
+les **pastilles de numéro de verset du Coran 1441** (§10, `SWIFT_MIGRATION.md`
+§9.11).*
 
 **Côté Apple** (README §« Ce qu'il reste à faire côté Apple ») : compte de
 développeur, identifiant de paquet enregistré, profil de provisionnement et

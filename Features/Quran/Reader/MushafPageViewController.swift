@@ -77,6 +77,7 @@ final class MushafPageViewController: UIViewController {
 
     private let pageImageView = UIImageView()
     private var bandImageViews: [UIImageView] = []
+    private let medallionView = VerseMedallionView()
     private let highlightView = VerseHighlightView()
     private let spinner = UIActivityIndicatorView(style: .medium)
     private let placeholderLabel = UILabel()
@@ -87,6 +88,7 @@ final class MushafPageViewController: UIViewController {
         imageURLs: [URL],
         banded: Bool,
         imageSize: CGSize,
+        medallions: [VerseMarkers.Marker] = [],
         highlights: [VerseBounds.Highlight] = [],
         style: VerseHighlightStyle = .from(Theme.white)
     ) {
@@ -95,6 +97,8 @@ final class MushafPageViewController: UIViewController {
         self.banded = banded
         self.imageSize = imageSize
         super.init(nibName: nil, bundle: nil)
+        medallionView.imageSize = imageSize
+        medallionView.markers = medallions
         highlightView.imageSize = imageSize
         highlightView.highlights = highlights
         highlightView.style = style
@@ -151,6 +155,17 @@ final class MushafPageViewController: UIViewController {
             view.addSubview(pageImageView)
         }
 
+        // Les pastilles de numéro de verset, puis les mises en évidence : l'ordre
+        // d'ajout est l'ordre de dessin, et l'original place les pastilles dans
+        // le conteneur des bandes, avant les rectangles. Une mise en évidence
+        // passe donc **au-dessus** de la pastille qu'elle recouvre.
+        //
+        // Comme la mise en évidence, elle couvre exactement la zone de la page et
+        // calcule elle-même la boîte où l'image est dessinée — donc aucune
+        // contrainte de taille à lui donner.
+        medallionView.frame = layoutBox
+        view.addSubview(medallionView)
+
         // La mise en évidence couvre exactement la zone de la page : elle
         // calcule elle-même la boîte où l'image est dessinée, à partir de
         // `imageSize`, et suit donc tout changement de taille sans contrainte
@@ -206,6 +221,7 @@ final class MushafPageViewController: UIViewController {
         } else {
             pageImageView.frame = box
         }
+        medallionView.frame = box
         highlightView.frame = box
     }
 
@@ -375,6 +391,22 @@ struct MushafPageController: UIViewControllerRepresentable {
             )
         }
 
+        /// Les pastilles de numéro de verset de la page.
+        ///
+        /// Même règle, et même source, que les mises en évidence : les marqueurs
+        /// annotent les **bandes** du Coran 1441, et leurs fractions se rapportent
+        /// à sa page. Une édition dont la géométrie n'est pas connue n'en reçoit
+        /// donc aucune — les projeter ailleurs donnerait des pastilles à des
+        /// endroits plausibles sur une image qui n'est pas la même.
+        ///
+        /// Le repli `.medine` du `??` n'est pas un choix d'édition : c'est la
+        /// source pour laquelle `VerseMarkers` rend une liste vide, ce qui garde
+        /// la fonction totale plutôt que de la faire renvoyer un optionnel.
+        func medallions(for page: Int) -> [VerseMarkers.Marker] {
+            guard let source = parent.edition.boundsSource else { return [] }
+            return VerseMarkers.markers(page: page, source: source)
+        }
+
         func makePage(_ number: Int) -> UIViewController {
             let clamped = min(max(number, 1), QuranSourceService.totalPages)
             let edition = parent.edition
@@ -383,6 +415,7 @@ struct MushafPageController: UIViewControllerRepresentable {
                 imageURLs: parent.source.imageURLs(for: edition, page: clamped),
                 banded: edition == .coran1441,
                 imageSize: parent.source.geometry(for: edition).size,
+                medallions: medallions(for: clamped),
                 highlights: highlights(for: clamped),
                 style: parent.style
             )
