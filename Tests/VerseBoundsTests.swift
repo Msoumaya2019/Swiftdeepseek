@@ -178,21 +178,38 @@ final class VerseBoundsTests: XCTestCase {
     /// l'espace de l'image, si bien que les deux ne coïncident que si la vue a
     /// exactement le ratio de la page. Ici les deux passent par `VerseBounds`,
     /// donc elles coïncident toujours.
+    ///
+    /// ATTENTION À CE QUI COÏNCIDE, ET À CE QUI NE COÏNCIDE PAS. Une bande est la
+    /// **bande** de la ligne — toute la largeur de la page. Le rectangle d'un
+    /// verset n'en occupe qu'une **partie** horizontale. Le premier jet de ce
+    /// test comparait aussi leurs `minX` : c'est ce qui a fait échouer le run
+    /// #19, sur neuf lignes de la page 1, avec des valeurs qui se relisent
+    /// exactement — `352,08 / 1440 × 390 = 95,355`. Le défaut était dans le
+    /// test, pas dans le code : une bande commence au bord de la page, un verset
+    /// commence là où il commence.
+    ///
+    /// Ce qui doit être **égal** : le haut et la hauteur. Ce qui doit être
+    /// **contenu** : l'étendue horizontale.
     func testTheBandsAndTheHighlightsUseTheSameGeometry() {
         let view = CGRect(x: 0, y: 0, width: 390, height: 700)
         let size = VerseBounds.imageSize(for: .coran1441, page: 1)
 
-        let rows = VerseBounds.rows(page: 1, source: .coran1441)
-        XCTAssertFalse(rows.isEmpty)
+        var checked = 0
+        for page in [1, 2, 300, 604] {
+            for row in VerseBounds.rows(page: page, source: .coran1441) {
+                let band = VerseBounds.bandRect(line: row.line, in: view, imageSize: size)
+                let rect = VerseBounds.project(row.rect, into: view, imageSize: size)
 
-        for row in rows {
-            let band = VerseBounds.bandRect(line: row.line, in: view, imageSize: size)
-            let rect = VerseBounds.project(row.rect, into: view, imageSize: size)
-
-            XCTAssertEqual(rect.minY, band.minY, accuracy: 0.001, "ligne \(row.line)")
-            XCTAssertEqual(rect.height, band.height, accuracy: 0.001, "ligne \(row.line)")
-            XCTAssertEqual(rect.minX, band.minX, accuracy: 0.001, "ligne \(row.line)")
+                XCTAssertEqual(rect.minY, band.minY, accuracy: 0.001, "page \(page), ligne \(row.line)")
+                XCTAssertEqual(rect.height, band.height, accuracy: 0.001, "page \(page), ligne \(row.line)")
+                XCTAssertGreaterThanOrEqual(rect.minX, band.minX - 0.001, "page \(page), ligne \(row.line)")
+                XCTAssertLessThanOrEqual(rect.maxX, band.maxX + 0.001, "page \(page), ligne \(row.line)")
+                checked += 1
+            }
         }
+        // 10 + 9 + 21 + 18 : le balayage doit porter sur toutes les lignes de ces
+        // quatre pages, et pas sur moins si une page manquait au fichier.
+        XCTAssertEqual(checked, 58)
     }
 
     /// La taille de la page est **celle de la source**, et le repli est la taille
