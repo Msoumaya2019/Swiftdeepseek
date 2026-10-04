@@ -9,17 +9,27 @@
 //   DEFLATE produit par un autre outil que le code testé.
 //
 // LE TEST QUI COMPTE LE PLUS
-//   `testARawDeflateStreamIsDecoded` et `testAZlibWrappedStreamIsNotDecoded`
-//   forment une paire. La constante `COMPRESSION_ZLIB` d'Apple pourrait
-//   désigner un flux DEFLATE **brut** — celui d'un ZIP — ou un flux enveloppé
-//   d'un en-tête zlib. Les deux se ressemblent, et se tromper rend l'archive
-//   entière illisible. Le premier test exige que le flux **brut** soit décodé,
-//   le second exige que le flux **enveloppé** ne le soit **pas**. Un seul des
-//   deux ne prouverait rien : il passerait avec l'une ou l'autre sémantique.
+//   `testARawDeflateStreamIsDecoded` : la constante `COMPRESSION_ZLIB` d'Apple
+//   désigne-t-elle le flux DEFLATE **brut** d'un ZIP, ou un flux enveloppé d'un
+//   en-tête zlib ? Les deux se ressemblent de près, et se tromper rend l'archive
+//   entière illisible.
 //
-//   Les deux flux sont produits par `zlib` (via Python), pas par le framework
-//   Apple. Un aller-retour avec le seul framework serait vert quelle que soit
-//   sa sémantique, puisque les deux côtés se tromperaient ensemble.
+//   Le flux de référence est produit par `zlib` (via Python), **pas** par le
+//   framework Apple : un aller-retour avec le seul framework serait vert quelle
+//   que soit sa sémantique, puisque les deux côtés se tromperaient ensemble. Le
+//   test exige donc le contenu exact, jusqu'à l'empreinte SHA-256.
+//
+//   Sa première version l'encadrait d'un test négatif — « un flux enveloppé doit
+//   être refusé ». Ce test était **faux** : l'intégration continue a montré que le
+//   décodeur d'Apple **tolère** l'en-tête zlib. L'exigence avait été inventée, pas
+//   mesurée. Elle est remplacée par ce qui est constaté
+//   (`testTheDecoderToleratesAZlibHeader`), et le chemin d'erreur est couvert par
+//   `testACorruptStreamIsRefused`.
+//
+//   Le même run a trouvé un défaut réel, dans le code et non dans les tests :
+//   `Coran1441Install.imageWidth` valait 1920 — la largeur de page du Coran de
+//   Médine — au lieu de 1440, et **toutes** les images de l'archive auraient été
+//   refusées. Voir `testOnlyImagesOfTheRightDimensionsAreAccepted`.
 
 import Compression
 import CryptoKit
@@ -40,7 +50,9 @@ final class Coran1441DownloadTests: XCTestCase {
         "6wzwc+flkuJiYGDg9fRwCWJgYF0AZL/gYAKS0z5esWRgYH7k6eIYUnHr7UFDRqDgoQVf/XN5+UGqRsEoGAVDH1QY+ZxkYPxb3bAPxPN09XNZ55TQBAA="
 
     /// Le même PNG, compressé avec l'en-tête et la somme **zlib** (`wbits = 15`).
-    /// Ce n'est pas ce que contient un ZIP ; ce test existe pour l'exiger.
+    /// Ce n'est pas ce que contient un ZIP. Il sert à **consigner** que le
+    /// décodeur d'Apple tolère cette enveloppe — comportement mesuré, et non
+    /// exigence (voir `testTheDecoderToleratesAZlibHeader`).
     static let zlibWrappedBase64 =
         "eNrrDPBz5+WS4mJgYOD19HAJYmBgXQBkv+BgApLTPl6xZGBgfuTp4hhScevtQUNGoOChBV/9c3n5QapGwSgYBUMfVBj5nGRg/FvdsA/E83T1c1nnlNAEADAuF3k="
 
@@ -75,17 +87,53 @@ final class Coran1441DownloadTests: XCTestCase {
         )
     }
 
-    /// Le flux enveloppé d'un en-tête zlib doit être **refusé**.
+    /// Le décodeur d'Apple **tolère** un en-tête zlib.
     ///
-    /// C'est ce test qui fixe la sémantique. S'il échoue, alors
-    /// `COMPRESSION_ZLIB` attend un flux enveloppé — et c'est tout le lecteur
-    /// d'archive qu'il faut corriger, pas ce test.
-    func testAZlibWrappedStreamIsNotDecoded() throws {
+    /// Ce test ne défend pas un comportement souhaitable : il **consigne** un
+    /// comportement observé. La version précédente affirmait le contraire — « un
+    /// flux zlib doit être refusé » — et elle était **fausse**. C'était une
+    /// exigence inventée : rien dans le format ZIP ne demande ce refus, et
+    /// `compression_decode_buffer` ne le fait pas. L'intégration continue l'a
+    /// démentie, et c'est la mesure qui a raison.
+    ///
+    /// Ce qui compte pour l'archive n'est donc pas ce refus, mais le fait que le
+    /// flux **brut** soit décodé jusqu'à l'empreinte exacte — voir
+    /// `testARawDeflateStreamIsDecoded`. C'est la forme que porte un ZIP, et
+    /// c'est elle qui est prouvée.
+    ///
+    /// Conséquence pratique : un en-tête zlib en trop ne fait pas échouer la
+    /// lecture. Sans conséquence ici, puisque l'archive n'en contient pas — et
+    /// l'empreinte, elle, ne pardonnerait pas un contenu faux.
+    func testTheDecoderToleratesAZlibHeader() throws {
         let wrapped = try XCTUnwrap(Data(base64Encoded: Self.zlibWrappedBase64))
 
+        let decoded = try Coran1441Archive.inflate(
+            wrapped,
+            expecting: Self.referencePNGBytes,
+            name: "enveloppe.png"
+        )
+
+        XCTAssertFalse(
+            decoded.isEmpty,
+            "Comportement mesuré : le décodeur ne refuse pas un en-tête zlib."
+        )
+    }
+
+    /// Des octets qui ne sont pas un flux DEFLATE doivent échouer.
+    ///
+    /// C'est le pendant du test précédent : tolérant sur l'en-tête, le décodeur
+    /// ne l'est pas sur le contenu. Sans ce test, le chemin d'erreur de
+    /// `inflate` ne serait exercé par rien.
+    ///
+    /// Le contenu choisi est une suite de zéros : le premier bloc se lit comme un
+    /// bloc « stocké » de longueur nulle, dont la longueur complémentaire est
+    /// fausse — un bloc invalide, et de façon déterministe.
+    func testACorruptStreamIsRefused() {
+        let junk = Data(repeating: 0, count: 64)
+
         XCTAssertThrowsError(
-            try Coran1441Archive.inflate(wrapped, expecting: Self.referencePNGBytes, name: "enveloppe.png"),
-            "Un flux zlib ne doit pas être accepté comme du DEFLATE brut : un ZIP n'en contient pas."
+            try Coran1441Archive.inflate(junk, expecting: Self.referencePNGBytes, name: "corrompu.png"),
+            "Des octets qui ne sont pas un flux DEFLATE ne doivent pas être acceptés."
         )
     }
 
@@ -213,6 +261,30 @@ final class Coran1441DownloadTests: XCTestCase {
         XCTAssertEqual(Coran1441Install.pages, 604)
         XCTAssertEqual(Coran1441Install.linesPerPage, 15)
         XCTAssertEqual(Coran1441Install.requiredFileCount, 9_060)
+    }
+
+    /// Les dimensions d'une bande, figées à celles de l'archive.
+    ///
+    /// Ce test existe parce que le défaut a eu lieu : `imageWidth` avait été pris
+    /// dans `VerseBounds.imageSize`, qui désigne la page du **Coran de Médine**
+    /// (1920), au lieu de la largeur d'une bande du **1441** (1440). Le résultat
+    /// était que **toutes** les images réelles auraient été refusées — sans autre
+    /// symptôme qu'un téléchargement qui n'aboutit jamais.
+    ///
+    /// La valeur est écrite ici en clair, et non dérivée : c'est le seul endroit
+    /// où elle est indépendante du code qu'elle contrôle. La dériver reviendrait
+    /// à comparer le code à lui-même.
+    func testTheBandDimensionsAreThoseOfTheArchive() {
+        XCTAssertEqual(
+            Coran1441Install.imageWidth,
+            1_440,
+            "1440 est la largeur d'une bande du Coran 1441. 1920 est celle du Coran de Médine."
+        )
+        XCTAssertEqual(
+            Coran1441Install.imageHeight,
+            232,
+            "232 est la hauteur d'une bande, et non la hauteur de la page (2320)."
+        )
     }
 
     // MARK: Validité des images

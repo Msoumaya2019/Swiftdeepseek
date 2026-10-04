@@ -51,8 +51,18 @@ public enum Coran1441Install {
     /// Nombre d'images qu'une installation complète doit contenir — 9 060.
     public static var requiredFileCount: Int { pages * linesPerPage }
 
-    /// Largeur d'une bande, en pixels — `VerseBounds.imageSize.width`.
-    public static var imageWidth: Int { Int(VerseBounds.imageSize.width) }
+    /// Largeur d'une bande, en pixels — **1440**.
+    ///
+    /// C'est la largeur de la **page** du Coran 1441 : une bande occupe toute la
+    /// largeur de sa page.
+    ///
+    /// Ne pas prendre `VerseBounds.imageSize` : cette constante-là désigne la page
+    /// du **Coran de Médine**, `1920 × 3106`. S'en servir ici exigerait 1920 de
+    /// large et **refuserait les 9 060 images réelles** de l'archive, qui font
+    /// 1440 — un défaut trouvé par l'intégration continue, et non par lecture.
+    public static var imageWidth: Int {
+        Int(VerseBounds.Source.coran1441.fallbackImageSize.width)
+    }
 
     /// Hauteur d'une bande, en pixels. Ce n'est **pas** la hauteur de la page :
     /// une page du 1441 fait `1440 × 2320` et contient quinze bandes de 232,
