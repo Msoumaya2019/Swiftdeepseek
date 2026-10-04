@@ -133,26 +133,35 @@ final class OfflineMergeTests: XCTestCase {
     func testValidationLogsAreUnionedWithoutDuplicates() {
         let entry = object(["start": .number(1), "end": .number(3), "date": .string("2026-10-01")])
         let other = object(["start": .number(4), "end": .number(6), "date": .string("2026-10-02")])
-        let base = object(["validations": .array([entry])])
-        let local = object(["validations": .array([entry])])
-        let remote = object(["validations": .array([entry, other])])
+        // Les trois arguments sont les TABLEAUX eux-mêmes : `merge` fusionne le
+        // nœud qu'on lui passe, et `path` décrit ce nœud. Passer l'objet parent
+        // tout en nommant l'enfant dans `path` faisait lire `.arrayValue` sur un
+        // objet — donc `nil`, quelle que soit la fusion.
+        //
+        // `base` vide à dessein : `local` et `remote` diffèrent alors tous deux
+        // de `base`, ce qui exerce réellement l'union. Avec `base == local`, le
+        // raccourci « aucun changement local » rend `remote` directement, sans
+        // jamais dédupliquer.
+        let base = JSONValue.array([])
+        let local = JSONValue.array([entry])
+        let remote = JSONValue.array([entry, other])
         let merged = OfflineMerge.merge(base: base, local: local, remote: remote, path: "x.validations")
         XCTAssertEqual(merged?.arrayValue?.count, 2)
     }
 
     func testReadPagesAreUnionedAndSortedNumerically() {
         // Tri numérique, pas alphabétique : sans cela « 10 » passerait avant « 9 ».
-        let base = object(["readPages": .array([.number(1)])])
-        let local = object(["readPages": .array([.number(10)])])
-        let remote = object(["readPages": .array([.number(9)])])
+        let base = JSONValue.array([.number(1)])
+        let local = JSONValue.array([.number(10)])
+        let remote = JSONValue.array([.number(9)])
         let merged = OfflineMerge.merge(base: base, local: local, remote: remote, path: "x.readPages")
         XCTAssertEqual(merged?.arrayValue?.compactMap { $0.intValue }, [9, 10])
     }
 
     func testCompletedVersesAreUnioned() {
-        let base = object(["completed": .array([.number(1)])])
-        let local = object(["completed": .array([.number(1), .number(2)])])
-        let remote = object(["completed": .array([.number(1), .number(3)])])
+        let base = JSONValue.array([.number(1)])
+        let local = JSONValue.array([.number(1), .number(2)])
+        let remote = JSONValue.array([.number(1), .number(3)])
         let merged = OfflineMerge.merge(base: base, local: local, remote: remote, path: "cycle.completed")
         XCTAssertEqual(merged?.arrayValue?.compactMap { $0.intValue }, [1, 2, 3])
     }
