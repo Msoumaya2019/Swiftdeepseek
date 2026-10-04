@@ -171,7 +171,7 @@ jobs:
           tail -40 build-simulator.log
           if [ "$code" -ne 0 ]; then
             echo "::error::Compilation échouée (code $code). Erreurs du compilateur :"
-            grep -E 'error:' build-simulator.log | head -30 | sed 's/%/%25/g' | while IFS= read -r ligne; do
+            grep -E -A 4 'error:' build-simulator.log | head -60 | sed 's/%/%25/g' | while IFS= read -r ligne; do
               echo "::error::$ligne"
             done
             exit "$code"
@@ -188,20 +188,47 @@ jobs:
       # ───────────────────────────────────────────────────────────────────────
       - name: Jouer les tests
         run: |
+          # ───────────────────────────────────────────────────────────────────
+          #  POURQUOI LE SIMULATEUR EST RÉSOLU À L'EXÉCUTION
+          #  Nommer l'appareil (`name=iPhone 16`) paraît stable et ne l'est pas :
+          #  le contenu de l'image d'exécuteur change sans préavis. Mesuré ici —
+          #  trois runs verts d'affilée avec `name=iPhone 16`, puis le run #11 a
+          #  échoué en code 70 :
+          #    xcodebuild: error: Unable to find a device matching the provided
+          #    destination specifier:
+          #  Le même fichier, au même commit près, passait la veille. On demande
+          #  donc à `simctl` un appareil RÉELLEMENT disponible, et on le nomme
+          #  par son identifiant (`id=`), qui ne dépend pas du catalogue.
+          # ───────────────────────────────────────────────────────────────────
+          DEVICE=$(xcrun simctl list devices available | awk -F '[()]' '/iPhone/ {print $2; exit}')
+          if [ -z "$DEVICE" ]; then
+            echo "::error::Aucun simulateur iPhone disponible. Appareils vus :"
+            xcrun simctl list devices available 2>&1 | sed 's/%/%25/g' | head -40 | while IFS= read -r l; do
+              echo "::error::$l"
+            done
+            exit 1
+          fi
+          echo "Simulateur retenu : $DEVICE"
+          xcrun simctl list devices available | grep -F "$DEVICE" || true
+
           set +e
           xcodebuild test \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Debug \
-            -destination 'platform=iOS Simulator,name=iPhone 16' \
+            -destination "id=$DEVICE" \
             CODE_SIGNING_ALLOWED=NO \
             > build-tests.log 2>&1
           code=$?
           tail -60 build-tests.log
           if [ "$code" -ne 0 ]; then
             echo "::error::Tests échoués (code $code). Lignes utiles :"
-            grep -E 'error:|Failing tests|XCTAssert|failed \(|TEST FAILED|Testing failed' build-tests.log \
-              | head -30 | sed 's/%/%25/g' | while IFS= read -r ligne; do
+            #  `-A 6` : la ligne d'erreur seule ne suffit pas. Pour une
+            #  destination introuvable, `xcodebuild` écrit la liste des
+            #  appareils qu'il a vus sur les lignes SUIVANTES — sans elles, le
+            #  run #11 n'annonçait qu'un message tronqué se terminant par « : ».
+            grep -E -A 6 'error:|Failing tests|XCTAssert|failed \(|TEST FAILED|Testing failed' build-tests.log \
+              | head -60 | sed 's/%/%25/g' | while IFS= read -r ligne; do
               echo "::error::$ligne"
             done
             exit "$code"
