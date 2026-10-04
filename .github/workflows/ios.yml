@@ -161,16 +161,35 @@ jobs:
           fi
           echo "Compilation réussie."
 
+      # ───────────────────────────────────────────────────────────────────────
+      #  Tests — même traitement que la compilation, et pour la même raison.
+      #
+      #  `xcodebuild test` échoue aussi bien sur une assertion que sur une
+      #  erreur de compilation de la cible de tests : sans extraire le journal,
+      #  on ne sait pas laquelle des deux. Le code de sortie est donc capturé,
+      #  puis les lignes utiles sont réémises en annotations.
+      # ───────────────────────────────────────────────────────────────────────
       - name: Jouer les tests
         run: |
-          set -euo pipefail
+          set +e
           xcodebuild test \
             -project "$PROJECT" \
             -scheme "$SCHEME" \
             -configuration Debug \
             -destination 'platform=iOS Simulator,name=iPhone 16' \
             CODE_SIGNING_ALLOWED=NO \
-            | tee build-tests.log | tail -60
+            > build-tests.log 2>&1
+          code=$?
+          tail -60 build-tests.log
+          if [ "$code" -ne 0 ]; then
+            echo "::error::Tests échoués (code $code). Lignes utiles :"
+            grep -E 'error:|Failing tests|XCTAssert|failed \(|TEST FAILED|Testing failed' build-tests.log \
+              | head -30 | sed 's/%/%25/g' | while IFS= read -r ligne; do
+              echo "::error::$ligne"
+            done
+            exit "$code"
+          fi
+          echo "Tests réussis."
 
       # ───────────────────────────────────────────────────────────────────────
       #  Archive NON SIGNÉE puis ré-empaquetage manuel en .ipa.
