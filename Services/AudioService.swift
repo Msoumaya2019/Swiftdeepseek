@@ -55,7 +55,11 @@ public enum VerseAudio {
     /// `verseAudioUrl(id, reciter)` — `src/core/audio.ts:38`.
     public static func url(verseID: Int, reciter: Reciter = .default) -> URL? {
         if let folder = reciter.verseFolder {
-            guard let verse = Quran.verses[safe: verseID - 1] else { return nil }
+            // Bornes vérifiées explicitement : le paquet ne définit aucun
+            // subscript « sûr », et un identifiant hors bornes doit rendre
+            // `nil` plutôt que de faire tomber l'application.
+            guard verseID >= 1, verseID <= Quran.verses.count else { return nil }
+            let verse = Quran.verses[verseID - 1]
             let name = String(format: "%03d%03d.mp3", verse.surah, verse.ayah)
             return URL(string: "https://everyayah.com/data/\(folder)/\(name)")
         }

@@ -68,7 +68,14 @@ public final class AppStateRepository: ObservableObject {
         self.userId = userId
         guard let userId else { return }
 
-        let cached = await store.loadAccountState(userId) ?? (await store.loadState())
+        // L'état du compte est prioritaire, l'état global sert de repli.
+        //
+        // En deux temps, et non `await a ?? (await b)` : l'opérateur `??` prend
+        // son opérande droit dans une autoclosure, qui ne supporte pas
+        // `await` — « 'await' in an autoclosure that does not support
+        // concurrency ».
+        var cached = await store.loadAccountState(userId)
+        if cached == nil { cached = await store.loadState() }
         guard let cached, let typed = AppState.decode(from: cached) else { return }
 
         state = Program.migrateReaderState(typed)
