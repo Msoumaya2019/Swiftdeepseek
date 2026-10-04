@@ -150,16 +150,15 @@ Trois pièges, mesurés :
 
 ### État mesuré
 
-Run de référence — celui qui porte les réglages de répétition et le contrôle qui
-relit les listes figées du test : **#41** (`9e9f2bf`), **4 min 19 s**, les **16
-étapes en `success`** et **aucune annotation** — le message de file d'attente
-macOS qui figurait sur les runs précédents a disparu de celui-ci. L'IPA pèse
-**120 357 634 octets** — les 604 pages sont donc bien embarquées. Le numéro est
-**ancré sur un commit**, et non « le dernier » : une poussée de documentation
-ajoute un run, si bien qu'une formule au superlatif serait périmée dès son
-écriture.
+Run de référence — celui qui porte l'écran des réglages de répétition et le banc
+qui vérifie que cette vue ne décide de rien : **#46** (`ba1c091`), **7 min 58 s**,
+les **16 étapes en `success`** et **une annotation** — le message de file
+d'attente macOS, qui va et vient d'un run à l'autre. L'IPA pèse **120 399 682
+octets** — les 604 pages sont donc bien embarquées. Le numéro est **ancré sur un
+commit**, et non « le dernier » : une poussée de documentation ajoute un run, si
+bien qu'une formule au superlatif serait périmée dès son écriture.
 
-**228 tests** sont exécutés à chaque run, répartis sur **treize groupes**, et
+**253 tests** sont exécutés à chaque run, répartis sur **quatorze groupes**, et
 **un seul** est ignoré : celui de la traversée du changement d'heure, qui n'a
 rien à éprouver dans un fuseau sans heure d'été.
 
@@ -171,7 +170,12 @@ test lui-même, où deux valeurs avaient été écrites de mémoire au lieu d'ê
 recopiées du banc. C'est ce run qui a motivé la section 15 de
 `_banc/oracle-audio.mjs` : elle **relit** les listes figées du test et les
 confronte à la référence, si bien que cette classe de défaut ne peut plus passer
-en silence.
+en silence. Et **#45** (`d383010`) s'est arrêté sur une **seule** erreur de
+compilation — « call to actor-isolated instance method … in a synchronous main
+actor-isolated context » : `LocalStore` est un **acteur**, donc sa lecture ne peut
+pas se faire dans un `init`, qui ne peut pas `await`. Le défaut tenait dans un mot
+— le `await` —, et aucun banc ne le voyait ; il est corrigé par `ba1c091`, et le
+banc exige désormais l'`await` des deux côtés.
 
 Deux autres (`AppWiringTests`) ne s'exécutent que si la configuration Supabase est
 présente : ils vérifient que l'URL arrive **intacte** dans l'application — non

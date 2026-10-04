@@ -12,9 +12,9 @@ Date : 4 octobre 2026.
 | Nom | **`Swiftdeepseek`** — exactement, sans variante |
 | Visibilité | **publique** (nécessaire : les exécuteurs macOS sont facturés sur un dépôt privé) |
 | Branche par défaut | `main` |
-| Taille | 117 072 Ko (mesurée par l'API GitHub) |
-| Commits | 42 au commit `9e9f2bf`, celui qui porte les réglages de répétition et le contrôle qui relit les listes figées du test. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
-| Fichiers suivis | 697 — dont **58 fichiers Swift** et **228 tests** déclarés |
+| Taille | 117 138 Ko (mesurée par l'API GitHub) |
+| Commits | 46 au commit `ba1c091`, celui qui porte l'écran des réglages de répétition et le banc qui vérifie que cette vue ne décide de rien. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
+| Fichiers suivis | 700 — dont **61 fichiers Swift** et **253 tests** déclarés |
 | Dépôt indépendant | oui — ni fourche, ni branche, ni sous-dossier, ni sous-module du dépôt de référence |
 
 ## 2. Dépôt de référence — intact, et aucun commit
@@ -56,15 +56,16 @@ La destination a été revérifiée **avant chaque poussée** de cette session.
 
 ## 4. Structure Swift créée
 
-Architecture MVVM, **58 fichiers Swift**, 697 fichiers suivis.
+Architecture MVVM, **61 fichiers Swift**, 700 fichiers suivis.
 
 ```
 App/            SwiftdeepseekApp, ContentView
 Core/           AppState, OfflineMerge, JSONValue, DateKeys, Program, Review,
                 Quran, WeeklyProgress, Bookmark, AppConfig,
-                VerseBounds, VerseMarkers, MarginAnnotations, PassageAudio
-Features/       Home, Quran (QuranScreenView + Reader/), Program, Progress,
-                Review, Friends, Navigation, Shared
+                VerseBounds, VerseMarkers, MarginAnnotations, PassageAudio,
+                AudioRepeatPreferences, PassageAudioEngine
+Features/       Home, Quran (QuranScreenView, AudioRepeatSettingsView + Reader/),
+                Program, Progress, Review, Friends, Navigation, Shared
 Models/         ViewModels/
 Networking/     SupabaseRESTClient
 Repositories/   AppStateRepository
@@ -369,6 +370,11 @@ référence** `medallion.png`,
 | **#39** | `6f502a3` | **échec** — quatre références à un membre statique depuis un contexte d'instance, à qualifier de `Self.` (voir ci-dessous) | 54 s |
 | **#40** | `6c3a7b0` | **échec** — deux valeurs écrites de mémoire dans le test, non dans le portage (voir ci-dessous) ; **228 tests, 1 ignoré, 2 échecs** | 8 min 52 s |
 | **#41** | `9e9f2bf` | **success** — les réglages de répétition et le contrôle qui relit les listes figées du test (`SWIFT_MIGRATION.md` §9.14) ; **228 tests, 1 ignoré, 0 échec** ; IPA de 120 357 634 octets | 4 min 19 s |
+| **#42** | `1eaaa61` | **success** — documentation seule ; c'est le run #41 qui porte les réglages de répétition | 5 min 7 s |
+| **#43** | `6f7d778` | **annulé** — remplacé par le run #44 : le correctif `82674fd` a été poussé pendant son exécution, et la file annule le run en cours | 3 min 38 s |
+| **#44** | `82674fd` | **success** — la machine d'état de la boucle de répétition (`SWIFT_MIGRATION.md` §9.15) ; **253 tests, 1 ignoré, 0 échec** ; IPA de 120 363 268 octets | 8 min 0 s |
+| **#45** | `d383010` | **échec** — **une seule** erreur de compilation : `LocalStore` est un **acteur**, donc sa lecture ne peut pas se faire dans un `init` (voir ci-dessous) | 1 min 32 s |
+| **#46** | `ba1c091` | **success** — l'écran des réglages de répétition et le banc qui vérifie que cette vue ne décide de rien (`SWIFT_MIGRATION.md` §9.16) ; **253 tests, 1 ignoré, 0 échec** ; IPA de 120 399 682 octets | 7 min 58 s |
 
 Le tableau ne s'étend pas pour un run dont la seule cause est une modification de
 ce rapport : il s'étend quand un run **porte un fait**. Les runs #22 à #25 en
@@ -382,7 +388,13 @@ message laissait croire. #38 ne porte rien, et c'est dit ; #39 porte une erreur 
 compilation — un membre statique lu depuis un contexte d'instance, sans `Self.` ;
 #40 porte **deux échecs de test**, dans le fichier de test et non dans le portage ;
 #41 porte les réglages de répétition et la section 15 du banc, qui relit les
-listes figées du test.
+listes figées du test. #42 ne porte rien, et c'est dit. #43 a été **annulé** par
+le correctif `82674fd`, poussé pendant son exécution : la file annule le run en
+cours, et c'est le prix d'un correctif poussé trop tôt — le n° 44 l'a remplacé.
+#44 porte la **machine d'état de la boucle de répétition** et ses **vingt-cinq**
+tests ; #45 porte **une seule erreur de compilation**, et cette erreur vaut d'être
+racontée ; #46 porte l'**écran des réglages** et le banc qui vérifie qu'il ne
+décide de rien.
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
@@ -391,19 +403,22 @@ artefact de 120 263 470 octets**. La taille est le second témoin : elle prouve 
 les 604 pages sont réellement dans le paquet, et pas seulement que le fichier a
 été créé.
 
-Les **228 tests** de la cible de tests sont joués à chaque run, répartis sur
-**treize groupes**. Le compte est lu sur l'**artefact** du run #41 — et non sur le
-journal du flux, qui est tronqué (`tail -60`) et ne porte pas la fin de la suite :
-`AppWiringTests` 3, `AudioRepeatPreferencesTests` 27, `Coran1441DownloadTests` 20,
-`DateKeysTests` 8 (dont **1 ignoré**), `JSONValueTests` 11,
-`MarginAnnotationsTests` 27, `OfflineMergeTests` 18, `PassageAudioTests` 22,
-`ProgramTests` 14, `QuranEditionTests` 10, `ReviewTests` 30, `VerseBoundsTests` 26,
+Les **253 tests** de la cible de tests sont joués à chaque run, répartis sur
+**quatorze groupes**. Le compte est lu sur l'**artefact** du run #46 — et non sur
+le journal du flux, qui est tronqué (`tail -60`) et ne porte pas la fin de la
+suite : `AppWiringTests` 3, `AudioRepeatPreferencesTests` 27,
+`Coran1441DownloadTests` 20, `DateKeysTests` 8 (dont **1 ignoré**),
+`JSONValueTests` 11, `MarginAnnotationsTests` 27, `OfflineMergeTests` 18,
+`PassageAudioEngineTests` 25, `PassageAudioTests` 22, `ProgramTests` 14,
+`QuranEditionTests` 10, `ReviewTests` 30, `VerseBoundsTests` 26,
 `VerseMarkersTests` 12 — la ligne du paquet le confirme indépendamment
-(`SwiftdeepseekTests.xctest` : `228 tests, 1 ignoré, 0 échec`). Deux des tests
-d'`AppWiringTests` sont **ignorés** tant que les secrets `SUPABASE_URL` et
-`SUPABASE_ANON_KEY` ne sont pas posés sur le dépôt : ils vérifient la
-configuration, qui est alors absente. Ils s'activent d'eux-mêmes — mesuré, run
-#31 : `AppWiringTests` passe de « 3 tests, 2 ignorés » à « 3 tests, 0 ignoré ».
+(`SwiftdeepseekTests.xctest` : `253 tests, 1 ignoré, 0 échec`). Le seul test
+ignoré est celui de la traversée du changement d'heure, qui n'a rien à éprouver
+dans un fuseau sans heure d'été. Deux des tests d'`AppWiringTests` étaient
+**ignorés** tant que les secrets `SUPABASE_URL` et `SUPABASE_ANON_KEY` n'étaient
+pas posés sur le dépôt : ils vérifient la configuration, qui était alors absente.
+Ils s'activent d'eux-mêmes — mesuré, run #31 : `AppWiringTests` passe de
+« 3 tests, 2 ignorés » à « 3 tests, 0 ignoré ».
 
 L'IPA est **non signé** : il s'installe par sideloading, pas par l'App Store.
 
@@ -707,6 +722,34 @@ le portage en **garde** un champ, à juste titre. La section 15 de
 `_banc/oracle-audio.mjs` comble ce trou : elle relit les listes figées **du test**
 et les confronte à la référence, si bien qu'une valeur écrite de mémoire fait
 tomber le banc, et non le test.
+
+### L'échec #45 : un acteur, et le `await` qui manquait
+
+Le run #45 (`d383010`) n'a franchi aucune étape de compilation. **Une seule**
+erreur, et elle nommait exactement sa cause :
+
+```
+ViewModels/AppViewModel.swift:64:40: error: call to actor-isolated instance
+method 'loadAudioPreferences()' in a synchronous main actor-isolated context
+```
+
+`Storage/LocalStore.swift:24` déclare `public actor LocalStore`. Ses méthodes sont
+donc **isolées** : un appel depuis le contexte `@MainActor` du modèle doit être
+`await`é. Or je l'avais placé dans l'`init`, qui ne peut pas `await`. Trois
+corrections en ont découlé — les valeurs par défaut dans `init`, la lecture dans
+`start()`, et l'écriture dans une tâche **enchaînée** : des tâches non structurées
+ne sont pas garanties de démarrer dans l'ordre de création, et deux pastilles
+touchées coup sur coup auraient laissé sur disque la valeur la plus **ancienne**,
+en silence, le fichier restant parfaitement lisible.
+
+Ce que ce run dit de la méthode : **le défaut tenait dans un mot**, et le banc que
+je venais d'écrire ne le voyait pas. Il exigeait que le modèle **écrive** les
+réglages — `saveAudioPreferences` était bien là, à la bonne ligne — sans regarder
+le `await`. Un contrôle qui cherche un nom de méthode ne dit rien de la façon dont
+elle est appelée. Le banc exige désormais l'`await` des deux côtés **et** l'`actor`
+du magasin, et le falsificateur rejoue le retrait du `await` des deux côtés. Il n'y
+a pas de compilateur Swift sur la machine de rédaction : c'est le run qui trouve
+cette classe de défaut, et c'est sa fonction.
 
 ## 13. Problèmes rencontrés
 

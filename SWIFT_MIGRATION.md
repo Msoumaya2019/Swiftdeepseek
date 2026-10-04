@@ -69,8 +69,8 @@
 | Sept récitateurs, même liste | ✅ | ✅ | `user_state.audioPreferences` | `Services/AudioService.swift` | |
 | Lecture, pause, verset suivant / précédent | ✅ | ✅ | — | `Services/AudioService.swift` | `AVFoundation`, session `.playback`. |
 | Préchargement des versets suivants | ✅ | ✅ | — | `Services/AudioService.swift` | Trois versets d'avance. |
-| Mini-lecteur persistant | ✅ | ⬜ | — | `Features/Quran/Reader/ReaderView.swift` | La barre audio du lecteur existe (`audioBar` : lecture/pause, récitateur, verset courant). Il manque le **mini-lecteur global** — celui qui survit au changement d'onglet — et l'écran de réglages de §9.14. |
-| Répétition (passage / verset, nombre, silence, vitesse) | ✅ | 🟡 | — | `Core/PassageAudio.swift`, `Core/AudioRepeatPreferences.swift`, `Core/PassageAudioEngine.swift`, `Storage/LocalStore.swift` | Le **moteur**, les **six réglages** et la **machine d'état de la boucle** sont portés et éprouvés — **74 tests**, `_banc/oracle-audio.mjs` et `_banc/oracle-engine.mjs` — mais l'écran de réglages et la couche AVFoundation restent. Réglages **locaux**, voir §9.13 à §9.15 et `LOCAL_DATA_MIGRATION.md` §4 a). |
+| Mini-lecteur persistant | ✅ | ⬜ | — | `Features/Quran/Reader/ReaderView.swift` | La barre audio du lecteur existe (`audioBar` : lecture/pause, récitateur, verset courant, et l'accès aux réglages de §9.16). Il manque le **mini-lecteur global** — celui qui survit au changement d'onglet. |
+| Répétition (passage / verset, nombre, silence, vitesse) | ✅ | 🟡 | — | `Core/PassageAudio.swift`, `Core/AudioRepeatPreferences.swift`, `Core/PassageAudioEngine.swift`, `Features/Quran/AudioRepeatSettingsView.swift`, `ViewModels/AppViewModel.swift`, `Storage/LocalStore.swift` | Le **moteur**, les **six réglages**, la **machine d'état de la boucle** et l'**écran** sont portés et éprouvés — **74 tests**, `_banc/oracle-audio.mjs`, `_banc/oracle-engine.mjs` et `_banc/verifier-ecran-audio.mjs` — mais la **couche AVFoundation** reste : la boucle est décidée, rien ne l'exécute encore. Réglages **locaux**, écrits par `AppViewModel`, voir §9.13 à §9.16 et `LOCAL_DATA_MIGRATION.md` §4 a). |
 | Lecture d'une sourate entière (fichier complet + horodatages) | ✅ | 🟡 | — | `Core/PassageAudio.swift` | `parseChapterAudio`, la validité d'un cache et l'avance d'affichage sont portés ; le téléchargement et le cache sur disque restent. |
 | Cache audio des versets | ✅ | 🟡 | — | `Services/AudioService.swift` | Cache en mémoire (`VerseAudioCache`) ; pas encore de cache sur disque. |
 
@@ -817,4 +817,69 @@ la raison est notée dans le test.
 borne se déclenche à la bonne milliseconde sur un appareil. Ce sont les deux
 parties qui restent à écrire, et elles sont isolées dans l'exécuteur d'effets, qui
 ne contient aucune décision.
+
+## 9.16 L'écran des réglages : une vue qui ne décide de rien
+
+`Features/Quran/AudioRepeatSettingsView.swift` est la vue de
+`PassageAudioPlayer.tsx:236-271`. Elle n'est prouvable ni par un test — il n'y a
+rien à exécuter —, ni par la compilation, qui ne dit rien du comportement. Ce qui
+est vérifiable, c'est une **forme** : que tous les libellés, toutes les listes et
+tous les états viennent du modèle.
+
+**Aucune valeur n'est recopiée.** Les pastilles prennent leur libellé de
+`countLabel`, le compte affiché de `countText`, la coche de
+`showsAutoStopSelected`, le `∞` de `displaysUnlimitedRepetition`, les trois listes
+de `countChoices`, `speedChoices` et `gapChoices`, la marge technique de
+`defaultAyahGapMilliseconds`, et la lecture des nombres de `jsNumber` et
+`customInteger`. La règle vaut parce qu'un écran qui recopie une liste diverge en
+silence : l'original porte **sept** répétitions, **six** dans la pastille de cycle
+rapide, **trois** vitesses, **quatre** pauses.
+
+**Deux pièges d'affichage, respectés sans être recopiés.** La case de l'arrêt
+automatique est un **bouton**, jamais un `Toggle` lié à `autoStop` : un `Toggle`
+afficherait l'état **stocké** et resterait cochée en mode « en continu », alors que
+l'original la décoche — et décocher pour de vrai est un geste **distinct**, qui
+survit au retour en arrière. Et le refus de lancement n'est pas ré-implémenté dans
+la vue : il est décidé par `AppViewModel.launchAudioPassage`, dans l'ordre de
+`:176` — la **plage** d'abord, le **compte** ensuite.
+
+**Un défaut silencieux fermé.** `Storage/LocalStore.swift` déclarait
+`loadAudioPreferences` et `saveAudioPreferences` depuis le début, et **aucun
+appelant n'existait** : les réglages n'étaient persistés nulle part, et les six
+aides d'affichage du modèle n'étaient lues que par leurs propres tests.
+`AppViewModel` les lit dans `start()` et les écrit à chaque changement — dans une
+tâche **enchaînée**, parce que des tâches non structurées ne sont pas garanties de
+démarrer dans l'ordre de création, et que deux pastilles touchées coup sur coup
+laisseraient sur disque la valeur la **plus ancienne**, en silence, le fichier
+restant parfaitement lisible.
+
+`LocalStore` est un **acteur** : la lecture ne peut pas se faire dans un `init`,
+qui ne peut pas `await`. Le run #45 s'est arrêté là, sur une seule erreur de
+compilation — « call to actor-isolated instance method in a synchronous main actor
+isolated context ». Le défaut tenait dans un mot, et le banc ne le voyait pas : il
+exigeait que le modèle **écrive** — `saveAudioPreferences` était bien là —, sans
+regarder le `await`. Trois vérifications de plus exigent désormais l'`await` des
+deux côtés et l'`actor` du magasin.
+
+**Le banc, et son falsificateur.** `_banc/verifier-ecran-audio.mjs` — **24
+vérifications, 0 échec** — lit l'écran **sans ses commentaires** : l'en-tête
+*cite* `countLabel` et la vitesse `0.75x` pour expliquer ses règles, et chercher
+dans le texte brut aurait déclaré vert un écran qui ne les appelle pas.
+`_banc/falsifier-ecran-audio.mjs` — **11 cas, 0 non conforme** — rejoue le retrait
+de chaque appel, la recopie de chaque liste, l'introduction d'un `Toggle`, la
+ré-implémentation du refus, la suppression de l'écriture et le retrait des deux
+`await`. Les mutations remplacent **toutes** les occurrences :
+`showsAutoStopSelected` apparaît deux fois, et n'en muter qu'une aurait laissé le
+contrôle vert.
+
+**Le témoin a servi.** Le banc exige que le nombre de contrôles **exécutés** soit
+celui qu'il annonce. Il en attendait 19, il en a exécuté 21, et il a **refusé de
+conclure** en désignant l'écart.
+
+**Ce que cet écran ne prouve pas.** Qu'il s'affiche comme prévu sur un appareil, ni
+que les six réglages **changent** la lecture : la boucle est décidée par
+`Core/PassageAudioEngine.swift`, et **rien ne l'exécute encore**. « Lancer ce
+passage » démarre le premier verset de la plage. La couche AVFoundation —
+l'exécuteur des `PassageAudioEffect`, qui ne contient aucune décision — reste à
+écrire.
 
