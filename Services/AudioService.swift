@@ -1,5 +1,6 @@
 // AudioService.swift
-// Lecture audio avec AVFoundation.
+// Le catalogue des récitateurs, les URL des versets, le cache disque — et la
+// façade observable du lecteur.
 //
 // Correspondance : `src/core/audio.ts`, `src/services/quranAudioTimeline.ts`,
 // `src/services/verseAudioCache.ts` et `src/PassageAudioPlayer.tsx`.
@@ -8,9 +9,14 @@
 // l'utilisateur retrouve les mêmes voix et que rien ne soit dupliqué côté
 // serveur. Le cache local reprend la même politique : télécharger une fois,
 // relire hors ligne.
+//
+// Ce fichier ne parle plus à AVFoundation. La traduction des effets en appels
+// au lecteur vit dans `Services/PassageAudioExecutor.swift` : ici ne restent
+// que ce qui se relit (un catalogue, des URL, une politique de cache) et ce que
+// les vues observent. C'est ce qui évite de mêler ce qui se vérifie à ce qui ne
+// se vérifie que sur un appareil.
 
 import Foundation
-import AVFoundation
 
 public struct Reciter: Identifiable, Sendable, Equatable {
     public var id: String
@@ -108,6 +114,19 @@ public actor VerseAudioCache {
     }
 }
 
+/// La façade observable du lecteur audio.
+///
+/// ELLE NE JOUE PLUS RIEN ELLE-MÊME
+///   Elle tenait autrefois un `AVPlayer` et savait lire **un** verset : ni
+///   boucle de répétition, ni silence, ni reprise enchaînée, et rien qui
+///   signale la fin d'un fichier — un verset terminé laissait `isPlaying` à
+///   vrai pour toujours. Tout cela vit maintenant dans
+///   `Services/PassageAudioExecutor.swift`, qui exécute les effets décidés par
+///   `Core/PassageAudioEngine.swift`.
+///
+///   Il ne reste ici que ce que les vues observent : trois valeurs publiées et
+///   les gestes qui les font changer. La surface publique n'a pas bougé —
+///   `ReaderView` et `AudioRepeatSettingsView` n'ont pas eu à être modifiées.
 @MainActor
 public final class AudioService: ObservableObject {
 
@@ -115,87 +134,73 @@ public final class AudioService: ObservableObject {
     @Published public private(set) var currentVerseID: Int?
     @Published public private(set) var reciter: Reciter = .default
 
-    private var player: AVPlayer?
-    private let cache = VerseAudioCache()
-    private var preloaded = Set<String>()
+    /// Le dernier message d'échec, tel que l'original le remonte
+    /// (`PassageAudioPlayer.tsx:72`). `nil` tant qu'aucun lancement n'a échoué.
+    @Published public private(set) var lastError: String?
 
-    public init() {}
+    private let passage: PassageAudioExecutor
+    /// Les réglages courants, pour que « écouter ce verset » conserve le
+    /// silence et la vitesse choisis — l'original recopie `settingsRef.current`.
+    private var preferences: AudioRepeatPreferences = .defaults
+
+    public init(store: LocalStore) {
+        passage = PassageAudioExecutor(store: store)
+        passage.onVerseChange = { [weak self] identifier in self?.currentVerseID = identifier }
+        passage.onPlayingChange = { [weak self] playing in self?.isPlaying = playing }
+        passage.onError = { [weak self] message in self?.lastError = message }
+        passage.reciter = reciter
+    }
 
     /// `{playsInSilentMode: true, shouldPlayInBackground: true, interruptionMode: 'doNotMix'}`
     /// — `src/PassageAudioPlayer.tsx:186`.
     public func configureSession() {
-        let session = AVAudioSession.sharedInstance()
-        try? session.setCategory(.playback, mode: .spokenAudio, options: [.duckOthers])
-        try? session.setActive(true)
+        passage.configureSession()
     }
 
     public func select(reciter: Reciter) {
         self.reciter = reciter
-        preloaded.removeAll()
+        passage.select(reciter: reciter)
     }
 
+    /// `action === 'listen'` — le verset affiché, une écoute.
+    ///
+    /// C'est le geste du lecteur : appuyer sur « Écouter » fait entendre le
+    /// verset affiché **une fois**, puis s'arrête. C'est ce que fait l'original
+    /// (`countChoice = 1`, mode « passage », arrêt automatique armé), et c'est
+    /// aussi ce qui corrige un défaut de la version précédente : un verset
+    /// arrivé à son terme laissait `isPlaying` à vrai, faute de conclusion.
     public func play(verseID: Int) {
-        guard let remote = VerseAudio.url(verseID: verseID, reciter: reciter) else { return }
-        configureSession()
-        currentVerseID = verseID
+        lastError = nil
+        passage.listen(verseID: verseID, preferences: preferences)
+    }
 
-        Task {
-            let local = await cache.cachedURL(for: remote)
-            let item = AVPlayerItem(url: local)
-            if let player {
-                player.replaceCurrentItem(with: item)
-            } else {
-                player = AVPlayer(playerItem: item)
-            }
-            player?.play()
-            isPlaying = true
-        }
-        preloadUpcoming(from: verseID)
+    /// « Lancer ce passage » — la boucle complète, avec les réglages choisis.
+    public func playPassage(_ range: VerseRange, preferences: AudioRepeatPreferences) {
+        lastError = nil
+        passage.begin(range: range, preferences: preferences)
+    }
+
+    /// Les réglages changent : la vitesse s'applique à la lecture en cours, et
+    /// le silence est retenu pour le prochain lancement.
+    public func setPreferences(_ updated: AudioRepeatPreferences) {
+        preferences = updated
+        passage.setPreferences(updated)
     }
 
     public func togglePlayPause() {
-        guard let player else { return }
-        if isPlaying {
-            player.pause()
-        } else {
-            player.play()
-        }
-        isPlaying.toggle()
+        lastError = nil
+        passage.playPause()
     }
 
-    public func pause() {
-        player?.pause()
-        isPlaying = false
+    public func stop() {
+        passage.stop()
     }
 
-    public func next(within range: VerseRange) {
-        guard let current = currentVerseID, current < range.end else { return }
-        play(verseID: current + 1)
+    public func next() {
+        passage.jump(1)
     }
 
-    public func previous(within range: VerseRange) {
-        guard let current = currentVerseID, current > range.start else { return }
-        play(verseID: current - 1)
-    }
-
-    /// Précharge les trois versets suivants — même profondeur que
-    /// `src/PassageAudioPlayer.tsx:139`.
-    private func preloadUpcoming(from verseID: Int) {
-        let upcoming = (1...3).compactMap { offset -> URL? in
-            guard let url = VerseAudio.url(verseID: verseID + offset, reciter: reciter) else { return nil }
-            return url
-        }
-        Task { [cache, weak self] in
-            for url in upcoming {
-                let key = url.absoluteString
-                guard await self?.preloaded.contains(key) != true else { continue }
-                await self?.markPreloaded(key)
-                await cache.prefetch(url)
-            }
-        }
-    }
-
-    private func markPreloaded(_ key: String) {
-        preloaded.insert(key)
+    public func previous() {
+        passage.jump(-1)
     }
 }

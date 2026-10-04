@@ -55,7 +55,7 @@ public final class AppViewModel: ObservableObject {
         self.repository = repository
         self.sync = StateSyncService(client: client, auth: auth, store: store, repository: repository)
         self.connectivity = ConnectivityService()
-        self.audio = AudioService()
+        self.audio = AudioService(store: store)
         self.sources = QuranSourceService()
         self.social = SocialService(client: client)
         self.coran1441 = Coran1441DownloadService()
@@ -107,6 +107,10 @@ public final class AppViewModel: ObservableObject {
         // ceux par défaut. Un fichier absent, illisible ou d'une forme
         // inattendue rend les valeurs par défaut — jamais une erreur.
         repeatPreferences = await store.loadAudioPreferences()
+        // Le lecteur reçoit les réglages **avant** toute lecture : sans cela le
+        // silence et la vitesse choisis seraient ignorés au premier lancement, et
+        // la vitesse ne s'appliquerait qu'à partir du premier changement.
+        audio.setPreferences(repeatPreferences)
         await auth.restore()
         connectivity.start { [weak self] in
             await self?.sync.flush()
@@ -242,6 +246,12 @@ public final class AppViewModel: ObservableObject {
     public func setRepeatPreferences(_ updated: AudioRepeatPreferences) {
         guard updated != repeatPreferences else { return }
         repeatPreferences = updated
+        // Le lecteur est prévenu **tout de suite** : changer la vitesse pendant
+        // une récitation doit s'entendre sans relancer la lecture
+        // (`PassageAudioPlayer.tsx:227`). C'est `setPreferences` qui décide des
+        // effets qui en découlent — et rien n'en découle tant que la vitesse n'a
+        // pas changé.
+        audio.setPreferences(updated)
         // `LocalStore` est un acteur : l'écriture est donc asynchrone. Les tâches
         // sont **enchaînées** — deux pastilles touchées coup sur coup ne doivent
         // pas laisser sur disque la valeur la plus ancienne. Des tâches non
@@ -261,13 +271,19 @@ public final class AppViewModel: ObservableObject {
     /// plage, même quand le compte est refusé lui aussi. Rend le message d'échec,
     /// ou `nil` quand la lecture a commencé.
     ///
-    /// Ce qui reste : la **boucle**. `Core/PassageAudioEngine.swift` décide des
-    /// transitions, mais rien ne les exécute encore — la couche AVFoundation n'est
-    /// pas branchée. Ce point démarre donc le **premier** verset de la plage.
+    /// Les deux refus sont refaits par la machine, et c'est elle qui fait foi.
+    /// Les répéter ici n'est pas une seconde décision : c'est ce qui permet de
+    /// rendre le message à l'appelant, puisque `begin` ne rend que des effets.
+    ///
+    /// La **boucle** est désormais branchée :
+    /// `Services/PassageAudioExecutor.swift` exécute les effets de
+    /// `Core/PassageAudioEngine.swift`. Ce point démarre donc la plage entière —
+    /// répétitions, silence choisi entre les versets, reprise enchaînée et arrêt
+    /// automatique compris — et non plus seulement son premier verset.
     public func launchAudioPassage(_ requested: VerseRange) throws -> String? {
         let range = try PassageAudio.range(start: requested.start, end: requested.end)
         if let refusal = repeatPreferences.launchError { return refusal.message }
-        audio.play(verseID: range.start)
+        audio.playPassage(range, preferences: repeatPreferences)
         return nil
     }
 

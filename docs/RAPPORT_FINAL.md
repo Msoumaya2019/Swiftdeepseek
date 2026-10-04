@@ -13,7 +13,7 @@ Date : 4 octobre 2026.
 | Visibilité | **publique** (nécessaire : les exécuteurs macOS sont facturés sur un dépôt privé) |
 | Branche par défaut | `main` |
 | Taille | 117 138 Ko (mesurée par l'API GitHub) |
-| Commits | 46 au commit `ba1c091`, celui qui porte l'écran des réglages de répétition et le banc qui vérifie que cette vue ne décide de rien. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
+| Commits | 47 au commit `ba1c091`, celui qui porte l'écran des réglages de répétition et le banc qui vérifie que cette vue ne décide de rien. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
 | Fichiers suivis | 700 — dont **61 fichiers Swift** et **253 tests** déclarés |
 | Dépôt indépendant | oui — ni fourche, ni branche, ni sous-dossier, ni sous-module du dépôt de référence |
 

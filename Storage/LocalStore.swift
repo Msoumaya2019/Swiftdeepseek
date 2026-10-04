@@ -137,4 +137,33 @@ public actor LocalStore {
     public func saveAudioPreferences(_ preferences: AudioRepeatPreferences) throws {
         try write(try JSONEncoder().encode(preferences.encoded), to: "audio-repeat-preferences.json")
     }
+
+    // MARK: Chronologie audio des sourates
+
+    /// La chronologie d'une sourate — les bornes de chaque verset dans le
+    /// fichier audio de la sourate entière.
+    ///
+    /// Elle est gardée localement pour la même raison que les versets le sont :
+    /// sans cela, chaque verset écouté redemanderait le même document à
+    /// quran.com. `quranAudioTimeline.ts:17` la relit avant de la redemander, et
+    /// c'est `PassageAudio.isUsableCachedChapter` qui juge si le document
+    /// relu est utilisable — un cache dont une seule borne est fausse est jeté.
+    ///
+    /// Le nom du fichier est la **clé** de l'original (`chapter-audio-v1:6:2`),
+    /// encodée de façon réversible : elle contient deux `:`, que le système de
+    /// fichiers tolère, mais un encodage explicite évite toute surprise — même
+    /// idiome que `VerseAudioCache.localURL`.
+    public func loadChapterAudio(_ key: String) -> ChapterAudio? {
+        guard let data = read(chapterFileName(key)) else { return nil }
+        return ChapterAudio.decode(try? JSONDecoder().decode(JSONValue.self, from: data))
+    }
+
+    public func saveChapterAudio(_ chapter: ChapterAudio, key: String) throws {
+        try write(try JSONEncoder().encode(chapter.encoded), to: chapterFileName(key))
+    }
+
+    private func chapterFileName(_ key: String) -> String {
+        let safe = key.addingPercentEncoding(withAllowedCharacters: .alphanumerics) ?? key
+        return "chapter-\(safe).json"
+    }
 }
