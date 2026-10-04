@@ -369,10 +369,16 @@ struct ProgramEditorView: View {
     static func initialUnit(for state: AppState) -> GoalUnit {
         guard state.goal.ranges.count == 1 else { return .hizb }
         let single = state.goal.ranges[0]
-        let matches: (Division) -> Bool = { $0.start == single.start && $0.end == single.end }
-        if Quran.juzs.contains(where: matches) { return .juz }
-        if Quran.hizbs.contains(where: matches) { return .hizb }
-        if Quran.surahs.contains(where: matches) { return .surah }
+        // `Surah` et `Division` sont deux types DISTINCTS, tous deux porteurs de
+        // `start` et `end` : une seule fermeture ne peut pas servir les deux. Le
+        // compilateur l'a dit — « cannot convert value of type '(Division) -> Bool'
+        // to expected argument type '(Surah) throws -> Bool' » —, et aucun banc
+        // local ne pouvait le voir : ils lisent le flux, pas la compilation.
+        let matchesDivision: (Division) -> Bool = { $0.start == single.start && $0.end == single.end }
+        let matchesSurah: (Surah) -> Bool = { $0.start == single.start && $0.end == single.end }
+        if Quran.juzs.contains(where: matchesDivision) { return .juz }
+        if Quran.hizbs.contains(where: matchesDivision) { return .hizb }
+        if Quran.surahs.contains(where: matchesSurah) { return .surah }
         return .hizb
     }
 
@@ -387,10 +393,11 @@ struct ProgramEditorView: View {
         let ranges = state.goal.ranges
         if ranges.count == 1 {
             let single = ranges[0]
-            let matches: (Division) -> Bool = { $0.start == single.start && $0.end == single.end }
-            if let juz = Quran.juzs.first(where: matches) { return juz.number }
-            if let hizb = Quran.hizbs.first(where: matches) { return hizb.number }
-            if let surah = Quran.surahs.first(where: matches) { return surah.number }
+            let matchesDivision: (Division) -> Bool = { $0.start == single.start && $0.end == single.end }
+            let matchesSurah: (Surah) -> Bool = { $0.start == single.start && $0.end == single.end }
+            if let juz = Quran.juzs.first(where: matchesDivision) { return juz.number }
+            if let hizb = Quran.hizbs.first(where: matchesDivision) { return hizb.number }
+            if let surah = Quran.surahs.first(where: matchesSurah) { return surah.number }
         }
         let lastEnd = ranges.last?.end ?? 6236
         guard let covering = Quran.hizbs.first(where: { lastEnd <= $0.end }) else { return 60 }
