@@ -27,9 +27,17 @@ final class QuranEditionTests: XCTestCase {
 
     /// Les préférences qu'un document synchronisé peut porter : toutes les
     /// valeurs connues, plus les formes d'absence et d'inconnu.
+    ///
+    /// Construit pas à pas plutôt qu'en une expression : `map { $0.rawValue }`
+    /// rend un `[String]`, et l'ajout de `nil` demande un `[String?]`. La
+    /// conversion est écrite ici, à un endroit, au lieu d'être laissée à
+    /// l'inférence sur toute la liste.
     private var everyStoredPreference: [String?] {
-        let known = QuranEdition.allCases.map { $0.rawValue }
-        return known.map { Optional($0) } + [nil, "", "nawak"]
+        var preferences: [String?] = QuranEdition.allCases.map { Optional($0.rawValue) }
+        preferences.append(nil)
+        preferences.append("")
+        preferences.append("nawak")
+        return preferences
     }
 
     // MARK: La prémisse du défaut

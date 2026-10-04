@@ -150,7 +150,7 @@ bien embarquées. Le numéro est **ancré sur un commit**, et non « le dernier 
 poussée de documentation ajoute un run, si bien qu'une formule au superlatif serait
 périmée dès son écriture.
 
-**110 tests** sont exécutés à chaque run, et **un seul** est ignoré : celui de la
+**140 tests** sont exécutés à chaque run, et **un seul** est ignoré : celui de la
 traversée du changement d'heure, qui n'a rien à éprouver dans un fuseau sans
 heure d'été.
 

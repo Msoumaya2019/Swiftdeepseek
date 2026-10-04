@@ -52,13 +52,13 @@
 | Liste des sourates (recherche, filtre) | ✅ | ✅ | — (données embarquées) | `Core/Quran.swift`, `Features/Quran/QuranScreenView.swift` | |
 | Liste des Juz’ et des Hizb | ✅ | 🟡 | — | `Core/Quran.swift` | Données prêtes (`juzs`, `hizbs`), l'interface liste seulement les sourates pour l'instant. |
 | Lecteur « Coran de Médine » (604 pages) | ✅ | ✅ | — | `Features/Quran/Reader/ReaderView.swift`, `MushafPageViewController.swift`, `Resources/Mushaf` | 604 PNG embarquées. |
-| Lecteur « Coran 1441 » | ✅ | 🟡 | — | `Services/QuranSourceService.swift` | Lit les pages si elles sont présentes ; **le téléchargement n'est pas encore implémenté**. |
+| Lecteur « Coran 1441 » | ✅ | 🟡 | — | `Services/QuranSourceService.swift` | Lit les pages si elles sont présentes ; **le téléchargement et l'installation sont implémentés** — voir §9.4. |
 | Pagination native au doigt | ✅ | ✅ | — | `MushafPageViewController.swift` | `UIPageViewController`, comme prévu. |
 | Préchargement page précédente / courante / suivante | ✅ | ✅ | — | `MushafPageViewController.swift` | Trois pages, jamais 604. Cache LRU. |
 | Centrage vertical sans marge fixe | ✅ | ✅ | — | `ReaderView.swift`, `MushafPageViewController.swift` | Zone de page = tout l'espace restant, `scaleAspectFit`, contraintes centrées. Aucun `marginTop`. |
 | Reprise à la dernière page lue | ✅ | ✅ | `user_state.lastRead` | `Features/Home/HomeView.swift`, `ViewModels/AppViewModel.swift` | |
 | Marque-pages | ✅ | 🟡 | `user_state.bookmarks` | `Core/Bookmark.swift` | Poser/retirer dans le lecteur et lister dans l'onglet Coran : fait. Fusion : faite. |
-| Choix de l'édition | ✅ | ✅ | `user_state.reader.mushaf` | `Features/Quran/Reader/ReaderView.swift` | « Tawjeed test 2 » et « Medine Test » : voir §7. |
+| Choix de l'édition | ✅ | ✅ | `user_state.reader.mushaf` | `Features/Quran/Reader/ReaderView.swift` | Les cinq éditions, et les trois non reprises : voir §9.3. |
 | Coran avec règles de Tajwid | ✅ | ⬜ | — | — | Ressources non copiées, voir §7. |
 | Mode lecture continue | ✅ | ⬜ | — | — | |
 
@@ -131,11 +131,11 @@
 | Ressource | Décision | Détail |
 |---|---|---|
 | `Resources/Data/*.json` (15 fichiers, 8,9 Mo) | ✅ Copiée | `verses`, `meta`, `pages`, `bounds`, `tajweed-text`, `tajweed-rules`, `translation-fr-rashid`, `ipa-audio-source`, `mushaf-tajweed-*`, `coran_1441-*`. Copie vérifiée par empreinte SHA-256. |
-| `Resources/Mushaf/` (604 PNG, 114 Mo) | ✅ Copiée | Coran de Médine, dossier conservé tel quel (le lecteur les cherche dans `Mushaf/`). |
+| `Resources/Mushaf/` (604 PNG, 112,73 Mo) | ✅ Copiée | Coran de Médine, dossier conservé tel quel (le lecteur les cherche dans `Mushaf/`). |
 | `TANZIL-LICENSE.txt` | ✅ Copiée | Attribution **juridiquement obligatoire** pour le texte coranique. Ne pas la retirer. |
-| `assets/tajweed/` (124 Mo) | ⬜ Non copiée | Aucune référence dans le code de l'application RN : ressource orpheline. À réévaluer si « Tawjeed test 2 » la réclame. |
-| `assets/mushaf-tajweed/` | ⬜ Non copiée | **Autorisation de redistribution absente du dépôt de référence.** Copier une ressource dont les droits ne sont pas établis n'est pas un choix technique. À trancher avec le propriétaire. |
-| `assets/coran-test/` (police) | ⬜ Non copiée | Licence de la police non établie dans le dépôt. |
+| `assets/tajweed/` (122,25 Mo) | ⬜ Non copiée | Aucune référence dans le code de l'application RN : ressource orpheline, et **aucun mode ne peut la réclamer** — « Tawjeed test 2 » n'est pas une édition mais une ancienne clé (§9.3). |
+| `assets/mushaf-tajweed/` (132,13 Mo) | ⬜ Non copiée | **Autorisation de redistribution absente du dépôt de référence.** Copier une ressource dont les droits ne sont pas établis n'est pas un choix technique. À trancher avec le propriétaire. De plus, le mode qui l'utiliserait (`tajweedPages`) est **inatteignable** (§9.3). |
+| `assets/coran-test/` (607 polices `.woff2`, 48,88 Mo) | ⬜ Non copiée | Licence de la police non établie dans le dépôt. Sert à l'édition par défaut, rendue dans un **WebView** — voir §9.3 et §9.10. |
 | `toumoun.json` | ⬜ Non copiée | Toutes les entrées sont des valeurs de remplacement (`missing_hafs_reference`) : aucune donnée exploitable. `Program.verifiedToumouns` reste donc `nil`, et le rythme « toumoun » ne propose rien plutôt que de proposer un découpage faux. |
 
 ## 9. Problèmes et points en suspens
@@ -193,11 +193,39 @@ comportement réel des utilisateurs. **Le dépôt de référence n'a pas été
 modifié**, conformément à la règle de lecture seule. À trancher par le
 propriétaire : corriger la documentation, ou corriger l'index.
 
-### 9.3 « Tawjeed test 2 » et « Medine Test »
+### 9.3 Les trois éditions non reprises
 
-Ces deux sources ne sont **pas** dans le dépôt de référence. L'énumération
-`QuranEdition` est prête à les accueillir, mais aucune ressource ne correspond
-aujourd'hui. Rien n'a été inventé.
+**Ce que cette section disait était faux, et c'est mesuré.** Elle annonçait que
+« Tawjeed test 2 » et « Medine Test » n'avaient **aucune** ressource dans le
+dépôt de référence. Ces deux noms ne sont pourtant pas des éditions : ce sont
+d'**anciennes clés**, que `migrateReaderState` réécrit vers `coran_1441`
+(`src/core/program.ts:60`). Elles ne sont proposées nulle part.
+
+L'énumération `QuranEdition` porte les cinq valeurs réelles — `traditional`,
+`coran_1441`, `tajweed`, `tajweedPages`, `coranTest` — et `isAvailable` n'en
+déclare que **deux** lisibles : le Coran de Médine et le Coran 1441.
+
+Les trois autres, mesurées sur le dépôt de référence :
+
+| Édition | Ce qu'elle est | Ressources manquantes | Portable ici |
+| --- | --- | --- | --- |
+| `coranTest` — « Coran avec règles de Tajwid » | HTML dans un WebView (`src/coranTest/html.ts`) | 607 `.woff2` (48,88 Mo) + 606 JSON de page (4,25 Mo) | **non** : la chaîne de rendu est à écrire (`WKWebView`) |
+| `tajweed` — « Lecture simplifiée » | texte arabe coloré par règle | **aucune** : `tajweed-text.json` (1,46 Mo) et `tajweed-rules.json` (2,63 Mo) sont **déjà dans ce dépôt** | oui, en natif |
+| `tajweedPages` — « Moushaf Tajwid » | pages coloriées | 604 PNG (132,13 Mo) | **sans objet** : mode inatteignable |
+
+**`tajweedPages` n'est atteignable par personne** : `migrateReaderState` le
+réécrit vers `coranTest` à **chaque** chargement (`src/core/program.ts:62`). Ses
+604 pages sont donc du poids mort dans le dépôt de référence — comme
+`assets/tajweed` (122,25 Mo), que **rien** ne référence. Ne pas les reprendre.
+
+**Le cas qui compte est `coranTest`** : c'est le défaut **des deux**
+applications (`src/core/program.ts:57`), donc l'édition de tout utilisateur qui
+n'a jamais touché au choix d'affichage. Depuis la correction décrite en §9.10, ces
+utilisateurs lisent le Coran de Médine, et le lecteur le dit.
+
+**`tajweed` est le meilleur rapport effort/résultat** : ses deux fichiers de
+données sont déjà embarqués et ne sont lus par **aucun** code Swift. Il reste à
+écrire le rendu du texte coloré.
 
 ### 9.4 Coran 1441 : téléchargement implémenté
 
@@ -332,7 +360,94 @@ retenir : tout service observable exposé par le modèle doit être relayé.
 
 ### 9.9 Poids des ressources
 
-Le paquet embarque environ **123 Mo** de ressources (604 pages + JSON). C'est le
-prix de la lecture hors ligne immédiate. Si la taille devient un problème, la
+Le paquet embarque **121,51 Mo** de ressources, mesurés : **112,73 Mo** pour les
+604 pages du Coran de Médine et **8,78 Mo** pour 15 fichiers JSON. C'est le
+prix de la lecture hors ligne immédiate : aucune première ouverture n'attend un
+téléchargement.
+
+**Six de ces JSON ne sont lus par aucun code Swift**, et ils n'ont pas tous la
+même raison :
+
+| Fichier | Lu par l'original ? | Pourquoi il est là |
+| --- | --- | --- |
+| `tajweed-text.json`, `tajweed-rules.json` | oui, mode `tajweed` | serviraient à l'édition « Lecture simplifiée » (§9.3) |
+| `mushaf-tajweed-bounds.json`, `mushaf-tajweed-dimensions.json` | oui, mode `tajweedPages` | mode **inatteignable** (§9.3) |
+| `coran_1441-markers.json` | oui, `MushafPage.tsx:49` | **manque réel** : voir §9.11 |
+| `coran_1441-headers.json` | **non, par personne** | poids mort |
+
+Si la taille devient un problème, la
 voie est de télécharger aussi le Coran de Médine, comme le Coran 1441 — au prix
 d'une première ouverture sans image.
+
+### 9.10 Le lecteur ouvrait sur une édition qu'il ne sait pas rendre
+
+**Le défaut.** `defaultState()` enregistre `reader.mushaf == "coranTest"`
+(`Core/Program.swift:94`, d'après `src/core/program.ts:57`) — la valeur par défaut
+de l'application d'origine, donc celle de **tout** utilisateur qui n'a jamais
+touché au choix d'affichage. Or `coranTest` n'est pas rendu par une image :
+l'original le dessine dans une page HTML chargée dans un WebView
+(`src/coranTest/html.ts`), avec 607 polices `.woff2`.
+
+`AppViewModel.edition` résolvait la préférence telle quelle. Le lecteur s'ouvrait
+donc sur une édition dont `imageURLs` rend une liste **vide**, et
+`MushafPageViewController.load()` affichait « Cette page n'est pas encore
+disponible hors ligne » — sur **chaque** page, pour **tout** utilisateur, dès la
+première ouverture. Le message était de surcroît faux : il annonçait la page
+comme indisponible alors que c'est l'édition qui n'est pas rendue.
+
+Aucun test ne couvrait la résolution de l'édition. Le défaut n'avait donc rien
+pour le signaler, et un lecteur muet ne se distingue pas d'un lecteur qui marche.
+
+**La correction.** `QuranEdition.displayed(stored:)` rend l'édition **affichée**,
+qui est toujours lisible, et `ReaderView` dit laquelle il substitue. La
+préférence enregistrée n'est **pas** réécrite : elle reste `coranTest` dans le
+document synchronisé, donc l'application React Native retrouve son édition de
+Tajwid.
+
+**Ce que la correction ne casse pas.** `ReaderView.toggleBookmark` enregistre
+`source: edition.rawValue`, et `Bookmark.save` écrit `sourcePages[source] = page` :
+la clé et la valeur doivent désigner **la même édition**. Avant la correction,
+l'application écrivait `sourcePages["coranTest"] = <page du Coran de Médine>` — un
+numéro de page venu d'une autre édition. C'était **cela**, la divergence de
+données ; le repli écrit `sourcePages["traditional"] = <page du Coran de Médine>`,
+soit exactement ce que l'application React Native écrit quand l'utilisateur
+regarde le Coran de Médine.
+
+**Une imprécision mesurée, qui reste.** `reader.testPage` continue d'être écrit
+quand la préférence vaut `coranTest` (`AppViewModel.recordReading`, comme
+`App.tsx:212`), et ce numéro vient de `Quran.pageOf`, donc de la pagination du
+Coran de Médine. Les deux paginations **ne coïncident pas partout** : sur 604
+pages, **568** portent le même intervalle de versets et **36** en diffèrent d'une
+frontière (page 120 : `740` à `746` contre `740` à `745`). Le repère de reprise de
+l'édition de Tajwid peut donc tomber une page à côté — ce n'est pas une
+régression, l'application écrivait déjà cette valeur, mais c'est mesuré.
+
+**L'épreuve.** `Tests/QuranEditionTests.swift` (10 tests) fixe l'invariant qui
+manquait — quelle que soit la préférence enregistrée, l'édition affichée est
+lisible, sait où sont ses versets, et rend des pages — et montre la cause plutôt
+que de la raconter : `imageURLs(for: .coranTest, page: 1)` est vide.
+
+**Ce que la compilation a appris.** La correction est passée une fois par une
+erreur de compilation, et le message ne parlait pas de l'intention : sur une
+chaîne, `reader?.mushaf.flatMap { … }` résout `flatMap` sur `Sequence` — celle des
+`Character` — et non sur `Optional`. Le compilateur refusait un `Character` reçu
+là où un `String` était attendu. Écrit en deux temps (`guard let`, puis
+`QuranEdition(rawValue:)`), la même intention passe. Aucun contrôle local ne
+pouvait l'attraper : `scripts/verifier-flux.mjs` vérifie le flux, pas le Swift.
+
+### 9.11 Manque : les pastilles de numéro de verset du Coran 1441
+
+`Resources/Data/coran_1441-markers.json` est embarqué — **6 236** marqueurs, un
+par verset, sur les 604 pages — et **aucun code Swift ne le lit**.
+
+L'original s'en sert dans la branche `coran_1441` (`MushafPage.tsx:49`) : pour
+chaque verset, une pastille de fond `#ECFDF5`, de bordure `#047857`, portant le
+numéro du verset en chiffres arabes orientaux (`٠١٢٣٤٥٦٧٨٩`), posée au début du
+verset. Le lecteur Swift affiche donc les quinze bandes **sans** ces pastilles.
+
+Format, mesuré : `{ "<page>": [[sourate, verset, ligne, x, y], …] }`. La ligne est
+**0-basée** (`0` à `14`), la même convention que `coran_1441-bounds.json` ; `x`
+est une fraction de la largeur de page (`0,042` à `0,892`) et `y` une fraction de
+la hauteur de **bande** (`0,435` à `0,669`).
+
+La donnée est déjà là : ce manque ne demande aucune ressource supplémentaire.

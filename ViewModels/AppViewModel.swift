@@ -110,8 +110,15 @@ public final class AppViewModel: ObservableObject {
 
     /// La préférence d'affichage **telle qu'elle est enregistrée**, y compris
     /// quand cette version ne sait pas la rendre.
+    ///
+    /// Écrit en deux temps, et non `reader?.mushaf.flatMap { … }` : sur une
+    /// chaîne, `flatMap` se résout sur `Sequence` — celle des `Character` — et
+    /// non sur `Optional`. Le compilateur refuse alors le `Character` reçu, ce
+    /// qui est heureux, mais le message parle de types qui n'ont rien à voir
+    /// avec l'intention.
     public var storedEdition: QuranEdition? {
-        repository.state.reader?.mushaf.flatMap { QuranEdition(rawValue: $0) }
+        guard let stored = repository.state.reader?.mushaf else { return nil }
+        return QuranEdition(rawValue: stored)
     }
 
     /// L'édition demandée par l'utilisateur que cette version ne sait pas

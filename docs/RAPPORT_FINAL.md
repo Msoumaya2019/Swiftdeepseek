@@ -12,9 +12,9 @@ Date : 4 octobre 2026.
 | Nom | **`Swiftdeepseek`** — exactement, sans variante |
 | Visibilité | **publique** (nécessaire : les exécuteurs macOS sont facturés sur un dépôt privé) |
 | Branche par défaut | `main` |
-| Taille | 116 710 Ko (mesurée par l'API GitHub) |
-| Commits | 20 au commit `aa90394`, dernier run vert de code (#20). Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
-| Fichiers suivis | 682 — dont **43 fichiers Swift** et **110 tests** déclarés |
+| Taille | 116 825 Ko (mesurée par l'API GitHub) |
+| Commits | 30 au commit `6d49506`, le correctif de l'édition affichée. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
+| Fichiers suivis | 687 — dont **48 fichiers Swift** et **140 tests** déclarés |
 | Dépôt indépendant | oui — ni fourche, ni branche, ni sous-dossier, ni sous-module du dépôt de référence |
 
 ## 2. Dépôt de référence — intact, et aucun commit
@@ -56,7 +56,7 @@ La destination a été revérifiée **avant chaque poussée** de cette session.
 
 ## 4. Structure Swift créée
 
-Architecture MVVM, **43 fichiers Swift**, 682 fichiers suivis.
+Architecture MVVM, **48 fichiers Swift**, 687 fichiers suivis.
 
 ```
 App/            SwiftdeepseekApp, ContentView
@@ -209,22 +209,47 @@ Lecteur plein écran du Moushaf, `Features/Quran/Reader/`.
   l'île dynamique et à la barre d'accueil. **Aucune marge haute fixe, nulle part.**
 - **Ratio des pages jamais modifié** (`scaleAspectFit`).
 - Cinq éditions déclarées : Coran de Médine, Coran 1441, Lecture simplifiée,
-  Moushaf Tajwid, Coran avec règles de Tajwid. **Seul le Coran de Médine est
-  embarqué** (604 pages). Le téléchargement du Coran 1441 **n'est pas implémenté**
-  — voir §11.
-- **Limite connue, à trancher par le propriétaire du projet.** L'état initial
-  repris de l'original donne `reader.mushaf = "coranTest"` (`Program.swift:94`,
-  d'après `program.ts`), et cette édition — « Coran avec règles de Tajwid » — n'a
-  **ni images ni rectangles** côté Swift (ressources non copiées, 51 Mo). Un
-  utilisateur qui arrive de l'application React Native avec cette préférence, ou
-  avec `tajweedPages`, voit donc le message « pas encore disponible » au lieu d'un
-  Moushaf. Le faire retomber **silencieusement** sur le Coran de Médine n'a pas
-  été fait, et c'est délibéré : `ReaderView` enregistre les marque-pages avec
-  `source: edition.rawValue`, donc un repli silencieux écrirait des marque-pages
-  marqués `traditional` pour un utilisateur dont la préférence est `coranTest` —
-  une divergence de données avec l'application React Native. Deux options
-  propres : soit **copier** les ressources de ces éditions, soit **afficher un
-  choix** plutôt que de décider à la place de l'utilisateur.
+  Moushaf Tajwid, Coran avec règles de Tajwid. **Deux sont lisibles** : le Coran
+  de Médine, embarqué (604 pages), et le Coran 1441, qui s'installe par un
+  téléchargement reprisable de 102 608 011 octets (`SWIFT_MIGRATION.md` §9.4).
+  Les trois autres ne sont pas reprises — voir la limite ci-dessous, et §9.3 de
+  `SWIFT_MIGRATION.md` pour ce qu'elles contiennent réellement.
+- **Défaut corrigé : le lecteur ouvrait sur une édition qu'il ne sait pas
+  rendre.** L'état initial repris de l'original donne
+  `reader.mushaf = "coranTest"` (`Program.swift:94`, d'après `program.ts:57`) —
+  c'est la valeur de **tout** utilisateur qui n'a jamais touché au choix
+  d'affichage. Cette édition n'est pas rendue par une image : l'original la
+  dessine dans une page HTML chargée dans un WebView (`coranTest/html.ts`), avec
+  607 polices `.woff2`. Résoudre la préférence telle quelle ouvrait donc le
+  lecteur sur une édition sans images, et **chaque** page affichait « Cette page
+  n'est pas encore disponible hors ligne » — un message faux, qui annonçait
+  l'édition comme si c'était la page.
+
+  `QuranEdition.displayed(stored:)` rend maintenant l'édition **affichée**,
+  toujours lisible, et le lecteur dit laquelle il substitue. La préférence
+  enregistrée n'est **pas** réécrite : elle reste `coranTest` dans le document
+  synchronisé, donc l'application React Native retrouve son édition de Tajwid.
+
+  **Sur les marque-pages, l'analyse de la version précédente de ce rapport était
+  inversée.** Elle redoutait qu'un repli écrive `source: "traditional"` pour un
+  utilisateur dont la préférence est `coranTest`. Or `Bookmark.save` écrit
+  `sourcePages[source] = page` : la clé et la valeur doivent désigner **la même
+  édition**. Avant la correction, l'application écrivait
+  `sourcePages["coranTest"] = <page du Coran de Médine>` — un numéro de page venu
+  d'une autre édition, et c'est **cela** qui divergait. Le repli écrit
+  `sourcePages["traditional"] = <page du Coran de Médine>`, exactement ce que
+  l'application React Native écrit quand l'utilisateur regarde le Coran de
+  Médine.
+
+  **Mesure, sur le point qui reste.** `reader.testPage` continue d'être écrit
+  quand la préférence vaut `coranTest` (`AppViewModel.recordReading`), comme dans
+  l'original (`App.tsx:212`). Ce numéro vient de `Quran.pageOf`, donc de la
+  pagination du Coran de Médine. Or les deux paginations **ne coïncident pas
+  partout** : sur les 604 pages, **568** portent le même intervalle de versets et
+  **36** en diffèrent d'une frontière (page 120 : `740–746` contre `740–745`). Le
+  repère de reprise de l'édition de Tajwid peut donc tomber une page à côté. Ce
+  n'est pas une régression — l'application écrivait déjà cette valeur — mais une
+  imprécision mesurée, que seule la reprise de l'édition lèverait.
 - **Deux formes de page, et c'est la différence qui compte.** Le Coran de Médine
   est **une** image par page (`1920 × 3106`) ; le Coran 1441 est **quinze bandes
   par page** (`1440 × 232` chacune), empilées à pas constant
@@ -262,16 +287,22 @@ Lecteur plein écran du Moushaf, `Features/Quran/Reader/`.
 | Ressource | Contenu | Vérification |
 | --- | --- | --- |
 | `Resources/Mushaf/` | **604 pages** du Coran de Médine | **MD5 identiques** aux 604 fichiers source, un à un |
-| `Resources/Data/` | **14 fichiers** (`verses.json`, `pages.json`, `bounds.json`, `meta.json`, `ipa-audio-source.json`, `tajweed-*.json`, `coran_1441-*.json`, `translation-fr-rashid.json`, `TANZIL-LICENSE.txt`) | tracés jusqu'à leur source par MD5 |
+| `Resources/Data/` | **15 fichiers** (`verses.json`, `pages.json`, `bounds.json`, `meta.json`, `ipa-audio-source.json`, `tajweed-*.json`, `coran_1441-*.json`, `translation-fr-rashid.json`, `TANZIL-LICENSE.txt`) | tracés jusqu'à leur source par MD5 |
 | `TANZIL-LICENSE.txt` | attribution du fournisseur des pages | fichier rédigé, sans jumeau côté source |
 
 Fidélité binaire revérifiée : `git hash-object` du fichier de travail égale
 `git rev-parse :chemin` pour les pages 1, 302 et 604 et pour `verses.json`.
 
 **Non copié, volontairement** — omissions documentées dans `SWIFT_MIGRATION.md` :
-`mushaf-tajweed` (134 Mo), `tajweed` (124 Mo), `coran-test` (51 Mo), `themes`,
+`mushaf-tajweed` (132,13 Mo), `tajweed` (122,25 Mo), `coran-test` (48,88 Mo),
+`themes`,
 `illustrations`. Raisons : ressources non nécessaires à la première mission, ou
-licences incertaines. Vérifié : **aucun code Swift ne référence** `medallion.png`,
+licences incertaines. Ce sont les **images et les polices** qui n'ont pas été
+copiées ; les **données** de deux de ces éditions le sont, en revanche —
+`tajweed-text.json`, `tajweed-rules.json`, `mushaf-tajweed-bounds.json` et
+`mushaf-tajweed-dimensions.json` sont dans `Resources/Data/` et ne sont lus par
+aucun code Swift (`SWIFT_MIGRATION.md` §9.9). Vérifié : **aucun code Swift ne
+référence** `medallion.png`,
 `themes` ni `fonts`. `Resources/Fonts/` est donc vide.
 
 ## 12. Intégration continue
@@ -296,10 +327,17 @@ licences incertaines. Vérifié : **aucun code Swift ne référence** `medallion
 | **#23** | `17ea205` | **annulé** — remplacé par #24 (`cancel-in-progress`) | 5 min 59 s |
 | **#24** | `17ea205` | **success** — mais la configuration restait vide (voir ci-dessous) | 4 min 26 s |
 | **#25** | `593b8b1` | **success** — ordre des `#include?` corrigé | 7 min 57 s |
+| **#26** | `54be731` | **success** — documentation seule | — |
+| **#27** | `40c7bb3` | **success** — documentation seule | — |
+| **#28** | `4f07ea6` | **échec** — six échecs pour **une** constante fausse, un pour une exigence que j'avais inventée (voir ci-dessous) | — |
+| **#29** | `16ee5ca` | **success** — 130 tests | — |
+| **#30** | `6d49506` | **échec** — `flatMap` résolu sur `Sequence`, non sur `Optional` (`SWIFT_MIGRATION.md` §9.10) | — |
 
 Le tableau ne s'étend pas pour un run dont la seule cause est une modification de
 ce rapport : il s'étend quand un run **porte un fait**. Les runs #22 à #25 en
-portent deux — un défaut réel, et son correctif.
+portent deux ; #28 à #30 en portent trois — une constante fausse, une exigence
+que j'avais inventée, et une résolution de méthode. Les trois sont détaillés plus
+bas, parce qu'aucun n'a la cause que son message laissait croire.
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
@@ -308,7 +346,7 @@ artefact de 120 263 470 octets**. La taille est le second témoin : elle prouve 
 les 604 pages sont réellement dans le paquet, et pas seulement que le fichier a
 été créé.
 
-Les **110 tests** de la cible de tests sont joués à chaque run. Deux d'entre eux
+Les **130 tests** de la cible de tests sont joués à chaque run. Deux d'entre eux
 (`AppWiringTests`) sont **ignorés** tant que les secrets `SUPABASE_URL` et
 `SUPABASE_ANON_KEY` ne sont pas posés sur le dépôt : ils vérifient la
 configuration, qui est alors absente. Ils s'activeront d'eux-mêmes.
@@ -472,7 +510,7 @@ configuration arrive dans l'application se **sautent** quand elle paraît absent
 (`XCTSkipUnless(AppConfig.isConfigured)`). Le défaut rendait la configuration
 absente — donc les tests se sautaient, et le run restait vert. **Le défaut
 éteignait ses propres garde-fous.** Le journal, lui, ne disait rien : il annonçait
-« 110 tests, 3 ignorés », ce qui est un état supporté et documenté.
+« 110 tests, 3 ignorés » (le compte de l'époque), ce qui est un état supporté et documenté.
 
 **Comment il a été trouvé.** En lisant l'artefact plutôt que le verdict. Le journal
 du run est **tronqué** (`tail -60`) : les 43 lignes « Test Case » visibles sur 110
@@ -500,6 +538,63 @@ taire encore.
 **Un effet de bord à connaître.** Le flux porte `cancel-in-progress: true` sur le
 groupe `ios-main` : déclencher un run à la main **annule** le run du push en cours.
 C'est ce qui est arrivé au #23, qui n'est donc pas un échec mais une annulation.
+
+### L'échec #28 : sept rouges ne faisaient pas sept problèmes
+
+Le run #28 (`4f07ea6`) a échoué avec **sept** tests rouges, et le compte était
+trompeur : ils ne venaient que de **deux** causes.
+
+**Six des sept, une seule constante fausse.** `Coran1441Install.imageWidth`
+rendait **1920** — la largeur d'une page du Coran de **Médine**, lue dans
+`VerseBounds.imageSize` — au lieu de **1440**, la largeur d'une bande du
+Coran 1441. La conséquence n'était pas une erreur mais un silence : chaque image
+réelle de l'archive aurait été **refusée**, et le seul symptôme aurait été « le
+téléchargement ne se termine jamais ». Corrigé en lisant la taille de la bonne
+source, et fixé par un test qui écrit `1440 × 232` **en clair** — le seul endroit
+où la valeur ne dépend pas du code éprouvé.
+
+**Le septième était une exigence que j'avais inventée.** J'avais écrit qu'un flux
+`zlib` devait être **refusé** par le décodeur d'Apple. Le journal a dit
+`XCTAssertThrowsError failed: did not throw an error` : le décodeur l'**accepte**.
+Les assertions de taille et d'empreinte du test voisin passaient, ce qui prouvait
+déjà que `COMPRESSION_ZLIB` est bien du DEFLATE brut. L'assertion négative a été
+remplacée par une observation enregistrée, plus un test qui couvre le vrai chemin
+d'erreur — un flux corrompu.
+
+**La leçon.** Un échec de test nomme un symptôme, pas une cause. Compter les
+lignes rouges aurait fait chercher sept problèmes, dont cinq inexistants.
+
+### L'échec #30 : `flatMap` sur une chaîne n'est pas celui d'`Optional`
+
+Le run #30 (`6d49506`) a échoué à la **compilation**, sur une ligne que j'avais
+écrite :
+
+```
+AppViewModel.swift:114: error: cannot convert value of type 'QuranEdition?'
+                                  to closure result type 'String?'
+AppViewModel.swift:114: error: cannot convert value of type 'String.Element'
+                                  (aka 'Character') to expected argument type 'String'
+```
+
+L'intention était d'écrire « décode la préférence, ou `nil` » :
+`reader?.mushaf.flatMap { QuranEdition(rawValue: $0) }`. Mais sur une **chaîne**,
+`flatMap` se résout sur `Sequence` — celle des `Character` — et non sur
+`Optional`. Le compilateur recevait donc un `Character` là où il attendait un
+`String` : le refus est correct, mais le message parle de types qui n'ont rien à
+voir avec l'intention.
+
+Écrit en deux temps, la même intention passe :
+
+```swift
+guard let stored = repository.state.reader?.mushaf else { return nil }
+return QuranEdition(rawValue: stored)
+```
+
+**Ce que cet échec dit du dispositif.** Aucun contrôle local ne pouvait
+l'attraper : il n'y a pas de compilateur Swift sur la machine de rédaction, et
+`scripts/verifier-flux.mjs` vérifie le **flux**, pas le Swift. Le compilateur
+distant est donc la seule barrière — et c'est pourquoi relire ligne à ligne avant
+de pousser n'est pas un luxe, mais le seul filtre disponible.
 
 ## 13. Problèmes rencontrés
 
@@ -594,13 +689,35 @@ C'est ce qui est arrivé au #23, qui n'est donc pas un échec mais une annulatio
 > 9 060 images sont exigées avant que l'installation soit déclarée prête. Ce que
 > ce rapport appelait « le seul manque du lecteur » est donc comblé. Ce qui reste
 > pour cette édition est la vérification sur appareil, comme pour le reste (§7).
-4. « Tawjeed test 2 » et « Medine Test » (§9.3), **et la décision qui va avec**.
-   Les éditions de Tajwid n'ont ni images ni rectangles : `QuranEdition.boundsSource`
-   rend `nil`, ce qui produit **aucune** mise en évidence plutôt que celles du
-   Coran de Médine appliquées à une autre image. Reste à choisir entre copier
-   leurs ressources (51 Mo et 134 Mo) et laisser l'utilisateur choisir une édition
-   disponible. Ce n'est pas un cas théorique : l'état initial vaut `coranTest`
-   (voir §10).
+4. **Les trois éditions non reprises** (`SWIFT_MIGRATION.md` §9.3), et la
+   décision qui reste.
+
+   **Le lecteur n'ouvre plus sur une édition qu'il ne sait pas rendre** : c'est
+   corrigé, et c'est ce qui rendait ce point urgent (§10). Ce qui reste est le
+   choix, pour le propriétaire, de reprendre — ou non — le contenu de ces trois
+   éditions.
+
+   **Les noms de la version précédente de ce rapport étaient trompeurs, et c'est
+   mesuré.** « Tawjeed test 2 » et « Medine Test » ne sont pas des éditions : ce
+   sont d'anciennes clés, que `migrateReaderState` réécrit vers `coran_1441`
+   (`program.ts:60`). Le mode `tajweedPages`, lui, est réécrit vers `coranTest` à
+   **chaque** chargement (`program.ts:62`) : personne ne peut l'atteindre, et ses
+   604 pages (132,13 Mo) sont du poids mort dans le dépôt de référence — comme
+   `assets/tajweed` (122,25 Mo), que **rien** ne référence.
+
+   Les trois éditions réellement distinctes :
+
+   | Édition | Ce qu'elle est | Ressources manquantes | Portable ici |
+   | --- | --- | --- | --- |
+   | `coranTest` — « Coran avec règles de Tajwid » | HTML dans un WebView (`coranTest/html.ts`) | 607 `.woff2` (48,88 Mo) + 606 JSON de page (4,25 Mo) | **non** : la chaîne de rendu est à écrire (`WKWebView`) |
+   | `tajweed` — « Lecture simplifiée » | texte arabe coloré par règle | **aucune** : ses deux fichiers sont **déjà dans ce dépôt**, lus par aucun code | oui, en natif |
+   | `tajweedPages` — « Moushaf Tajwid » | pages coloriées | 604 PNG (132,13 Mo) | **sans objet** : mode inatteignable |
+
+   **`coranTest` est le cas qui compte** : c'est le défaut des deux applications,
+   donc l'édition de tout utilisateur qui n'a jamais touché au choix d'affichage.
+   **`tajweed` est le meilleur rapport effort/résultat** : ses données sont déjà
+   embarquées, et il reste à écrire le rendu du texte coloré. Ni l'une ni l'autre
+   ne demande de copier les 185 Mo que la version précédente annonçait.
 5. **Repères de progression de séance dans la marge** (`marginAnnotations`,
    `MushafPage.tsx:53`) — dépend du suivi de séance (`sessionThrough`), non porté.
 6. Assistant d'objectif hebdomadaire, écran d'apparence, messagerie, groupes,
