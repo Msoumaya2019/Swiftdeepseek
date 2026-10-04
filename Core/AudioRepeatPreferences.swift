@@ -215,6 +215,11 @@ public struct AudioRepeatPreferences: Equatable, Sendable {
     /// `PassageAudioPlayer.tsx:78` puis `:79` — le compte tel que le moteur le
     /// reçoit. Le mode `passage` / `each-verse` ne change rien ici : le compte
     /// est le même pour les deux.
+    ///
+    /// `Self.` n'est pas décoratif : un membre **statique** référencé depuis un
+    /// contexte d'instance doit être qualifié, sinon le compilateur répond
+    /// « static member cannot be used on instance of type ». Mesuré — c'est le
+    /// seul défaut que la compilation du run #39 a relevé.
     public var count: RepeatCount {
         switch countChoice {
         case .continuous:
@@ -222,7 +227,7 @@ public struct AudioRepeatPreferences: Equatable, Sendable {
         case .times(let value):
             return value > 0 ? .times(value) : .times(1)
         case .custom:
-            guard let value = customInteger(customCount) else { return .times(1) }
+            guard let value = Self.customInteger(customCount) else { return .times(1) }
             return .times(value)
         }
     }
@@ -237,11 +242,11 @@ public struct AudioRepeatPreferences: Equatable, Sendable {
         guard countChoice == .custom else { return nil }
         // Comparé en `Double` : `Int(value)` piégerait sur `'1e300'`, qui est un
         // entier fini pour JavaScript — et que l'original refuse, justement.
-        guard let value = jsNumber(customCount),
+        guard let value = Self.jsNumber(customCount),
               value.isFinite,
               value == value.rounded(),
-              value >= Double(customCountRange.lowerBound),
-              value <= Double(customCountRange.upperBound) else {
+              value >= Double(Self.customCountRange.lowerBound),
+              value <= Double(Self.customCountRange.upperBound) else {
             return PassageAudioError(message: "Choisis entre 1 et 999 écoutes.")
         }
         return nil
