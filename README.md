@@ -306,7 +306,7 @@ Theme/          Les 5 palettes et 4 accents de l'application actuelle
 ViewModels/     AppViewModel — les vues ne parlent jamais à Supabase
 Features/       Navigation, Accueil, Coran, Programme, Progrès, Amis, Révisions
 Models/         Réservé (voir Models/README.md)
-Resources/      Données coraniques et 604 pages du Coran de Médine
+Resources/      Données coraniques, 604 pages, 5 illustrations de thème
 Tests/          Tests de parité
 Config/         xcconfig (dont le modèle de Secrets)
 ```
@@ -319,6 +319,14 @@ l'application utilisable sans réseau.
 `UIKit` est utilisé là où il apporte quelque chose : `UIPageViewController` pour
 la pagination du lecteur, intégré à SwiftUI par
 `UIViewControllerRepresentable`.
+
+Les **cinq illustrations de thème** sont embarquées dans `Resources/Themes`, déclaré
+`type: folder` : `Bundle.main.url(forResource:withExtension:subdirectory:)` les trouve
+dans un sous-dossier du paquet, et non à la racine — où `white.png` et `night.png`
+entreraient en collision avec toute autre ressource de même nom. Deux clés ne portent
+pas le nom de leur fichier : `classic` lit `emerald.png`, `feminine` lit `rose.png`.
+Et les cinq images n'ont pas le même format — `white.png` est en 1613 × 975, les quatre
+autres en 1254 × 1254 — d'où un recadrage (`.fill`) et non un ajustement.
 
 ### Ce que les tests verrouillent
 

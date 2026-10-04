@@ -328,6 +328,7 @@ Lecteur plein écran du Moushaf, `Features/Quran/Reader/`.
 | --- | --- | --- |
 | `Resources/Mushaf/` | **604 pages** du Coran de Médine | **MD5 identiques** aux 604 fichiers source, un à un |
 | `Resources/Data/` | **15 fichiers** (`verses.json`, `pages.json`, `bounds.json`, `meta.json`, `ipa-audio-source.json`, `tajweed-*.json`, `coran_1441-*.json`, `translation-fr-rashid.json`, `TANZIL-LICENSE.txt`) | tracés jusqu'à leur source par MD5 |
+| `Resources/Themes/` | les **5 illustrations de thème** — `white.png`, `emerald.png`, `rose.png`, `lilac.png`, `night.png` | **SHA-256 identiques** aux cinq fichiers source, et dimensions relevées (`white.png` **1613 × 975**, les quatre autres **1254 × 1254**) |
 | `TANZIL-LICENSE.txt` | attribution du fournisseur des pages | fichier rédigé, sans jumeau côté source |
 
 Fidélité binaire revérifiée : `git hash-object` du fichier de travail égale
@@ -335,15 +336,15 @@ Fidélité binaire revérifiée : `git hash-object` du fichier de travail égale
 
 **Non copié, volontairement** — omissions documentées dans `SWIFT_MIGRATION.md` :
 `mushaf-tajweed` (132,13 Mo), `tajweed` (122,25 Mo), `coran-test` (48,88 Mo),
-`themes`,
-`illustrations`. Raisons : ressources non nécessaires à la première mission, ou
-licences incertaines. Ce sont les **images et les polices** qui n'ont pas été
-copiées ; les **données** de deux de ces éditions le sont, en revanche —
+`illustrations` (les vignettes d'accueil) et les **polices**. Raisons : ressources
+non nécessaires, ou licences incertaines. Ce sont les **images et les polices** qui
+n'ont pas été copiées ; les **données** de deux de ces éditions le sont, en revanche —
 `tajweed-text.json`, `tajweed-rules.json`, `mushaf-tajweed-bounds.json` et
 `mushaf-tajweed-dimensions.json` sont dans `Resources/Data/` et ne sont lus par
-aucun code Swift (`SWIFT_MIGRATION.md` §9.9). Vérifié : **aucun code Swift ne
-référence** `medallion.png`,
-`themes` ni `fonts`. `Resources/Fonts/` est donc vide.
+aucun code Swift (`SWIFT_MIGRATION.md` §9.9). Le dossier `themes` de la référence, lui,
+**est** repris — ses cinq PNG sont dans `Resources/Themes/`. Vérifié : **aucun code
+Swift ne référence** `medallion.png`, `illustrations` ni `fonts` autrement que dans un
+commentaire. `Resources/Fonts/` est donc vide.
 
 ## 12. Intégration continue
 
@@ -986,6 +987,39 @@ les trois chaînes attendues **recopiées du banc** — `2027-01-15T08:00:00.001
 
 Le défaut, raconté côté migration, est documenté en `SWIFT_MIGRATION.md` §9.20.
 
+### Les illustrations de thème : deux clés trompeuses, et un contrôle qui ne pouvait pas mordre
+
+Après la correction de `maxISO`, le dernier point ouvert de l'écran d'apparence était
+l'illustration des cartes de thème. Cinq PNG, **10 199 065 octets**, copiés depuis
+`assets/themes/` et vérifiés **par empreinte SHA-256** contre la référence.
+
+Le piège n'est pas dans le code : il est dans la **table**. `src/ui/Premium.tsx:9` associe
+`classic` à `emerald.png` et `feminine` à `rose.png`. Une recopie « évidente »
+(`classic.png`, `feminine.png`) **compile**, **passe le contrôle des clés**, et laisse
+**deux cartes vides** — le nom est simplement introuvable dans le paquet, et rien d'autre
+ne le dit. Deux mutations du falsificateur sont dédiées à ces deux clés.
+
+Second piège, mesuré : `white.png` est en **1613 × 975** et les quatre autres en
+**1254 × 1254**. Un ajustement (`.fit`) aurait donc cadré juste quatre thèmes et laissé des
+bandes sur le cinquième. C'est `.fill` + `.clipped()` qui est obligatoire.
+
+Le contrôle des cinq fichiers passe par une **empreinte**, qu'aucune substitution de texte
+ne peut atteindre. Le falsificateur porte donc une section **binaire**, qui écrase le
+contenu de `rose.png` par celui de `white.png`, lance le banc, puis restaure **à l'octet**.
+
+**Deux erreurs dans le banc lui-même**, trouvées en le lançant et non en le relisant : le
+libellé Swift est `contentMode:`, pas `content:` — la première expression régulière ne
+pouvait donc jamais mordre ; et `minHeight:Theme.Art.bannerMinHeight` se cherche sur le
+texte **aplati**, où l'espace après le deux-points n'existe plus. Un contrôle qui ne peut
+pas mordre est vert pour la mauvaise raison, et c'est exactement ce que la falsification
+sert à voir.
+
+`_banc/verifier-apparence.mjs` passe de **63** à **89** vérifications,
+`_banc/falsifier-apparence.mjs` de **25** à **47** cas — tous détectés, aucun orphelin
+laissé sur le disque.
+
+Le portage, raconté côté migration, est documenté en `SWIFT_MIGRATION.md` §9.21.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a
@@ -1121,8 +1155,9 @@ les **pastilles de numéro de verset du Coran 1441** (§10, `SWIFT_MIGRATION.md`
 qu'ils dépendaient d'un suivi de séance « non porté », alors que
 `StudyProgress.through`, `Program.studyKey` et `ReaderRequest.sessionID`
 existaient déjà —, les **réglages** du programme et des connaissances
-(`SWIFT_MIGRATION.md` §9.18), et l'**écran d'apparence** — le thème et la couleur
-d'accent (§9.19).*
+(`SWIFT_MIGRATION.md` §9.18), et l'**écran d'apparence** — le thème, la couleur
+d'accent (§9.19) et les **cinq illustrations de thème** (§9.21), copiées à l'octet
+et vérifiées par empreinte contre la référence.*
 
 **Côté Apple** (README §« Ce qu'il reste à faire côté Apple ») : compte de
 développeur, identifiant de paquet enregistré, profil de provisionnement et

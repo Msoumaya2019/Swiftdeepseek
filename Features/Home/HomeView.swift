@@ -59,6 +59,25 @@ public struct HomeView: View {
 
     // MARK: Sections
 
+    /// Le bandeau d'accueil — `src/ui/MainScreens.tsx:23`.
+    ///
+    /// L'illustration du thème courant est posée **derrière** le texte, à 55 %
+    /// d'opacité : c'est ce qui la rend lisible sans effacer le texte, et ce
+    /// n'est pas un détail — à pleine opacité, le prénom devient illisible sur
+    /// le thème « Bleu Nuit & Or ». Le bandeau **déborde** de la gouttière de
+    /// l'écran (`marginHorizontal:-18` dans la référence), d'où le rembourrage
+    /// négatif appliqué en dernier.
+    ///
+    /// L'ordre des deux `background` compte : l'illustration est au plus près du
+    /// texte, et le fond crème derrière elle. Inversé, le crème masquerait
+    /// l'image, et le bandeau paraîtrait simplement uni.
+    ///
+    /// DIVERGENCE ASSUMÉE : les **textes** ne sont pas ceux de la référence, qui
+    /// affiche « As-Salâm ‘Alaykoum, », puis le **prénom** en grand, puis
+    /// « Prêt à continuer ton apprentissage ? ». Ici la grande ligne porte
+    /// l'**objectif**. Le bandeau illustré est porté tel quel ; aligner les
+    /// textes est un travail à part, et le faire en silence changerait un écran
+    /// que rien n'a demandé de changer.
     private var header: some View {
         VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
             if let firstName = model.state.profile?.firstName, !firstName.isEmpty {
@@ -70,7 +89,16 @@ public struct HomeView: View {
                 .font(.system(size: Theme.Typography.screen, weight: .semibold))
                 .foregroundStyle(model.palette.green)
         }
-        .padding(.top, Theme.Spacing.sm)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, Theme.Spacing.xxl)
+        .padding(.vertical, Theme.Spacing.md)
+        .frame(minHeight: Theme.Art.bannerMinHeight, alignment: .leading)
+        .background(
+            ThemeArtImage(theme: model.state.theme ?? "white")
+                .opacity(Theme.Art.bannerOpacity)
+        )
+        .background(model.palette.cream)
+        .padding(.horizontal, -Theme.Spacing.lg)
     }
 
     private var progressCard: some View {

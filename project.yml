@@ -75,6 +75,14 @@ targets:
       # l'aplatir.
       - path: Resources/Mushaf
         type: folder
+      # Les cinq illustrations de thème gardent elles aussi leur sous-dossier :
+      # `ThemeArtImage` les cherche avec `subdirectory: "Themes"`, et elles
+      # portent les noms de fichiers de la référence — `emerald.png` pour la clé
+      # `classic`, `rose.png` pour `feminine`. Les aplatir à la racine du paquet
+      # ferait entrer `white.png` et `night.png` en collision avec n'importe
+      # quelle autre ressource de même nom.
+      - path: Resources/Themes
+        type: folder
     configFiles:
       Debug: Config/Debug.xcconfig
       Release: Config/Release.xcconfig

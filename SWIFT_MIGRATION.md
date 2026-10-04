@@ -1356,3 +1356,74 @@ l'oracle pour le fond.
 par le banc** — jamais écrites de tête. `ProgramGoalTests` passe de **33** à **34** tests,
 et le total déclaré de **306** à **307**.
 
+### 9.21 Les illustrations des thèmes : deux clés qui ne portent pas le nom de leur fichier
+
+Le dernier point ouvert de l'écran d'apparence était l'illustration des cartes. Elle est
+portée — et elle cachait **deux pièges**, dont un seul se voit à la compilation.
+
+**Ce que la référence déclare.** `src/ui/Premium.tsx:9` porte une table de cinq entrées :
+
+```jsx
+themeArt={{
+  white: require('../../assets/themes/white.png'),
+  classic: require('../../assets/themes/emerald.png'),
+  feminine: require('../../assets/themes/rose.png'),
+  lilac: require('../../assets/themes/lilac.png'),
+  night: require('../../assets/themes/night.png')
+}}
+```
+
+**Deux clés ne portent pas le nom de leur fichier** : `classic` lit `emerald.png`, et
+`feminine` lit `rose.png`. Une recopie « évidente » — `classic.png`, `feminine.png` —
+**compile**, passe le contrôle des clés, et laisse **deux cartes vides** : le nom serait
+simplement introuvable dans le paquet, et rien d'autre ne le dirait. C'est la raison d'être
+du contrôle `classic → emerald.png` / `feminine → rose.png` du banc, et de deux mutations
+qui lui sont dédiées.
+
+**Les cinq fichiers ne font pas le même format.** Mesuré : `white.png` fait **1613 × 975**,
+les quatre autres **1254 × 1254**. Un `.aspectRatio(contentMode: .fit)` cadrerait donc
+**juste** quatre thèmes et **laisserait des bandes** sur le cinquième. C'est `.fill` +
+`.clipped()` qui est obligatoire — et non un choix esthétique.
+
+**Les mesures viennent de la référence, et le banc les relit.** La carte
+(`src/ui/DesignSystem.tsx:17`) place l'image à `width:'42%'`, `height:105`,
+`borderRadius:14` ; le bandeau d'accueil (`src/ui/MainScreens.tsx:23`) la pose en fond avec
+`opacity:0.55` et `minHeight:100`. Le portage les porte dans `Theme.Art` — et
+`_banc/verifier-apparence.mjs` **lit ces cinq nombres dans la référence** avant de les
+comparer, au lieu de les recopier. Les 42 % sont une **fraction de la boîte de contenu** de
+la carte, pas une largeur en points : le `GeometryReader` est donc posé **à l'intérieur** du
+`.padding(Theme.Spacing.sm)`, sans quoi la carte serait juste sur un seul format d'écran.
+
+**Le dossier, et pas un groupe.** `Resources/Themes` est déclaré `type: folder` dans
+`project.yml`, comme `Resources/Mushaf` — c'est ce qui donne au paquet un sous-dossier
+`Themes/` où `Bundle.main.url(forResource:withExtension:subdirectory:)` trouve les fichiers.
+Une référence de **groupe** laisserait les cinq PNG hors du paquet en gardant leurs noms
+trouvables dans `project.yml`. Le chargement passe par `ThemeArtCache`
+(`NSCache<NSString, UIImage>`) : chaque image pèse deux mégaoctets et se décode en
+1254 × 1254 ; les relire à chaque rendu ferait clignoter la liste et repayerait le décodage.
+
+**Ce qui n'est toujours pas porté : la police.** Les trois fichiers de police déclarés par
+`package.json` — `@expo-google-fonts/amiri`, `@expo-google-fonts/cormorant-garamond` — sont
+**absents** du dépôt de référence : `node_modules` n'y est pas installé, et
+`find … -name '*.ttf' -o -name '*.otf'` ne rend **rien**. `state.uiFont` reste donc
+**délibérément non branché**, et le §19 du rapport de test le dit.
+
+**Une divergence assumée, annotée et non corrigée.** L'en-tête de `HomeView` affiche le
+libellé de l'objectif dans sa grande ligne, là où `MainScreens.tsx:23` affiche
+« As-Salâm ‘Alaykoum, » suivi du **prénom** (taille 32) puis « Prêt à continuer ton
+apprentissage ? ». Le **bandeau illustré** est porté ; les **textes** ne l'ont pas été, et le
+commentaire du fichier le dit plutôt que de le taire.
+
+**Les comptes.** `_banc/verifier-apparence.mjs` passe de **63** à **89** vérifications, dont
+les cinq empreintes SHA-256 des images comparées à celles de la référence. Il a fallu
+**corriger deux expressions régulières du banc lui-même** : le libellé Swift est
+`contentMode:`, pas `content:`, et `minHeight:Theme.Art.bannerMinHeight` se cherche sur le
+texte **aplati** — où l'espace après le deux-points n'existe plus.
+`_banc/falsifier-apparence.mjs` passe de **25** à **47** cas, tous détectés : les deux clés
+trompeuses, une permutation de noms, une clé retirée, la lecture rendue non facultative, les
+cinq mesures décalées, le `type: group`, le sous-dossier perdu, `.fill` devenu `.fit`, le
+cache retiré, et les mesures recopiées dans la vue. Le contrôle des empreintes, lui, **ne
+peut pas être atteint par une substitution de texte** : le falsificateur porte donc une
+section **binaire**, qui écrase le contenu de `rose.png` par celui de `white.png` puis
+restaure à l'octet.
+

@@ -12,24 +12,27 @@
 //   C'est la même règle que `SettingsView.swift`, pour la même raison : un écran
 //   qui ne décide rien n'a rien à se tromper.
 //
+// L'ILLUSTRATION DES THÈMES EST PORTÉE
+//   Chaque carte porte l'image de son thème (`themeArt`, `src/ui/Premium.tsx:9`) :
+//   les cinq PNG de `assets/themes/`, 10 199 065 octets, copiés à l'octet près.
+//   La correspondance clé → fichier vit dans `Theme.artNames`, et elle est une
+//   DONNÉE parce que **deux clés ne portent pas le nom de leur fichier** :
+//   `classic` lit `emerald.png` et `feminine` lit `rose.png`. Les cinq images
+//   servent aussi le bandeau de l'accueil (`HomeView`).
+//
 // CE QUI N'EST PAS ENCORE LÀ
 //   L'original porte une troisième section, « Police de l'interface », avec
 //   trois choix — élégante, moderne, classique (`AppearanceScreen.tsx:6`). Elle
 //   n'est pas portée, et c'est délibéré : le choix ÉCRIT bien `state.uiFont`,
 //   mais rien ici ne le lit. `src/theme/fonts.ts` branche `titleFont()` sur
 //   « Cormorant-Semibold » et `interfaceFont()` sur « Cormorant-Regular », deux
-//   polices livrées par `@expo-google-fonts` et absentes de ce dépôt. Afficher
-//   trois choix dont aucun ne change quoi que ce soit à l'écran serait un
-//   mensonge : l'utilisateur croirait l'application cassée. Cette section
-//   viendra avec les polices — 197 appels `.font(.system(` répartis sur treize
-//   fichiers, plus les fichiers de police à embarquer.
-//
-//   L'illustration des cartes de thème manque également. L'original affiche,
-//   pour chaque thème, une image (`themeArt`, cinq PNG de `assets/themes/`,
-//   10 199 065 octets au total). Ces cinq images servent AUSSI l'en-tête de
-//   l'accueil (`IslamicHero`, `src/ui/Premium.tsx:13`) : elles seront portées
-//   une seule fois, avec le bloc des ressources. En attendant, la carte affiche
-//   le nom et la description — et rien d'inventé à la place de l'image.
+//   polices livrées par `@expo-google-fonts` et **absentes de ce dépôt** :
+//   `node_modules` n'y est pas installé, aucun `.ttf` n'y figure, et seuls les
+//   paquets sont déclarés dans `package.json`. Afficher trois choix dont aucun
+//   ne change quoi que ce soit à l'écran serait un mensonge : l'utilisateur
+//   croirait l'application cassée. Cette section viendra avec les polices — 197
+//   appels `.font(.system(` répartis sur treize fichiers, plus les fichiers de
+//   police à embarquer.
 
 import SwiftUI
 
@@ -114,28 +117,50 @@ struct AppearanceView: View {
         }
     }
 
-    /// Une carte de thème : le nom, la description, et la marque de sélection.
+    /// Une carte de thème : l'illustration, le nom, la description, et la marque
+    /// de sélection.
+    ///
+    /// L'illustration fait **42 % de la largeur de la boîte de contenu** de la
+    /// carte (`DesignSystem.tsx:17`) — d'où le `GeometryReader` placé **à
+    /// l'intérieur** du rembourrage, et non autour. Mesurer autour donnerait
+    /// 42 % de la carte entière, soit une image d'environ sept points de trop,
+    /// et rien ne le signalerait.
     private func themeCard(_ option: Theme.ThemeOption, selected: Bool) -> some View {
         Button {
             model.setTheme(option.id)
         } label: {
-            HStack(spacing: Theme.Spacing.lg) {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    Text(option.name)
-                        .font(.system(size: Theme.Typography.section, weight: .semibold))
-                        .foregroundStyle(palette.text)
-                        .multilineTextAlignment(.leading)
-                    Text(option.description)
-                        .font(.system(size: 13))
-                        .foregroundStyle(palette.muted)
-                        .multilineTextAlignment(.leading)
+            GeometryReader { proxy in
+                HStack(spacing: Theme.Spacing.lg) {
+                    ThemeArtImage(theme: option.id)
+                        .frame(
+                            width: proxy.size.width * Theme.Art.widthFraction,
+                            height: Theme.Art.height
+                        )
+                        .clipShape(
+                            RoundedRectangle(cornerRadius: Theme.Art.cornerRadius)
+                        )
+                    VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
+                        Text(option.name)
+                            .font(.system(size: Theme.Typography.section, weight: .semibold))
+                            .foregroundStyle(palette.text)
+                            .multilineTextAlignment(.leading)
+                        Text(option.description)
+                            .font(.system(size: 13))
+                            .foregroundStyle(palette.muted)
+                            .multilineTextAlignment(.leading)
+                    }
+                    Spacer(minLength: Theme.Spacing.sm)
+                    Image(systemName: selected ? "checkmark.circle.fill" : "circle")
+                        .font(.system(size: 26))
+                        .foregroundStyle(selected ? palette.green : palette.muted)
                 }
-                Spacer(minLength: Theme.Spacing.sm)
-                Image(systemName: selected ? "checkmark.circle.fill" : "circle")
-                    .font(.system(size: 26))
-                    .foregroundStyle(selected ? palette.green : palette.muted)
+                .frame(
+                    width: proxy.size.width,
+                    height: proxy.size.height,
+                    alignment: .leading
+                )
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
+            .frame(height: Theme.Art.height)
             .padding(Theme.Spacing.sm)
             .background(palette.paper, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
             .overlay(

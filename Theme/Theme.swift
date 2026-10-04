@@ -171,6 +171,47 @@ public enum Theme {
         ThemeOption(id: "lilac", name: "Lilas & Perle", description: "Délicat et raffiné"),
         ThemeOption(id: "night", name: "Bleu Nuit & Or", description: "Sobre et élégant")
     ]
+
+    // MARK: Illustrations des thèmes (src/ui/Premium.tsx:9)
+
+    /// `themeArt` — le nom de fichier de l'illustration d'un thème.
+    ///
+    /// **Deux clés ne portent pas le nom de leur fichier**, et c'est la seule
+    /// raison d'être de cette table : `classic` lit `emerald.png`, et `feminine`
+    /// lit `rose.png`. Écrire `classic.png` compilerait, ne trouverait rien, et
+    /// laisserait la carte vide sans qu'aucun contrôle ne le signale.
+    public static let artNames: [String: String] = [
+        "white": "white.png",
+        "classic": "emerald.png",
+        "feminine": "rose.png",
+        "lilac": "lilac.png",
+        "night": "night.png"
+    ]
+
+    /// Le nom de fichier de l'illustration, ou `nil` pour un thème inconnu —
+    /// comme `themeArt[clé]` rend `undefined` pour une clé absente.
+    public static func artName(for theme: String) -> String? { artNames[theme] }
+
+    /// Les mesures de l'illustration, lues dans la référence
+    /// (`src/ui/DesignSystem.tsx:17` pour la carte, `src/ui/MainScreens.tsx:23`
+    /// pour le bandeau d'accueil).
+    ///
+    /// La largeur de la carte est une **fraction de sa boîte de contenu**, pas
+    /// une largeur fixe : la remplacer par des points donnerait une carte juste
+    /// sur un seul format d'écran. Les quatre autres sont des valeurs absolues
+    /// de la référence.
+    public enum Art {
+        /// `width: '42%'` de la boîte de contenu de la carte.
+        public static let widthFraction: CGFloat = 0.42
+        /// `height: 105`.
+        public static let height: CGFloat = 105
+        /// `borderRadius: 14`.
+        public static let cornerRadius: CGFloat = 14
+        /// `imageStyle={{opacity:0.55}}` du bandeau d'accueil.
+        public static let bannerOpacity: Double = 0.55
+        /// `minHeight: 100` du bandeau d'accueil.
+        public static let bannerMinHeight: CGFloat = 100
+    }
 }
 
 /// Environnement SwiftUI : la palette active suit `theme` et `accent` de l'état.

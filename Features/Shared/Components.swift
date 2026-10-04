@@ -4,13 +4,14 @@
 // Correspondance : `src/ui/DesignSystem.tsx` et `src/ui/Premium.tsx` côté React
 // Native. Les noms et les rôles sont conservés (`DailyTaskCard`,
 // `SectionHeader`, `SegmentedControl`, `StatCard`, `ProgressRing`,
-// `ProgressTrack`, `ArabicLabel`, `QuranNumberMedallion`) pour que la
-// correspondance entre les deux applications reste lisible.
+// `ProgressTrack`, `ArabicLabel`, `QuranNumberMedallion`, `ThemeArtImage`) pour
+// que la correspondance entre les deux applications reste lisible.
 //
 // Ces composants ne connaissent pas le modèle : ils reçoivent leur palette par
 // l'environnement SwiftUI. Ils ne portent aucune logique métier.
 
 import SwiftUI
+import UIKit
 
 // MARK: - En-tête de section
 
@@ -337,5 +338,66 @@ struct EmptyLabel: View {
             .foregroundStyle(palette.muted)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.vertical, Theme.Spacing.sm)
+    }
+}
+
+// MARK: - Illustration d'un thème
+
+/// `themeArt` — l'illustration d'un thème, lue dans `Resources/Themes`
+/// (`src/ui/Premium.tsx:9`).
+///
+/// Les cinq PNG sont embarqués en **référence de dossier** (`type: folder` dans
+/// `project.yml`), donc ils gardent leur sous-dossier et leur nom de fichier.
+/// Un thème **inconnu ne rend rien** plutôt qu'une image inventée :
+/// `Theme.artName(for:)` rend `nil`, exactement comme `themeArt[clé]` rend
+/// `undefined` pour une clé absente.
+///
+/// Le mode est un **recadrage**, et ce n'est pas indifférent : les quatre
+/// illustrations carrées sont en 1254 × 1254, mais `white.png` est en
+/// 1613 × 975. Un ajustement qui préserve l'image entière laisserait donc des
+/// bandes vides sur un thème et pas sur les autres.
+struct ThemeArtImage: View {
+    let theme: String
+
+    var body: some View {
+        if let image = ThemeArtCache.image(for: theme) {
+            Image(uiImage: image)
+                .resizable()
+                .aspectRatio(contentMode: .fill)
+                .clipped()
+        } else {
+            Color.clear
+        }
+    }
+}
+
+/// Le cache des cinq illustrations.
+///
+/// Chacune pèse deux mégaoctets sur disque et se décode en 1254 × 1254 : les
+/// relire à chaque rendu ferait clignoter la liste des thèmes et repayerait le
+/// décodage à chaque passage. `NSCache` — et non un dictionnaire — parce qu'il
+/// se vide de lui-même sous pression mémoire, ce qu'un dictionnaire statique ne
+/// ferait jamais.
+enum ThemeArtCache {
+    private static let cache = NSCache<NSString, UIImage>()
+
+    /// `nonisolated` à dessein : la lecture ne touche que des valeurs immuables
+    /// et `Bundle.main`, et elle est appelée depuis la mise en page, qui est
+    /// synchrone.
+    nonisolated static func image(for theme: String) -> UIImage? {
+        guard let name = Theme.artName(for: theme) else { return nil }
+        let key = name as NSString
+        if let cached = cache.object(forKey: key) { return cached }
+
+        let base = (name as NSString).deletingPathExtension
+        let ext = (name as NSString).pathExtension
+        guard let url = Bundle.main.url(
+            forResource: base,
+            withExtension: ext,
+            subdirectory: "Themes"
+        ), let image = UIImage(contentsOfFile: url.path) else { return nil }
+
+        cache.setObject(image, forKey: key)
+        return image
     }
 }
