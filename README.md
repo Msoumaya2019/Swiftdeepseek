@@ -150,16 +150,28 @@ Trois pièges, mesurés :
 
 ### État mesuré
 
-Run de référence — celui qui porte le moteur de répétition audio : **#37**
-(`694d622`), **3 min 5 s**, les **16 étapes en `success`** et une seule
-annotation, le message de file d'attente macOS. L'IPA pèse **120 349 892
-octets** — les 604 pages sont donc bien embarquées. Le numéro est **ancré sur un
-commit**, et non « le dernier » : une poussée de documentation ajoute un run, si
-bien qu'une formule au superlatif serait périmée dès son écriture.
+Run de référence — celui qui porte les réglages de répétition et le contrôle qui
+relit les listes figées du test : **#41** (`9e9f2bf`), **4 min 19 s**, les **16
+étapes en `success`** et **aucune annotation** — le message de file d'attente
+macOS qui figurait sur les runs précédents a disparu de celui-ci. L'IPA pèse
+**120 357 634 octets** — les 604 pages sont donc bien embarquées. Le numéro est
+**ancré sur un commit**, et non « le dernier » : une poussée de documentation
+ajoute un run, si bien qu'une formule au superlatif serait périmée dès son
+écriture.
 
-**201 tests** sont exécutés à chaque run, répartis sur **douze groupes**, et **un
-seul** est ignoré : celui de la traversée du changement d'heure, qui n'a rien à
-éprouver dans un fuseau sans heure d'été.
+**228 tests** sont exécutés à chaque run, répartis sur **treize groupes**, et
+**un seul** est ignoré : celui de la traversée du changement d'heure, qui n'a
+rien à éprouver dans un fuseau sans heure d'été.
+
+Deux runs voisins disent ce que ce chiffre ne dit pas. **#39** (`6f502a3`) a
+échoué à la compilation : quatre références à un membre statique depuis un
+contexte d'instance, qu'il fallait qualifier de `Self.`. **#40** (`6c3a7b0`) a
+compilé puis rendu **deux échecs** — non dans le portage, mais dans le fichier de
+test lui-même, où deux valeurs avaient été écrites de mémoire au lieu d'être
+recopiées du banc. C'est ce run qui a motivé la section 15 de
+`_banc/oracle-audio.mjs` : elle **relit** les listes figées du test et les
+confronte à la référence, si bien que cette classe de défaut ne peut plus passer
+en silence.
 
 Deux autres (`AppWiringTests`) ne s'exécutent que si la configuration Supabase est
 présente : ils vérifient que l'URL arrive **intacte** dans l'application — non

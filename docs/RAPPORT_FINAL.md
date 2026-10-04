@@ -12,9 +12,9 @@ Date : 4 octobre 2026.
 | Nom | **`Swiftdeepseek`** — exactement, sans variante |
 | Visibilité | **publique** (nécessaire : les exécuteurs macOS sont facturés sur un dépôt privé) |
 | Branche par défaut | `main` |
-| Taille | 116 916 Ko (mesurée par l'API GitHub) |
-| Commits | 37 au commit `694d622`, celui qui porte le moteur de répétition audio et la lecture d'une sourate. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
-| Fichiers suivis | 695 — dont **56 fichiers Swift** et **201 tests** déclarés |
+| Taille | 117 072 Ko (mesurée par l'API GitHub) |
+| Commits | 42 au commit `9e9f2bf`, celui qui porte les réglages de répétition et le contrôle qui relit les listes figées du test. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
+| Fichiers suivis | 697 — dont **58 fichiers Swift** et **228 tests** déclarés |
 | Dépôt indépendant | oui — ni fourche, ni branche, ni sous-dossier, ni sous-module du dépôt de référence |
 
 ## 2. Dépôt de référence — intact, et aucun commit
@@ -56,7 +56,7 @@ La destination a été revérifiée **avant chaque poussée** de cette session.
 
 ## 4. Structure Swift créée
 
-Architecture MVVM, **56 fichiers Swift**, 695 fichiers suivis.
+Architecture MVVM, **58 fichiers Swift**, 697 fichiers suivis.
 
 ```
 App/            SwiftdeepseekApp, ContentView
@@ -365,6 +365,10 @@ référence** `medallion.png`,
 | **#35** | `d33ee11` | **success** — les repères de progression de séance dans la marge (`SWIFT_MIGRATION.md` §9.12) ; **179 tests, 1 ignoré, 0 échec** ; IPA de 120 342 646 octets | 5 min 59 s |
 | **#36** | `832a9f1` | **success** — documentation seule ; c'est le run #35 qui porte les repères de marge | 3 min 57 s |
 | **#37** | `694d622` | **success** — le moteur de répétition audio et la lecture d'une sourate (`SWIFT_MIGRATION.md` §9.13) ; **201 tests, 1 ignoré, 0 échec** ; IPA de 120 349 892 octets | 3 min 5 s |
+| **#38** | `b9ec8ef` | **success** — documentation seule ; c'est le run #37 qui porte le moteur de répétition audio | 5 min 5 s |
+| **#39** | `6f502a3` | **échec** — quatre références à un membre statique depuis un contexte d'instance, à qualifier de `Self.` (voir ci-dessous) | 54 s |
+| **#40** | `6c3a7b0` | **échec** — deux valeurs écrites de mémoire dans le test, non dans le portage (voir ci-dessous) ; **228 tests, 1 ignoré, 2 échecs** | 8 min 52 s |
+| **#41** | `9e9f2bf` | **success** — les réglages de répétition et le contrôle qui relit les listes figées du test (`SWIFT_MIGRATION.md` §9.14) ; **228 tests, 1 ignoré, 0 échec** ; IPA de 120 357 634 octets | 4 min 19 s |
 
 Le tableau ne s'étend pas pour un run dont la seule cause est une modification de
 ce rapport : il s'étend quand un run **porte un fait**. Les runs #22 à #25 en
@@ -374,7 +378,11 @@ l'édition affichée ; #33 et #36 ne portent rien, et c'est dit ; #34 et #35 por
 les repères de progression de séance, et la correction des trois nombres de leurs
 tests qui avaient été écrits de mémoire ; #37 porte le moteur de répétition audio.
 Les trois premiers sont détaillés plus bas, parce qu'aucun n'a la cause que son
-message laissait croire.
+message laissait croire. #38 ne porte rien, et c'est dit ; #39 porte une erreur de
+compilation — un membre statique lu depuis un contexte d'instance, sans `Self.` ;
+#40 porte **deux échecs de test**, dans le fichier de test et non dans le portage ;
+#41 porte les réglages de répétition et la section 15 du banc, qui relit les
+listes figées du test.
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
@@ -383,19 +391,19 @@ artefact de 120 263 470 octets**. La taille est le second témoin : elle prouve 
 les 604 pages sont réellement dans le paquet, et pas seulement que le fichier a
 été créé.
 
-Les **201 tests** de la cible de tests sont joués à chaque run, répartis sur
-**douze groupes**. Le compte est lu sur l'**artefact** du run #37 — et non sur le
+Les **228 tests** de la cible de tests sont joués à chaque run, répartis sur
+**treize groupes**. Le compte est lu sur l'**artefact** du run #41 — et non sur le
 journal du flux, qui est tronqué (`tail -60`) et ne porte pas la fin de la suite :
-`AppWiringTests` 3, `Coran1441DownloadTests` 20, `DateKeysTests` 8 (dont **1
-ignoré**), `JSONValueTests` 11, `MarginAnnotationsTests` 27, `OfflineMergeTests`
-18, `PassageAudioTests` 22, `ProgramTests` 14, `QuranEditionTests` 10,
-`ReviewTests` 30, `VerseBoundsTests` 26, `VerseMarkersTests` 12 — la ligne du
-paquet le confirme indépendamment (`SwiftdeepseekTests.xctest` : `201 tests, 1
-ignoré, 0 échec`). Deux des tests d'`AppWiringTests` sont **ignorés** tant que les
-secrets `SUPABASE_URL` et `SUPABASE_ANON_KEY` ne sont pas posés sur le dépôt : ils
-vérifient la configuration, qui est alors absente. Ils s'activent d'eux-mêmes —
-mesuré, run #31 : `AppWiringTests` passe de « 3 tests, 2 ignorés » à « 3 tests,
-0 ignoré ».
+`AppWiringTests` 3, `AudioRepeatPreferencesTests` 27, `Coran1441DownloadTests` 20,
+`DateKeysTests` 8 (dont **1 ignoré**), `JSONValueTests` 11,
+`MarginAnnotationsTests` 27, `OfflineMergeTests` 18, `PassageAudioTests` 22,
+`ProgramTests` 14, `QuranEditionTests` 10, `ReviewTests` 30, `VerseBoundsTests` 26,
+`VerseMarkersTests` 12 — la ligne du paquet le confirme indépendamment
+(`SwiftdeepseekTests.xctest` : `228 tests, 1 ignoré, 0 échec`). Deux des tests
+d'`AppWiringTests` sont **ignorés** tant que les secrets `SUPABASE_URL` et
+`SUPABASE_ANON_KEY` ne sont pas posés sur le dépôt : ils vérifient la
+configuration, qui est alors absente. Ils s'activent d'eux-mêmes — mesuré, run
+#31 : `AppWiringTests` passe de « 3 tests, 2 ignorés » à « 3 tests, 0 ignoré ».
 
 L'IPA est **non signé** : il s'installe par sideloading, pas par l'App Store.
 
@@ -689,6 +697,16 @@ Et la règle a servi au run suivant : les 22 tests du moteur de répétition aud
 (#37, `694d622`) n'ont **aucun** nombre écrit de mémoire — ils viennent tous de
 `_banc/oracle-audio.mjs`, et le banc vérifie que le portage porte bien les lignes
 décisives qu'il mesure. Le run est vert du premier coup.
+
+**La limite de cette règle, elle, a été trouvée par le run #40.** Le banc
+vérifiait le portage et ses propres nombres, mais **rien ne relisait les listes
+recopiées dans le fichier de test** — et deux valeurs y avaient été écrites de
+mémoire : `1e3` rangé parmi les textes acceptés au lancement, alors qu'il vaut
+1000 et doit être refusé, et un document censé retomber sur ses défauts alors que
+le portage en **garde** un champ, à juste titre. La section 15 de
+`_banc/oracle-audio.mjs` comble ce trou : elle relit les listes figées **du test**
+et les confronte à la référence, si bien qu'une valeur écrite de mémoire fait
+tomber le banc, et non le test.
 
 ## 13. Problèmes rencontrés
 
