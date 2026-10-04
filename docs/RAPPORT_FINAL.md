@@ -89,6 +89,28 @@ ni utilisateur dupliqué.
   nomme ce qui manque.
 - Délai de requête aligné sur celui de l'application d'origine (`sync.ts:10` — 8000 ms).
 
+### Ce qui a été mesuré sur le projet réel
+
+Quatre appels passés sur `npbwnvrqmajwqtnncuyv` avec la clé publiable. Ils ne
+modifient rien. Détail et conséquences : `SUPABASE_COMPATIBILITY.md` §1.5.
+
+| Appel | Code | Conclusion |
+| --- | --- | --- |
+| `GET /auth/v1/health` | 200 | projet joignable |
+| `GET /auth/v1/settings` | 200 | **clé acceptée** ; fournisseur `email` actif, confirmation d'adresse exigée |
+| `POST /auth/v1/token` (identifiants volontairement faux) | 400 `invalid_credentials` | **la clé n'est pas en cause** — une clé invalide donnerait `invalid_api_key` |
+| `GET /rest/v1/user_state` | 401 `42501` | le rôle `anon` n'a **aucun privilège** sur la table |
+
+Le quatrième point est le plus utile pour la suite : `anon` est refusé **avant**
+RLS, au niveau du privilège. L'application doit donc être **authentifiée avant de
+lire**, comme l'application React Native — il n'y a pas de « mode invité » à
+prévoir, et il ne faut pas en ajouter un.
+
+**Piège à connaître** : `GET /rest/v1/` répond `401 « Secret API key required »`
+avec une clé publiable, **par conception** — Supabase réserve la racine PostgREST
+aux clés secrètes. Tester la validité d'une clé publiable sur cette adresse mène à
+une conclusion fausse.
+
 ## 6. Comportement de l'authentification
 
 `Services/AuthService.swift` — `ObservableObject` sur le fil principal, état
@@ -191,6 +213,22 @@ Lecteur plein écran du Moushaf, `Features/Quran/Reader/`.
   — voir §11.
 - Audio : `AVFoundation`, récitateurs et correspondance d'audio repris de
   l'application d'origine.
+- **Mise en évidence des versets** (ajoutée après la première mission) :
+  `Core/VerseBounds.swift` lit `Resources/Data/bounds.json` — 604 pages,
+  13 766 rectangles, jusqu'ici **lu par aucun code** — et
+  `VerseHighlightView` les dessine par-dessus l'image. Sont repris de
+  `MushafPage.tsx:51-52` le rouge `#E85B5B` à 0,18 pour un verset difficile, le
+  vert du signet à 0,18, la surbrillance de lecture à 0,42, les coins à 4 et
+  l'icône de signet sur le bord droit.
+- **Barre d'action selon la raison d'ouverture** : trois notes de révision
+  (Parfait / Quelques hésitations / À retravailler) puis « Écouter » pour une
+  tâche de révision ; « Valider la consolidation · J+n » pour une consolidation ;
+  « Valider » pour une séance d'apprentissage.
+- **Non repris** : les repères de progression de séance dans la marge
+  (`marginAnnotations`, `MushafPage.tsx:53`), qui dépendent du suivi de séance
+  (`sessionThrough`), non porté ; le bouton « Ma voix », l'enregistrement des
+  récitations n'étant pas implémenté ; et les libellés d'accessibilité par verset
+  mis en évidence, l'image de page étant un élément d'accessibilité unique.
 
 ## 11. Fichiers et ressources copiés
 
@@ -216,15 +254,25 @@ licences incertaines. Vérifié : **aucun code Swift ne référence** `medallion
 | #8 | `cc7f747` | **success** | 7 min 26 s |
 | #9 | `79def4b` | **success** | 6 min 46 s |
 | #10 | `c4f5609` | **success** | 5 min 12 s |
-| **#11** | `6e795cc` | **échec** — voir ci-dessous | — |
+| **#11** | `6e795cc` | **échec** — simulateur nommé en dur | — |
 | #12 | `76fad6e` | **success** | 6 min 14 s |
+| #13 | `36cfa8a` | **success** | — |
+| **#14** | `d152c06` | **échec** — `Set<CGRect>` (voir ci-dessous) | — |
+| **#15** | `6102105` | **échec** — assertion de test inversée | — |
+| **#16** | `c0bf461` | **échec** — égalité exacte sur un flottant | — |
+| **#17** | `3e63067` | **success** | 4 min 49 s |
 
-Run #12 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
+Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
 signée**, **empaquetage de l'IPA**, **publication des artefacts** — et **1
-artefact de 120 242 283 octets**. La taille est le second témoin : elle prouve que
+artefact de 120 263 470 octets**. La taille est le second témoin : elle prouve que
 les 604 pages sont réellement dans le paquet, et pas seulement que le fichier a
 été créé.
+
+Les **101 tests** de la cible de tests sont joués à chaque run. Deux d'entre eux
+(`AppWiringTests`) sont **ignorés** tant que les secrets `SUPABASE_URL` et
+`SUPABASE_ANON_KEY` ne sont pas posés sur le dépôt : ils vérifient la
+configuration, qui est alors absente. Ils s'activeront d'eux-mêmes.
 
 L'IPA est **non signé** : il s'installe par sideloading, pas par l'App Store.
 
@@ -257,6 +305,45 @@ Deux corrections en ont découlé :
    d'erreur tronqué au moment précis où il allait être utile.
 
 Le run #12 est vert avec ce correctif.
+
+### Les échecs #14, #15 et #16 : trois fois un test, jamais le code
+
+Ces trois runs se suivent et échouent tous à l'étape « Jouer les tests », **après
+une compilation réussie**. C'est le signal utile : le défaut est dans un test, pas
+dans l'application. Les trois causes sont différentes, et les trois valent d'être
+connues.
+
+**#14 — `Set<CGRect>`.** `CGRect` ne conforme à `Hashable` qu'au-delà de la cible
+iOS 16 du projet. Le compilateur réclamait un contrôle `if #available`. Les
+annotations ne montraient que des lignes `note:`, jamais la ligne `error:` — mais
+la note suffisait : « `add 'if #available' version check` » ne s'affiche que pour
+un symbole plus récent que la cible de déploiement. Corrigé en comparant des
+tableaux, ce qui est en prime une assertion plus forte (elle tient l'ordre).
+
+**#15 — une assertion inversée.** Le test comparait `other` au récitateur **après**
+l'avoir affecté : les deux étaient égaux par construction, et le test échouait
+toujours. Le journal le dit sans ambiguïté, les deux valeurs imprimées étant
+identiques.
+
+**#16 — une égalité exacte sur un flottant.** `XCTAssertEqual` sur deux `CGRect`
+refuse `979.0000000000001` contre `979.0`. Le calcul est juste : `979 / 3106 *
+3106` ne redonne pas `979` en virgule flottante, et l'erreur est de 1e-13 point —
+douze ordres de grandeur sous le pixel. Corrigé en comparant avec `accuracy:`.
+
+**La cause commune est l'absence de compilateur Swift sur la machine de
+rédaction** : ces tests n'avaient jamais tourné avant d'atteindre l'intégration
+continue. Deux conséquences en ont été tirées :
+
+1. **Un contrôle local a été ajouté** (`_banc/coherence-swift.mjs`, non livré) : il
+   signale toute `XCTAssertEqual` sur une valeur géométrique **dérivée**
+   (`.minX`, une projection) sans `accuracy:`. Il a été **falsifié** — un fichier
+   portant volontairement le défaut le fait échouer, et sa suppression le remet au
+   vert.
+2. **La distinction à retenir** : un rectangle en coordonnées d'**image** vient
+   d'entiers convertis en `CGFloat` sans division — l'égalité exacte y est
+   légitime. Une valeur **projetée** se compare avec tolérance.
+
+Run #17 est vert avec le troisième correctif, en 4 min 49 s.
 
 ## 13. Problèmes rencontrés
 

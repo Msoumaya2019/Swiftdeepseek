@@ -134,11 +134,14 @@ Deux pièges, mesurés :
 
 ### État mesuré
 
-Dernier run vert : **6 min 46 s**, 13 étapes en `success`, un artefact
-`Swiftdeepseek-unsigned-ipa` de **120 242 542 octets** — les 604 pages sont donc
-bien embarquées. Les actions sont épinglées à `checkout@v5` et
-`upload-artifact@v6`, les plus petites versions qui déclarent `node24` (v5 de
-`upload-artifact` déclare encore `node20`).
+Dernier run vert : **#17**, **4 min 49 s**, les **13 étapes en `success`**, un
+artefact `Swiftdeepseek-unsigned-ipa` de **120 263 470 octets** — les 604 pages sont
+donc bien embarquées. **101 tests** sont joués à chaque run ; deux sont ignorés
+tant que les secrets Supabase ne sont pas posés (voir la section suivante).
+
+Les actions sont épinglées à `checkout@v5` et `upload-artifact@v6`, les plus
+petites versions qui déclarent `node24` (v5 de `upload-artifact` déclare encore
+`node20`).
 
 ### Installation de l'IPA sur un appareil
 
