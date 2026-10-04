@@ -209,22 +209,54 @@ Fidélité binaire revérifiée : `git hash-object` du fichier de travail égale
 licences incertaines. Vérifié : **aucun code Swift ne référence** `medallion.png`,
 `themes` ni `fonts`. `Resources/Fonts/` est donc vide.
 
-## 12. Intégration continue — trois runs verts
+## 12. Intégration continue
 
 | Run | Commit | Conclusion | Durée |
 | --- | --- | --- | --- |
 | #8 | `cc7f747` | **success** | 7 min 26 s |
 | #9 | `79def4b` | **success** | 6 min 46 s |
 | #10 | `c4f5609` | **success** | 5 min 12 s |
+| **#11** | `6e795cc` | **échec** — voir ci-dessous | — |
+| #12 | `76fad6e` | **success** | 6 min 14 s |
 
-Run #10 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
+Run #12 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
 signée**, **empaquetage de l'IPA**, **publication des artefacts** — et **1
-artefact de 120 242 376 octets**. La taille est le second témoin : elle prouve que
+artefact de 120 242 283 octets**. La taille est le second témoin : elle prouve que
 les 604 pages sont réellement dans le paquet, et pas seulement que le fichier a
 été créé.
 
 L'IPA est **non signé** : il s'installe par sideloading, pas par l'App Store.
+
+### L'échec #11, et ce qu'il a appris
+
+Le run #11 a échoué en **code 70**, sur l'étape des tests, avec pour seule cause
+lisible :
+
+```
+xcodebuild: error: Unable to find a device matching the provided destination
+specifier:
+```
+
+Ce qui rend cet échec instructif : **le même fichier, à trois runs verts près,
+passait**. La destination était `name=iPhone 16`. C'est donc le *contenu de
+l'image de l'exécuteur* qui avait changé, pas le code — et nommer un appareil
+n'est pas stable d'une image à l'autre.
+
+Deux corrections en ont découlé :
+
+1. **Le simulateur est désormais résolu à l'exécution** — `xcrun simctl list
+   devices available` fournit un appareil réellement présent, désigné par son
+   identifiant (`id=`), qui ne dépend pas du catalogue. Si aucun iPhone n'est
+   disponible, le pas échoue en **listant les appareils vus**, au lieu d'un
+   message tronqué.
+2. **La réémission porte maintenant les lignes qui suivent l'erreur** (`grep -A`,
+   6 lignes pour les tests, 4 pour la compilation). Sans elles, l'annotation
+   s'arrêtait sur « `specifier:` » : la liste des appareils vus par `xcodebuild`
+   était **sur les lignes suivantes**, et n'était donc pas publiée. Un message
+   d'erreur tronqué au moment précis où il allait être utile.
+
+Le run #12 est vert avec ce correctif.
 
 ## 13. Problèmes rencontrés
 
@@ -255,6 +287,12 @@ L'IPA est **non signé** : il s'installe par sideloading, pas par l'App Store.
 7. **`GET /actions/jobs/{id}` renvoie `annotations: []` même sur un job en échec**
    qui en porte treize dans le HTML. Le HTML est la source pour la cause ; l'API,
    pour le détail des étapes.
+8. **Un run vert ne garantit pas que le suivant le sera.** Le run #11 a échoué sur
+   une destination de simulateur **nommée**, alors que les trois runs précédents
+   passaient avec le même fichier : l'image de l'exécuteur avait changé. Corrigé
+   en résolvant l'appareil à l'exécution (§12). Leçon générale : ce qui dépend du
+   **contenu de l'image d'exécuteur** — nom d'appareil, version d'outil, catalogue
+   de simulateurs — doit être résolu au moment de l'exécution, jamais écrit en dur.
 
 ## 14. Étapes suivantes
 
