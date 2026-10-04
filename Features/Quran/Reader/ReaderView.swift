@@ -20,7 +20,11 @@ public struct ReaderView: View {
 
     @EnvironmentObject private var model: AppViewModel
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.safeAreaInsets) private var safeArea
+    // Pas d'insertion de zone sûre lue depuis l'environnement : SwiftUI n'expose
+    // pas `safeAreaInsets` par ce canal, et la mise en page n'en a pas besoin.
+    // La zone de page prend l'espace RESTANT (voir l'en-tête) : elle s'adapte
+    // donc déjà à l'encoche, à l'île dynamique et à la barre d'accueil, sans
+    // qu'aucune marge haute soit fixée.
 
     let request: ReaderRequest
     let edition: QuranEdition

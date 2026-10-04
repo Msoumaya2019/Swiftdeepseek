@@ -38,8 +38,14 @@ private struct Meta: Codable {
     let quarters: [Division]
 }
 
-private struct PageEntry: Codable {
-    let page: Int
+/// Entrée du fichier `pages.json` : une page, et les identifiants de versets
+/// qu'elle contient.
+///
+/// `public` parce que `Quran.pages` l'est : une propriété publique ne peut pas
+/// exposer un type privé. Seul `page` est lu hors de ce fichier
+/// (`WeeklyProgress.memorizedPageCount`) ; `first` et `last` restent internes.
+public struct PageEntry: Codable {
+    public let page: Int
     let first: [Int]
     let last: [Int]
 }
