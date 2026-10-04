@@ -15,6 +15,7 @@ public struct HomeView: View {
 
     @EnvironmentObject private var model: AppViewModel
     @State private var readerRequest: ReaderRequest?
+    @State private var showSettings = false
 
     public init() {}
 
@@ -34,6 +35,17 @@ public struct HomeView: View {
             }
             .background(model.palette.cream)
             .navigationTitle("Apprendre le Coran")
+            .toolbar {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button { showSettings = true } label: {
+                        Image(systemName: "gearshape")
+                    }
+                    .accessibilityLabel("Réglages")
+                }
+            }
+            .sheet(isPresented: $showSettings) {
+                SettingsView()
+            }
             .fullScreenCover(item: $readerRequest) { request in
                 ReaderView(
                     request: request,

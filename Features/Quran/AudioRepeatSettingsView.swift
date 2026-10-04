@@ -36,10 +36,11 @@
 //   premier appelant, et c'est `AppViewModel` qui écrit, à chaque changement.
 //
 // CE QUI RESTE
-//   La couche AVFoundation — l'exécuteur des `PassageAudioEffect`. Cet écran
-//   lance la lecture du **premier** verset de la plage ; la boucle de répétition
-//   est décidée par `Core/PassageAudioEngine.swift`, mais rien ne la pilote
-//   encore. Voir `SWIFT_MIGRATION.md` §9.16.
+//   La vérification SUR APPAREIL : l'enchaînement sans trou audible, la coupure
+//   avant le mot suivant, et la session en arrière-plan. La boucle, elle, est
+//   branchée depuis `Services/PassageAudioExecutor.swift` — cet écran lance la
+//   plage entière, répétitions, silence entre les versets et arrêt automatique
+//   compris. Voir `SWIFT_MIGRATION.md` §9.17 et §9.18.
 
 import SwiftUI
 

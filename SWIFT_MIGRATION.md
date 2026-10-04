@@ -70,9 +70,9 @@
 | Lecture, pause, verset suivant / précédent | ✅ | ✅ | — | `Services/AudioService.swift` | `AVFoundation`, session `.playback`. |
 | Préchargement des versets suivants | ✅ | ✅ | — | `Services/AudioService.swift` | Trois versets d'avance. |
 | Mini-lecteur persistant | ✅ | ⬜ | — | `Features/Quran/Reader/ReaderView.swift` | La barre audio du lecteur existe (`audioBar` : lecture/pause, récitateur, verset courant, et l'accès aux réglages de §9.16). Il manque le **mini-lecteur global** — celui qui survit au changement d'onglet. |
-| Répétition (passage / verset, nombre, silence, vitesse) | ✅ | 🟡 | — | `Core/PassageAudio.swift`, `Core/AudioRepeatPreferences.swift`, `Core/PassageAudioEngine.swift`, `Features/Quran/AudioRepeatSettingsView.swift`, `ViewModels/AppViewModel.swift`, `Storage/LocalStore.swift` | Le **moteur**, les **six réglages**, la **machine d'état de la boucle** et l'**écran** sont portés et éprouvés — **74 tests**, `_banc/oracle-audio.mjs`, `_banc/oracle-engine.mjs` et `_banc/verifier-ecran-audio.mjs` — mais la **couche AVFoundation** reste : la boucle est décidée, rien ne l'exécute encore. Réglages **locaux**, écrits par `AppViewModel`, voir §9.13 à §9.16 et `LOCAL_DATA_MIGRATION.md` §4 a). |
-| Lecture d'une sourate entière (fichier complet + horodatages) | ✅ | 🟡 | — | `Core/PassageAudio.swift` | `parseChapterAudio`, la validité d'un cache et l'avance d'affichage sont portés ; le téléchargement et le cache sur disque restent. |
-| Cache audio des versets | ✅ | 🟡 | — | `Services/AudioService.swift` | Cache en mémoire (`VerseAudioCache`) ; pas encore de cache sur disque. |
+| Répétition (passage / verset, nombre, silence, vitesse) | ✅ | ✅ | — | `Core/PassageAudio.swift`, `Core/AudioRepeatPreferences.swift`, `Core/PassageAudioEngine.swift`, `Services/PassageAudioExecutor.swift`, `Core/ChapterAudioCache.swift`, `Features/Quran/AudioRepeatSettingsView.swift`, `ViewModels/AppViewModel.swift`, `Storage/LocalStore.swift` | Le **moteur**, les **six réglages**, la **machine d'état**, l'**écran** et l'**exécuteur AVFoundation** sont portés, et la boucle est branchée de bout en bout — `_banc/oracle-audio.mjs`, `_banc/oracle-engine.mjs`, `_banc/verifier-ecran-audio.mjs` et `_banc/verifier-executeur-audio.mjs`. Ce qui reste n'est **pas du code** : l'éprouver **sur un appareil** — reprise sans coupure audible entre deux versets d'une même piste, coupure avant le mot suivant, session audio en arrière-plan. Réglages **locaux**, écrits par `AppViewModel`, voir §9.13 à §9.17 et `LOCAL_DATA_MIGRATION.md` §4 a). |
+| Lecture d'une sourate entière (fichier complet + horodatages) | ✅ | ✅ | — | `Core/PassageAudio.swift`, `Services/PassageAudioExecutor.swift`, `Core/ChapterAudioCache.swift`, `Storage/LocalStore.swift` | La chronologie est demandée à quran.com, **validée** (`isUsableCachedChapter`) puis gardée sur disque ; un échec n'est pas redemandé pendant cinq minutes, et une seule requête est en vol par sourate. Un récitateur sans identifiant de sourate retombe sur les fichiers par verset, comme dans l'original. |
+| Cache audio des versets | ✅ | ✅ | — | `Services/AudioService.swift` | `VerseAudioCache` écrit sur **disque** (`.cachesDirectory`), avec téléchargement dans un fichier temporaire puis déplacement — et non « en mémoire », comme l'annonçait une version précédente de ce tableau. |
 
 ## 5. Programme, apprentissage, révisions
 
@@ -83,9 +83,9 @@
 | Une séance faite en avance ne change pas sa date prévue | ✅ | ✅ | `user_state.sessions` | `Core/Program.swift` | Couvert par `Tests/ProgramTests.swift`. |
 | Séances en retard (« À rattraper ») | ✅ | ✅ | `user_state.sessions` | `Features/Program/ProgramView.swift` | |
 | Historique des séances | ✅ | ✅ | `user_state.sessions` | `Features/Program/ProgramView.swift` | 20 dernières, terminées ou reportées. |
-| Objectif et rythme | ✅ | 🟡 | `user_state.goal`, `.pace` | `Features/Progress/ProgressScreenView.swift` | Affiché ; **la modification de l'objectif n'est pas encore possible**. |
-| Assistant de choix d'objectif | ✅ | ⬜ | `user_state.goal` | — | Régénère le programme : à faire avec ses propres tests de parité. |
-| Versets connus / à revoir (marquage manuel) | ✅ | 🟡 | `user_state.knowledge` | `Core/Program.swift` | Fonctions prêtes (`markKnowledge`, `toggleKnownRange`), interface à faire. |
+| Objectif et rythme | ✅ | ✅ | `user_state.goal`, `.pace` | `Core/ProgramGoal.swift`, `Features/Settings/ProgramEditorView.swift`, `Features/Settings/SettingsView.swift` | Affiché **et modifiable** : unité + index (« Finir le Juz’ 12 »), rythme par groupe, échéance, aperçu du programme. Voir §9.18. |
+| Assistant de choix d'objectif | ✅ | 🟡 | `user_state.goal` | `Core/ProgramGoal.swift`, `Features/Settings/ProgramEditorView.swift` | Les étapes **objectif / rythme / jours** sont portées (`AdvancedProgramView`) : objectifs préréglés filtrés par `goalIsAlreadyKnown`, objectif personnalisé validé par `validGoal`, et les jours d'apprentissage. Ce qui manque est l'**entrée** de l'assistant — l'écran d'accueil (`step === -1`) qui demande le sexe et le prénom, et le drapeau `onboardingDone` qui en dépend. |
+| Versets connus / à revoir (marquage manuel) | ✅ | ✅ | `user_state.knowledge` | `Core/ProgramGoal.swift`, `Features/Settings/KnowledgeEditorView.swift` | Interface faite : passages partiels (ajout et retrait), sourates, juz’, hizb. `markKnowledge` et `toggleKnownRange` étaient déjà écrits ; voir §9.18. |
 | Cycles de révision 7 / 14 / 21 / 30 jours | ✅ | ✅ | `user_state.reviewSettings`, `.reviewCycle` | `Core/Review.swift` | Changer de durée conserve l'historique. |
 | Quantités : 1 Nisf / 1 Hizb / 1 Juz / 2 Juz | ✅ | ✅ | `user_state.reviewSettings.dailyQuantity` | `Core/Review.swift` | |
 | Consolidations J+1 / J+3 / J+7 | ✅ | ✅ | `user_state.reviewConsolidations` | `Core/Review.swift` | Échéances ancrées à la date d'apprentissage, même si la consolidation est faite en avance. |
@@ -877,9 +877,266 @@ celui qu'il annonce. Il en attendait 19, il en a exécuté 21, et il a **refusé
 conclure** en désignant l'écart.
 
 **Ce que cet écran ne prouve pas.** Qu'il s'affiche comme prévu sur un appareil, ni
-que les six réglages **changent** la lecture : la boucle est décidée par
-`Core/PassageAudioEngine.swift`, et **rien ne l'exécute encore**. « Lancer ce
-passage » démarre le premier verset de la plage. La couche AVFoundation —
-l'exécuteur des `PassageAudioEffect`, qui ne contient aucune décision — reste à
-écrire.
+que les six réglages **changent** la lecture — cela ne se voit qu'à l'oreille, sur un
+appareil. Ce que la vue **ne décidait** pas, en revanche, est désormais exécuté : la
+couche AVFoundation qui manquait est écrite, et c'est §9.17.
 
+## 9.17 L'exécuteur audio : traduire, et ne rien décider
+
+`Core/PassageAudioEngine.swift` rendait des `[PassageAudioEffect]` que **personne**
+ne consommait : le moteur n'avait aucun appelant hors de ses tests, et « Lancer ce
+passage » démarrait le premier verset de la plage, sans répétition, sans silence et
+sans jamais conclure — un verset arrivé à son terme laissait `isPlaying` à vrai.
+
+**La règle de ce fichier.** `Services/PassageAudioExecutor.swift` traduit chaque
+effet en appels au lecteur, et **rien de plus**. Aucune de ses conditions ne regarde
+un compte de répétitions, un mode, une durée d'attente ou une borne de plage : la
+seule valeur de réglage qu'il lise est la **vitesse**, et uniquement pour diviser
+l'échéance de la coupure sur segment. Tout le reste est décidé par le moteur, couvert
+par `Tests/PassageAudioTests.swift` et `Tests/PassageAudioEngineTests.swift`.
+
+**Un `switch` sans `default`, et c'est délibéré.** Le jour où un effet est ajouté à
+l'énumération, la compilation s'arrête dans l'exécuteur. Un `default` l'avalerait en
+silence, et l'effet ne serait exécuté nulle part — sans erreur, sans journal, sans
+autre symptôme qu'un lecteur qui ne fait pas ce qu'on attend.
+
+**Les trois fins de lecture.** L'original conclut sur **trois** signaux distincts, et
+s'y tromper ne lève aucune erreur : la notification de fin d'un `AVPlayerItem`
+(`didJustFinish`), la fin du **segment horodaté**, coupée net avant le mot suivant, et
+la position qui atteint la durée sans que la notification soit venue (`fileFinished` —
+certains fichiers rendus par le réseau rapportent seulement la dernière position). Les
+trois aboutissent à la même conclusion, et c'est le **même** garde qui les rend
+inoffensives quand deux se déclenchent à quelques millisecondes d'écart : la machine
+n'avance que si elle est encore en train de jouer.
+
+**Trois pièges, dont deux ne se devinent pas.**
+
+1. *La fin de segment se recale en même temps que le verset affiché.* Quand la machine
+   enchaîne deux versets d'une **même** piste horodatée, elle émet `resume` — **sans
+   position**. La source ne change pas, la lecture reprend après la pause, et rien
+   d'autre ne viendrait dire que le segment à surveiller a changé. Ne pas recaler la
+   borne ferait disparaître la fin du verset suivant : la piste courrait jusqu'au bout
+   du fichier de la sourate, et le passage ne s'arrêterait jamais. C'est ce que fait
+   `resumeContinuous` (`PassageAudioPlayer.tsx:106`).
+2. *Corollaire, et c'est un second piège :* la minuterie de segment ne doit **pas**
+   être réarmée sur `resume`. Dans l'enchaînement, `resume` **précède** `announceVerse`,
+   donc la borne encore en place est celle du verset **précédent** — déjà dépassée.
+   L'armer là conclurait immédiatement sur une fin qui a déjà eu lieu, et le passage
+   avancerait de deux versets. C'est `announceVerse` qui arme, après avoir recalé la
+   borne ; `tick` réarme seulement si une pause a annulé la minuterie.
+3. *La chronologie n'est pas retenue quand elle n'est pas utilisée.* Si la source
+   réellement jouée est un fichier par verset — récitateur sans horodatages, ou
+   chronologie inutilisable —, garder la chronologie en mémoire ferait poser une fin de
+   segment d'horodatage de **sourate** sur un fichier d'**un seul** verset, et la
+   coupure tomberait au mauvais endroit.
+
+**La chronologie d'une sourate.** Elle est demandée à
+`api.quran.com/api/v4/chapter_recitations/<resource>/<sourate>?segments=true`, avec le
+délai de dix secondes de l'original, **validée** (`PassageAudio.isUsableCachedChapter` :
+un cache dont une seule borne est fausse est jeté et rechargé) puis gardée sur disque.
+Trois précautions : une seule requête est en vol par sourate — trois versets préchargés
+ne doivent pas produire trois téléchargements du même document —, un échec n'est pas
+redemandé pendant **cinq minutes**, et un échec n'est jamais visible : la lecture
+continue avec les fichiers par verset, exactement comme dans l'original.
+
+**La forme sur disque est celle de l'original, à la lettre.**
+`Core/ChapterAudioCache.swift` écrit `{"url": …, "verses": {"<verseId>": {"start": …,
+"end": …}}}`. Ce n'est pas du style : `[Int: Span]` confié à `JSONEncoder` produit un
+**tableau** alternant clés et valeurs — relisible ici, mais illisible par l'autre
+application et par un humain qui ouvrirait le fichier.
+
+**La façade ne joue plus.** `Services/AudioService.swift` publie ce que les vues
+observent et délègue. Sa surface publique n'a pas bougé, donc **aucune vue n'a été
+modifiée** — et le défaut qu'elle portait disparaît : un verset terminé laissait
+`isPlaying` à vrai, faute de conclusion. « Écouter ce verset » passe désormais par la
+boucle, avec `count = 1`, mode « passage », arrêt automatique armé : c'est
+`action === 'listen'` de l'original. Le choix est forcé sur `.times(1)` et **non** sur
+`.custom`, parce que `launchError` ne refuse que le champ **libre** — un « Autre »
+invalide resté dans les réglages aurait refusé ce lancement alors qu'aucun champ libre
+n'y est utilisé.
+
+**Ce qui n'est pas branché, et pourquoi.** `continuousAudioPosition`
+(`src/core/audio.ts:32`) n'est appelée **nulle part** dans l'original : elle est définie
+et jamais utilisée. Le portage la porte donc sans appelant, et
+`PassageAudioEngine.followContinuously(_:)` reste sans appelant pour la même raison. Lui
+inventer ici un appel aurait ajouté au portage un comportement que l'application
+d'origine n'a pas.
+
+**Le banc, et ce qu'il a trouvé.** `_banc/verifier-executeur-audio.mjs` — **46
+vérifications, 0 échec** — exige un **accord entre deux sources** : chaque cas déclaré
+dans `enum PassageAudioEffect` doit être traité par l'exécuteur. C'est le cœur du banc,
+parce qu'un effet ajouté au moteur et oublié dans l'exécuteur ne produit **aucune**
+erreur visible. Deux défauts du banc lui-même ont été trouvés en l'écrivant : son motif
+d'extraction des cas exigeait une parenthèse ou un deux-points, et ne trouvait donc que
+**cinq** des **neuf** effets — `resume`, `pause`, `stop` et `cancelWait` n'en portent
+pas ; et son contrôle « aucune décision n'est recopiée » interdisait ce que `listen`
+**doit** écrire. Il vérifie désormais que le seul réglage **lu** est la vitesse, sur une
+copie locale pour le reste.
+
+`_banc/falsifier-executeur-audio.mjs` — **29 cas, 0 non conforme** — rejoue le retrait
+d'un effet traité, l'ajout d'un `default` dans le `switch` **et ailleurs**, le
+réarmement de la minuterie sur `resume`, la recopie de la position suivante et du délai
+d'attente, la lecture d'un réglage de décision, le retrait de chaque appel, la
+réintroduction du `import AVFoundation` dans la façade, et le retour du commentaire qui
+annonçait la boucle non branchée. La première mutation — **ajouter un dixième effet au
+moteur** — est la plus importante : c'est exactement le défaut que le banc existe pour
+attraper, et il ne compile pas, donc il ne se voit pas autrement.
+
+**Ce qui reste à éprouver sur un appareil.** Que la lecture reprenne **sans coupure
+audible** entre deux versets d'une même piste, que la coupure sur segment tombe **avant
+le mot suivant**, et que la session audio tienne en arrière-plan. Aucun de ces trois
+points ne se mesure sans appareil ; le reste de l'exécuteur se lit.
+
+
+## 9.18 Modifier son programme et ses connaissances : une couche qui manquait
+
+**Ce qui était demandé, et ce que c'est dans l'original.** « Dans réglages, mets la
+possibilité de modifier son programme et ses connaissances » correspond, dans
+`src/App.tsx`, à deux cartes de `ProfileScreen` (`:325` et `:326`) :
+
+    « Connaissances »       → openKnowledge → assistant, étape 0
+    « Objectif et rythme »  → openGoal      → GoalScreen
+
+La seconde affiche `{state.goal.label} · {paceLabels[state.pace]}` et ouvre
+`src/ui/GoalScreen.tsx` ; la première ouvre l'étape 0 de l'assistant
+(`src/App.tsx:399-402`), celle qui coche les sourates, les juz’ et les hizbs.
+
+**Ce qui manquait réellement.** Pas les écrans : la **couche du modèle**. `Program`
+portait déjà `markKnowledge`, `toggleKnownRange`, `partialKnownRanges`,
+`generateProgram` et `seedInitialRevisions`. Il lui manquait tout ce que les écrans
+consomment pour *choisir* :
+
+| Fonction de `src/core/program.ts` | Ligne | Portée dans |
+|---|---|---|
+| `goalPresetLabels` | 43 | `Core/ProgramGoal.swift` |
+| `goalFromPreset` | 46 | `Core/ProgramGoal.swift` |
+| `goalIsAlreadyKnown` | 114 | `Core/ProgramGoal.swift` |
+| `validGoal` | 147 | `Core/ProgramGoal.swift` |
+| `resetAllProgress` | 90 | `Core/ProgramGoal.swift` |
+| `pacePresets` | 34 | `Core/ProgramGoal.swift` |
+| `weekdays` | 42 | déjà dans `Core/Program.swift` |
+
+**Deux pièges, et ils sont silencieux tous les deux.**
+
+*La division du seuil.* `validGoal` accepte un objectif qui contient un hizb entier,
+**ou** qui atteint un soixantième du Coran :
+
+    return volume(ids) >= totalVolume / 60;      // program.ts:150
+
+En JavaScript, `/` est une division **flottante**. En Swift, `Quran.volume(ids) >=
+Quran.totalVolume / 60` sur deux `Int` serait une division **entière** : le seuil
+descendrait jusqu'à l'entier inférieur, et un objectif refusé par l'application React
+Native serait accepté ici. Le portage compare donc deux `Double` :
+
+    return Double(Quran.volume(ids)) >= Double(Quran.totalVolume) / 60
+
+`_banc/verifier-reglages.mjs` exige cette forme **et** l'absence de la forme entière ;
+`_banc/falsifier-reglages.mjs` rétablit la division entière pour vérifier que le banc
+la voit.
+
+*Les deux valeurs par défaut qui ne s'accordent pas.* `defaultState()` écrit
+`notifications.learning = false` (`program.ts:57`) ; le repli de `resetAllProgress`
+écrit `{messages: true, learning: true}` (`program.ts:90`). Autrement dit, une remise
+à zéro **allume** le rappel quotidien d'apprentissage alors que l'état initial le
+laisse éteint. C'est une incohérence de l'original, et elle est recopiée **à dessein** :
+la corriger ferait diverger les deux applications après une remise à zéro. Le banc
+vérifie les trois faits — que la référence diverge, et que le portage recopie la
+divergence au lieu de la « corriger ».
+
+**Deux écrans, parce que l'original en a deux.** Le bouton des réglages ouvre
+`GoalScreen` ; « Options avancées · passages et jours » ouvre l'assistant. Les deux
+modèles d'objectif ne produisent pas les mêmes libellés — `GoalScreen` écrit
+`« Finir le Juz’ 12 »` avec `ranges: [{start: 1, end: …}]`, l'assistant écrit
+`« Objectif personnalisé »` avec les plages choisies —, et les deux sont lisibles par
+l'application React Native, qui retrouve un préréglé en comparant `goal.label` à
+`goalPresetLabels`. D'où deux écrans : `ProgramEditorView` (portage de `GoalScreen`) et
+`AdvancedProgramView` (étapes 1 à 3), dans le même fichier.
+
+**Une divergence assumée.** `GoalScreen` porte une carte « Je connais déjà » qui marque
+un **préfixe** du Coran (« jusqu'à la sourate X, verset Y »). Elle n'est pas reprise :
+« Modifier mes connaissances » couvre le même besoin en plus large — plages
+quelconques, sourates, juz’, hizb — et deux écrans qui écrivent `state.knowledge`
+seraient deux endroits à faire diverger. La sauvegarde, elle, est inchangée :
+`generateProgram(seedInitialRevisions(touch(draft)))`.
+
+**Les écrans ne décident rien.** Le libellé de l'objectif vient de `state.goal.label`,
+celui du rythme de `Pace.label`, les textes de la remise à zéro de `Program`, les sept
+phrases d'objectif et les sept messages d'erreur de l'original — caractère par
+caractère. `SettingsView` ne porte que la mise en page ; `KnowledgeEditorView` et
+`ProgramEditorView` ne font que remonter des intentions à `AppViewModel`.
+
+Le seul composant neuf, `SelectableRow` (`Features/Shared/Components.swift`), porte les
+**deux** formes de la référence : `Choice` (`●` / `○`, une seule réponse) et
+`CheckChoice` (une case **carrée** avec `✓`, plusieurs réponses). Elles vivent dans
+`src/ui/theme.tsx` — **pas** dans `DesignSystem.tsx`, contrairement à ce que leur nom
+laisse croire. C'est un **bouton**, jamais un `Toggle` : un `Toggle` garderait un état
+interne qui pourrait diverger de `state.knowledge`, exactement comme la case `autoStop`
+de §9.14.
+
+**Ce que le banc a trouvé — dans le banc.** `_banc/verifier-reglages.mjs` — **86
+vérifications, 0 échec** — compare le portage à la source TypeScript expression par
+expression (bornes des six préréglés, libellés, seuil flottant, remise à zéro, niveaux
+de rythme, jours, messages), puis vérifie que les écrans ne recopient rien. Trois
+défauts ont été trouvés **en l'écrivant** :
+
+1. l'ordre des objectifs était lu dans la liste **nue** de `goalAlreadyKnown`
+   (`src/App.tsx:382`) autant que dans la liste de tuples (`:405`), ce qui donnait
+   **sept** entrées au lieu de six — et un verdict rouge pour une raison sans rapport
+   avec l'ordre. La coupe au premier `]` était fausse pour la même famille de raison :
+   `surahs[104]` en contient un, ce qui a rendu « non détecté » sur cinq des six
+   préréglés ;
+2. `Choice` / `CheckChoice` étaient cherchés dans `DesignSystem.tsx` alors qu'ils vivent
+   dans `theme.tsx` ;
+3. le message de passage invalide était cherché dans la **concaténation** des trois
+   écrans. Or **deux** écrans l'émettent : le contrôle restait vert si l'un des deux
+   perdait le sien. Il est désormais fait **écran par écran** — et c'est la
+   falsification qui l'a révélé, en mutant un seul fichier et en restant verte.
+
+`_banc/falsifier-reglages.mjs` — **41 cas, 0 non conforme** — rejoue les six familles :
+chaque borne de préréglé décalée d'un cran, une apostrophe droite à la place de
+l'apostrophe typographique, l'ordre des objectifs et celui des niveaux permutés, la
+division entière rétablie, la branche « un hizb entier » détournée vers les juz’, les
+quatre champs que la remise à zéro doit conserver, l'horodatage qui n'avance plus, les
+messages, et le renommage de `struct SelectableRow` — que le banc a d'abord **manqué**,
+parce que `includes('struct SelectableRow')` reste vrai sur
+`struct SelectableRowRenamed`. D'où une ancre à limite de mot (`\b`).
+
+**Un orphelin de falsification, resté sur le disque.** Le délai d'exécution de l'outil
+a tué `falsifier-executeur-audio.mjs` **en pleine mutation** : un `default:` est resté
+dans `Services/PassageAudioExecutor.swift`, et le banc est devenu rouge pour une raison
+qui n'avait rien à voir avec le code. Le fichier était **absent** de `git status` — mais
+ce contrôle avait été fait **avant** l'exécution fautive. Deux conséquences : les
+falsifieurs `falsifier-reglages.mjs` et `falsifier-executeur-audio.mjs` restaurent
+désormais leurs sources sur `SIGINT` / `SIGTERM` / `SIGHUP`, et la règle « lire
+`git status` **après** » est écrite dans l'en-tête du falsifieur.
+
+**Le même accident, sous une forme plus retorse — et un second garde-fou.** Un délai
+d'exécution a tué `falsifier-reglages.mjs` **en pleine mutation** à son tour. Cette fois
+l'orphelin vivait dans `Features/Settings/SettingsView.swift`, un dossier que git
+**n'avait jamais vu** : `git status` ne pouvait rien montrer, **même lu après coup** —
+seul `?? Features/Settings/` apparaissait. Le titre de la remise à zéro était resté
+recopié en clair (`"Tout remettre à zéro ?"`) là où `Program.resetProgressTitle` devait
+être lu.
+
+Le dégât visible — un banc rouge — n'était pas le pire. Le falsificateur décide qu'une
+mutation est **détectée** quand le banc sort en `!= 0` ; sur un banc rouge **de toute
+façon**, ce critère est satisfait par **n'importe quelle** mutation. Les **39** mutations
+suivantes ont donc été déclarées « détectées » à tort : **le signal ne variait plus**.
+Seuls deux cas avaient parlé juste — le témoin, et la mutation dont l'ancre avait été
+consommée par l'orphelin (« chaîne à muter ABSENTE »).
+
+D'où deux garde-fous, tous deux éprouvés :
+
+1. `falsifier-reglages.mjs` **refuse de continuer** quand le témoin est rouge — il sort
+   en `2` **avant d'écrire quoi que ce soit**. Un « ok » obtenu sur un banc rouge ne
+   prouve rien, et un rapport qui l'enregistre sans s'arrêter est indiscernable d'un
+   vrai vert.
+2. **Mettre en scène (`git add -A`) avant de lancer un falsificateur.** La règle « lire
+   `git status` après » ne voit que les fichiers **suivis** : c'est un trou, et l'orphelin
+   est passé exactement par là. Une fois les fichiers neufs à l'index, une mutation
+   restée en place se lit en `git diff` et se rend par `git checkout --`.
+
+**Ce qui reste.** Les autres cartes des réglages : apparence, affichage du Coran,
+notifications, sources, profil et compte, et l'**entrée** de l'assistant (l'écran
+d'accueil qui demande le sexe et le prénom). Aucun bouton mort n'a été posé pour
+autant : l'écran ne montre que ce qui fonctionne.

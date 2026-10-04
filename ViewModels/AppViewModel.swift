@@ -236,6 +236,115 @@ public final class AppViewModel: ObservableObject {
         }
     }
 
+    // MARK: Programme et connaissances
+
+    /// Ce qui suit une modification des connaissances : rien pendant
+    /// l'assistant, une régénération du programme après.
+    ///
+    /// C'est la règle de `src/App.tsx:364`, recopiée telle quelle :
+    ///
+    ///     const updateKnowledge = next =>
+    ///       update(state.onboardingDone ? generateProgram(seedInitialRevisions(next)) : next);
+    ///
+    /// Pendant l'assistant, `onboardingDone` est faux : régénérer à chaque case
+    /// cochée écraserait un programme que l'utilisateur est justement en train
+    /// de définir. Après l'assistant, la régénération est au contraire ce qui
+    /// fait qu'une connaissance nouvellement déclarée **retire** les séances
+    /// correspondantes — sans elle, l'application continuerait de proposer
+    /// d'apprendre ce qu'on vient de déclarer su.
+    ///
+    /// `static` à dessein : les fermetures passées à `update` sont échappantes,
+    /// et une méthode d'instance y capturerait `self` sans nécessité.
+    private static func afterKnowledgeChange(_ state: AppState, _ next: AppState) -> AppState {
+        guard state.onboardingDone else { return next }
+        return Program.generateProgram(Program.seedInitialRevisions(next))
+    }
+
+    /// Marque une plage entière comme connue — ou comme à apprendre, quand
+    /// `mastery` vaut `.learning`. `markKnowledge`, `src/core/program.ts:101`.
+    ///
+    /// `.learning` **efface** aussi la date de mémorisation et l'échéance de
+    /// révision de chaque verset (`program.ts:106`) : retirer une connaissance
+    /// ne laisse donc pas de trace de révision derrière elle. C'est le modèle
+    /// qui le fait, pas la vue.
+    public func setKnowledge(_ range: VerseRange, mastery: Mastery) {
+        update { state in
+            Self.afterKnowledgeChange(
+                state,
+                Program.markKnowledge(state, range: range, mastery: mastery)
+            )
+        }
+    }
+
+    /// Bascule « connu / à apprendre » d'une plage — `toggleKnownRange`,
+    /// `src/core/program.ts:115`. C'est l'action des cases à cocher de
+    /// « Modifier mes connaissances » : sourates, juz’, hizb.
+    public func toggleKnownRange(_ range: VerseRange) {
+        update { state in
+            Self.afterKnowledgeChange(state, Program.toggleKnownRange(state, range: range))
+        }
+    }
+
+    /// Enregistre objectif, rythme et jours d'apprentissage, puis reconstruit le
+    /// programme.
+    ///
+    /// C'est la sauvegarde de `GoalScreen` (`src/ui/GoalScreen.tsx:16`) :
+    ///
+    ///     update(generateProgram(seedInitialRevisions(touch(draft))))
+    ///
+    /// Elle ne dépend PAS de `onboardingDone` : l'utilisateur vient explicitement
+    /// de valider un objectif, le programme doit donc être refait — même si
+    /// l'assistant n'a jamais été terminé.
+    ///
+    /// `finishingOnboarding` ajoute ce que fait la dernière étape de l'assistant
+    /// (`src/App.tsx:390`) : `onboardingDone = true` et `onboardingStep` effacé.
+    /// C'est un drapeau explicite plutôt qu'une seconde méthode, pour qu'il
+    /// n'existe **qu'un seul** chemin d'écriture du programme.
+    public func saveProgram(
+        goal: Goal,
+        pace: Pace,
+        learningDays: [Int],
+        finishingOnboarding: Bool = false
+    ) {
+        update { state in
+            var next = state
+            next.goal = goal
+            next.pace = pace.rawValue
+            next.learningDays = learningDays
+            if finishingOnboarding {
+                next.onboardingDone = true
+                next.onboardingStep = nil
+            }
+            return Program.generateProgram(Program.seedInitialRevisions(Program.touch(next)))
+        }
+    }
+
+    /// L'aperçu du programme qu'un objectif produirait — **sans rien écrire**.
+    ///
+    /// `GoalScreen` calcule le même aperçu sur un état brouillon
+    /// (`src/ui/GoalScreen.tsx:13`) : `generateProgram(draft).sessions.find(
+    /// s => s.status === 'todo')`. La vue n'a donc pas à connaître la
+    /// génération : elle demande l'aperçu et affiche la plage.
+    ///
+    /// Comme dans l'original, le premier `todo` peut être une séance **déjà**
+    /// planifiée plutôt qu'une séance neuve : l'aperçu est le début du
+    /// programme tel qu'il serait, pas la première séance ajoutée.
+    public func previewProgram(goal: Goal, pace: Pace, learningDays: [Int]) -> Session? {
+        var draft = state
+        draft.goal = goal
+        draft.pace = pace.rawValue
+        draft.learningDays = learningDays
+        return Program.generateProgram(draft).sessions.first { $0.status == .todo }
+    }
+
+    /// Remet à zéro l'apprentissage et les révisions, en conservant le compte,
+    /// le profil, les marque-pages et les préférences — `resetAllProgress`,
+    /// `src/core/program.ts:90`. Voir la note sur les deux valeurs par défaut
+    /// divergentes dans `Core/ProgramGoal.swift`.
+    public func resetProgress() {
+        update { Program.resetAllProgress($0) }
+    }
+
     // MARK: Réglages de répétition audio (locaux)
 
     /// Enregistre les réglages de répétition et les écrit sur disque.

@@ -56,25 +56,32 @@ La destination a été revérifiée **avant chaque poussée** de cette session.
 
 ## 4. Structure Swift créée
 
-Architecture MVVM, **61 fichiers Swift**, 700 fichiers suivis.
+Architecture MVVM, **68 fichiers Swift**, 707 fichiers suivis.
 
 ```
 App/            SwiftdeepseekApp, ContentView
-Core/           AppState, OfflineMerge, JSONValue, DateKeys, Program, Review,
-                Quran, WeeklyProgress, Bookmark, AppConfig,
+Core/           AppState, OfflineMerge, JSONValue, DateKeys, Program, ProgramGoal,
+                Review, Quran, WeeklyProgress, Bookmark, AppConfig,
                 VerseBounds, VerseMarkers, MarginAnnotations, PassageAudio,
-                AudioRepeatPreferences, PassageAudioEngine
+                AudioRepeatPreferences, PassageAudioEngine, ChapterAudioCache
 Features/       Home, Quran (QuranScreenView, AudioRepeatSettingsView + Reader/),
-                Program, Progress, Review, Friends, Navigation, Shared
+                Program, Progress, Review, Friends, Navigation, Shared,
+                Settings (SettingsView, KnowledgeEditorView, ProgramEditorView)
 Models/         ViewModels/
 Networking/     SupabaseRESTClient
 Repositories/   AppStateRepository
-Services/       Auth, StateSync, Social, QuranSource, Connectivity, Audio
+Services/       Auth, StateSync, Social, QuranSource, Connectivity, Audio,
+                PassageAudioExecutor
 Storage/        LocalStore, KeychainStore
 Theme/          Tests/        Resources/ (Data, Mushaf, Fonts)
 Config/         Base/Debug/Release.xcconfig, Secrets.xcconfig.example
 .github/workflows/ios.yml      Makefile      project.yml      scripts/
 ```
+
+`Core/ProgramGoal.swift` porte la couche « objectif » de `src/core/program.ts` —
+objectifs préréglés, `validGoal`, `resetAllProgress`, niveaux de rythme —, qui
+manquait. `Features/Settings/` porte les trois écrans : les réglages, « Modifier mes
+connaissances » et « Modifier mon programme » (voir `SWIFT_MIGRATION.md` §9.18).
 
 Navigation conservée : **Accueil, Coran, Programme, Progrès, Amis**.
 

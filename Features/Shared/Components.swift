@@ -254,6 +254,76 @@ struct HeroHeader: View {
     }
 }
 
+// MARK: - Ligne sélectionnable
+
+/// Les deux formes de `src/ui/DesignSystem.tsx` en un seul composant :
+///
+///   - `.single`   → `Choice`      : une seule réponse possible (objectif,
+///                                   niveau de rythme). Une pastille.
+///   - `.multiple` → `CheckChoice` : plusieurs réponses possibles (sourates
+///                                   connues, jours d'apprentissage). Une coche.
+///
+/// C'est un BOUTON, jamais un `Toggle` : l'état affiché est **exactement**
+/// celui qu'on lui passe. Un `Toggle` garderait un état interne, qui pourrait
+/// diverger de `state.knowledge` — le même piège que la case `autoStop` de
+/// l'écran audio (`Features/Quran/AudioRepeatSettingsView.swift:19`).
+///
+/// Aucune décision ici : `selected` est calculé par l'appelant à partir du
+/// modèle, et `action` ne fait que remonter l'intention.
+struct SelectableRow: View {
+    enum Style {
+        case single
+        case multiple
+    }
+
+    @Environment(\.palette) private var palette
+
+    let label: String
+    var subtitle: String?
+    let selected: Bool
+    var style: Style = .single
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            HStack(spacing: Theme.Spacing.sm) {
+                VStack(alignment: .leading, spacing: 1) {
+                    Text(label)
+                        .font(.system(size: Theme.Typography.body))
+                        .foregroundStyle(palette.text)
+                        .multilineTextAlignment(.leading)
+                    if let subtitle, !subtitle.isEmpty {
+                        Text(subtitle)
+                            .font(.system(size: Theme.Typography.metadata))
+                            .foregroundStyle(palette.muted)
+                            .multilineTextAlignment(.leading)
+                    }
+                }
+                Spacer(minLength: Theme.Spacing.sm)
+                Image(systemName: symbol)
+                    .font(.system(size: 19))
+                    .foregroundStyle(selected ? palette.green : palette.line)
+            }
+            .frame(minHeight: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+
+    /// Les deux marques de la référence, reprises à l'identique :
+    /// `Choice` affiche `●` / `○`, `CheckChoice` une case CARRÉE avec un `✓`.
+    /// Le carré n'est pas un détail : c'est ce qui distingue « plusieurs
+    /// réponses possibles » de « une seule ».
+    private var symbol: String {
+        switch (style, selected) {
+        case (.multiple, true): return "checkmark.square.fill"
+        case (.multiple, false): return "square"
+        case (.single, true): return "largecircle.fill.circle"
+        case (.single, false): return "circle"
+        }
+    }
+}
+
 // MARK: - État vide
 
 struct EmptyLabel: View {
