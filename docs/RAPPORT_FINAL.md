@@ -572,31 +572,38 @@ C'est ce qui est arrivé au #23, qui n'est donc pas un échec mais une annulatio
    vérification de la mission qui reste entièrement à faire.
 2. **Vérifier la compatibilité bidirectionnelle** : une action dans l'une des
    applications doit apparaître dans l'autre.
-3. **Autoriser `swiftdeepseek://auth` dans Supabase** — *Authentication* → *URL
-   Configuration* → *Redirect URLs*. Le projet porte `mailer_autoconfirm: false`
-   (mesuré), donc la confirmation d'inscription est **obligatoire** ; sans ce
-   schéma autorisé, le lien de confirmation et celui de réinitialisation ne
-   reviennent pas dans l'application. Détaillé dans `SUPABASE_COMPATIBILITY.md`
-   §1.1. **C'est le seul geste d'authentification qui ne se pose pas depuis le
-   dépôt.**
+3. **`swiftdeepseek://auth` — fait par le propriétaire du projet.** Le schéma est
+   autorisé dans *Authentication* → *URL Configuration* → *Redirect URLs*. Le
+   projet porte `mailer_autoconfirm: false` (mesuré), donc la confirmation
+   d'inscription est **obligatoire** : c'est ce schéma qui fait revenir le lien
+   dans l'application au lieu de le laisser sur une page web. Détaillé dans
+   `SUPABASE_COMPATIBILITY.md` §1.1.
+
+   **Ce geste n'est pas vérifiable depuis l'extérieur**, et c'est mesuré :
+   `/auth/v1/settings` ne rend **aucune** URL de redirection (611 octets de
+   réponse, aucune clé `redirect`, `uri_allow` ni `site_url`), et la sonde
+   `/auth/v1/authorize` ne peut pas servir de contrôle — aucun fournisseur OAuth
+   n'est actif sur ce projet, seul `email` l'est. La vérification se fera donc
+   **sur appareil**, par un lien de confirmation réel.
 
 **Puis, par ordre d'importance fonctionnelle** (détaillé dans `SWIFT_MIGRATION.md` §9) :
 
-4. **Téléchargement du Coran 1441** (§9.4) — **le seul manque du lecteur**. Tout
-   le reste est en place : les quinze bandes sont rendues, la géométrie de leurs
-   rectangles est lue et testée, la mise en évidence fonctionne pour cette source.
-   Il manque les **9 060 images** (archive de 102 608 011 octets). L'édition est
-   proposée, et une page absente le **dit** au lieu d'afficher une page blanche.
-5. « Tawjeed test 2 » et « Medine Test » (§9.3), **et la décision qui va avec**.
+> **Le téléchargement du Coran 1441 ne figure plus dans cette liste : il est
+> fait.** Voir `SWIFT_MIGRATION.md` §9.4 — l'archive de 102 608 011 octets est
+> téléchargée de façon reprisable, extraite **hors du fil principal**, et les
+> 9 060 images sont exigées avant que l'installation soit déclarée prête. Ce que
+> ce rapport appelait « le seul manque du lecteur » est donc comblé. Ce qui reste
+> pour cette édition est la vérification sur appareil, comme pour le reste (§7).
+4. « Tawjeed test 2 » et « Medine Test » (§9.3), **et la décision qui va avec**.
    Les éditions de Tajwid n'ont ni images ni rectangles : `QuranEdition.boundsSource`
    rend `nil`, ce qui produit **aucune** mise en évidence plutôt que celles du
    Coran de Médine appliquées à une autre image. Reste à choisir entre copier
    leurs ressources (51 Mo et 134 Mo) et laisser l'utilisateur choisir une édition
    disponible. Ce n'est pas un cas théorique : l'état initial vaut `coranTest`
    (voir §10).
-6. **Repères de progression de séance dans la marge** (`marginAnnotations`,
+5. **Repères de progression de séance dans la marge** (`marginAnnotations`,
    `MushafPage.tsx:53`) — dépend du suivi de séance (`sessionThrough`), non porté.
-7. Assistant d'objectif hebdomadaire, écran d'apparence, messagerie, groupes,
+6. Assistant d'objectif hebdomadaire, écran d'apparence, messagerie, groupes,
    quiz, notifications, récitations, mini-lecteur.
 
 *Déjà faites depuis la rédaction de la première version de ce rapport, et donc

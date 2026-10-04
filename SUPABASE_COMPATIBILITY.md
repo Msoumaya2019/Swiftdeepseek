@@ -30,7 +30,7 @@ C'est la raison pour laquelle cette application **ne crée aucun utilisateur**.
 n'ont réellement pas encore de compte : créer un second compte pour quelqu'un qui
 en a déjà un produirait exactement le doublon d'utilisateurs à éviter.
 
-### Les URL de redirection d'authentification — étape manuelle, PAS ENCORE FAITE
+### Les URL de redirection d'authentification — étape manuelle, FAITE PAR LE PROPRIÉTAIRE
 
 L'application native utilise un schéma d'URL qui lui est **propre** —
 `swiftdeepseek://auth` (`Core/AppConfig.swift:71`) — et non celui de l'application
@@ -61,7 +61,20 @@ Configuration* → *Redirect URLs* → ajouter `swiftdeepseek://auth`. **Conserv
 `coranmemoire://auth`, dont l'application React Native a besoin.
 
 Cette étape vit dans la configuration du projet Supabase, pas dans le code : elle
-ne peut pas être posée par le dépôt, et **elle n'a pas encore été faite**.
+ne peut pas être posée par le dépôt. **Elle a été faite par le propriétaire du
+projet.**
+
+**Elle n'est pas vérifiable depuis l'extérieur**, et c'est mesuré :
+
+- `GET /auth/v1/settings` rend **611 octets** et **aucune** clé `redirect`,
+  `uri_allow` ni `site_url` : la liste des adresses autorisées n'est pas publique.
+- La sonde `GET /auth/v1/authorize?provider=…&redirect_to=…` ne peut pas servir de
+  contrôle : elle rend **HTTP 400**, parce qu'aucun fournisseur OAuth n'est actif
+  sur ce projet — `external` ne porte que `email` à `true`.
+
+Le contrôle se fera donc **sur appareil**, par un lien de confirmation réel : c'est
+la seule mesure qui vaille. Tant qu'il n'a pas été fait, cette ligne reste une
+déclaration du propriétaire, et non un fait vérifié.
 
 ### 1.2 Le document d'état : `public.user_state`
 

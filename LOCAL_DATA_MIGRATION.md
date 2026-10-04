@@ -94,7 +94,7 @@ consigne d'usage, pas une modification de code.
 
 | Chemin | Contenu | Sort |
 |---|---|---|
-| `Documents/quran/coran_1441/` | Le Coran 1441 téléchargé : 9060 images de lignes (`001-01.png` …), plus `ready-v1.json`, `download-complete.json`, `resume.json` | **Non transférable.** L'application Swift retélécharge l'archive depuis la même source (`https://files.quran.app/hafs/madani_1441/zips/images_1440.zip`). Rien n'est perdu, seulement à retélécharger. |
+| `Documents/quran/coran_1441/` | Le Coran 1441 installé : 9 060 bandes de lignes (`001-01.png` … `604-15.png`), plus `ready-v1.json` (marqueur de fin). Pendant l'installation : `download.zip`, `download-complete.json`, `resume.bin` | **Non transférable, et sans perte.** L'application Swift réinstalle les mêmes images depuis la **même** archive (`https://files.quran.app/hafs/madani_1441/zips/images_1440.zip`), et sous les **mêmes** noms — `quranLineUri` de l'original et `Coran1441Install.fileName` produisent tous deux `%03d-%02d.png`. Un dossier déjà rempli par l'une des applications est donc reconnu par l'autre. Le seul écart de nom est `resume.bin` contre `resume.json` : le fichier de reprise est interne à une application et n'est jamais relu par l'autre. |
 | `Cache/quran-verse-audio-v1/*.mp3` | Audio des versets mis en cache | Non transférable, et sans importance : c'est un cache. |
 | Enregistrements de récitation (avant envoi) | Fichiers audio locaux | Ceux **déjà envoyés** sont dans le bucket `recitations` et dans la table `recitations` : ils restent accessibles. Ceux **jamais envoyés** sont perdus. |
 

@@ -199,13 +199,47 @@ Ces deux sources ne sont **pas** dans le dépôt de référence. L'énumération
 `QuranEdition` est prête à les accueillir, mais aucune ressource ne correspond
 aujourd'hui. Rien n'a été inventé.
 
-### 9.4 Coran 1441 : téléchargement non implémenté
+### 9.4 Coran 1441 : téléchargement implémenté
 
-La lecture fonctionne si les pages sont présentes sur l'appareil
-(`Documents/quran/coran_1441/`). Le téléchargement de l'archive
-(`https://files.quran.app/hafs/madani_1441/zips/images_1440.zip`), la reprise
-après interruption et l'extraction restent à faire — l'URL de la source est
-relevée dans `QuranSourceService.coran1441ArchiveURL`.
+La lecture **et** l'installation fonctionnent. Les pages vivent dans
+`Documents/quran/coran_1441/`, sous la forme de 9 060 bandes (`001-01.png` …
+`604-15.png`) plus le marqueur `ready-v1.json`.
+
+| Fichier | Rôle |
+| --- | --- |
+| `Services/Coran1441Archive.swift` | Lit un ZIP sans dépendance externe : répertoire central, en-têtes locaux, méthodes 0 et 8 |
+| `Services/Coran1441Install.swift` | Les règles : nom dans l'archive, bornes, nom installé, validité d'une image, marqueur |
+| `Services/Coran1441DownloadService.swift` | Le déroulement : télécharger (reprisable), vérifier, extraire, exiger 9 060 images, marquer |
+
+L'archive est celle de l'application React Native
+(`https://files.quran.app/hafs/madani_1441/zips/images_1440.zip`, 102 608 011
+octets) : les deux applications installent donc **les mêmes images, sous les
+mêmes noms**, et peuvent se relire l'une l'autre.
+
+Trois points méritent d'être notés.
+
+- **La constante `COMPRESSION_ZLIB` d'Apple désigne le DEFLATE brut**, celui d'un
+  ZIP, et non un flux enveloppé d'un en-tête zlib. Ce n'était pas supposable :
+  deux tests s'y opposent — le flux brut doit être décodé jusqu'à une empreinte
+  SHA-256 exacte, le flux enveloppé doit être **refusé**. Un aller-retour avec le
+  seul framework serait vert quelle que soit sa sémantique, puisque les deux
+  côtés se tromperaient ensemble.
+- **Le ZIP n'est jamais chargé en mémoire.** La lecture passe par une closure :
+  le service lui donne un `FileHandle`, les tests un `Data` en mémoire. C'est
+  donc le code de production qui est éprouvé, et l'application ne tient jamais
+  102 Mo.
+- **L'extraction se fait hors du fil principal** (`Task.detached`) : 9 060
+  décompressions sur le fil principal figeraient l'écran pendant toute
+  l'installation, et l'application paraîtrait plantée alors qu'elle travaille.
+
+Le fichier de reprise s'appelle `resume.bin` ici, et non `resume.json` comme dans
+l'original : le contenu est le jeton binaire rendu par `URLSession`. Ce fichier
+est interne à une application et n'est jamais relu par l'autre ; seuls le nom des
+images et le marqueur doivent coïncider.
+
+L'installation n'est déclarée prête qu'après les 9 060 images. Le marqueur est
+écrit **en dernier**, et une interruption laisse donc un dossier qu'on peut
+reprendre, jamais un dossier faussement complet.
 
 ### 9.5 Identifiant de paquet et signature
 

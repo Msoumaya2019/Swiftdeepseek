@@ -244,7 +244,11 @@ public enum Coran1441Archive {
             let nameEnd = nameStart + Int(nameLength)
             guard nameEnd <= centralDirectory.count else { throw Failure.truncated }
 
-            let nameData = centralDirectory.subdata(in: nameStart..<nameEnd)
+            // Le décalage part de `startIndex`, comme les lectures d'entiers :
+            // `subdata(in:)` attend des indices du récepteur, et un `Data` reçu
+            // en tranche ne commence pas à zéro.
+            let base = centralDirectory.startIndex
+            let nameData = centralDirectory.subdata(in: (base + nameStart)..<(base + nameEnd))
             // Les noms d'un ZIP sont censés être en UTF-8 quand le drapeau 0x800
             // est posé, et en CP437 sinon. Les archives du Moushaf n'utilisent
             // que des caractères ASCII ; une conversion qui échoue est donc le
