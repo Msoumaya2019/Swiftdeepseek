@@ -70,8 +70,8 @@
 | Lecture, pause, verset suivant / précédent | ✅ | ✅ | — | `Services/AudioService.swift` | `AVFoundation`, session `.playback`. |
 | Préchargement des versets suivants | ✅ | ✅ | — | `Services/AudioService.swift` | Trois versets d'avance. |
 | Mini-lecteur persistant | ✅ | ⬜ | — | — | La barre audio du lecteur existe ; le mini-lecteur global reste à faire. |
-| Répétition (passage / verset, nombre, silence, vitesse) | ✅ | ⬜ | — | — | Réglages locaux côté RN — voir `LOCAL_DATA_MIGRATION.md` §4a. |
-| Lecture d'une sourate entière (fichier complet + horodatages) | ✅ | ⬜ | — | — | |
+| Répétition (passage / verset, nombre, silence, vitesse) | ✅ | 🟡 | — | `Core/PassageAudio.swift` | Le **moteur** est porté et éprouvé — 22 tests, `_banc/oracle-audio.mjs` — mais l'écran de réglages et la boucle AVFoundation restent. Réglages locaux côté RN, voir `LOCAL_DATA_MIGRATION.md` §4a. |
+| Lecture d'une sourate entière (fichier complet + horodatages) | ✅ | 🟡 | — | `Core/PassageAudio.swift` | `parseChapterAudio`, la validité d'un cache et l'avance d'affichage sont portés ; le téléchargement et le cache sur disque restent. |
 | Cache audio des versets | ✅ | 🟡 | — | `Services/AudioService.swift` | Cache en mémoire (`VerseAudioCache`) ; pas encore de cache sur disque. |
 
 ## 5. Programme, apprentissage, révisions
@@ -90,8 +90,8 @@
 | Quantités : 1 Nisf / 1 Hizb / 1 Juz / 2 Juz | ✅ | ✅ | `user_state.reviewSettings.dailyQuantity` | `Core/Review.swift` | |
 | Consolidations J+1 / J+3 / J+7 | ✅ | ✅ | `user_state.reviewConsolidations` | `Core/Review.swift` | Échéances ancrées à la date d'apprentissage, même si la consolidation est faite en avance. |
 | Tableau de bord des révisions | ✅ | ✅ | `user_state.reviewCycle`, `.reviewHistory` | `Features/Review/ReviewDashboardView.swift` | |
-| Versets difficiles (rouge léger) | ✅ | 🟡 | `user_state.difficultyMarkers`, `.reviewPriorityDue` | `Core/Review.swift` | Marquer / démarquer et lister : faits. **L'affichage rouge dans le lecteur n'est pas encore fait.** |
-| Notation d'une tâche de révision | ✅ | 🟡 | `user_state.reviewHistory` | `Core/Review.swift` | `gradeReviewTask` est écrit ; **l'écran de notation n'est pas branché**. La demande d'ouverture porte déjà `reviewTask` et `consolidation`. |
+| Versets difficiles (rouge léger) | ✅ | ✅ | `user_state.difficultyMarkers`, `.reviewPriorityDue` | `Core/Review.swift`, `Core/VerseBounds.swift`, `Features/Quran/Reader/VerseHighlightView.swift` | Marquer, démarquer, lister, **et l'affichage rouge dans le lecteur** — voir §9.7. |
+| Notation d'une tâche de révision | ✅ | ✅ | `user_state.reviewHistory` | `Core/Review.swift`, `Features/Quran/Reader/ReaderView.swift` | `gradeReviewTask` est écrit, testé, et **branché dans le lecteur** — voir §9.6. La demande d'ouverture porte déjà `reviewTask` et `consolidation`. |
 | Objectif hebdomadaire (lundi 00:01) | ✅ | ✅ | `user_state.sessions` | `Core/WeeklyProgress.swift` | Semaine calendaire locale, heure d'été comprise. Historique conservé. |
 
 ## 6. Progrès
@@ -577,3 +577,86 @@ séance ne sont pas atteignables au lecteur d'écran. Le défaut vaut aussi pour
 mises en évidence et les pastilles de numéro ; il est antérieur à ce travail. Sur
 le Coran de Médine, l'élément est l'image et non le conteneur, donc ces pastilles
 *devraient* être parcourues — cela n'a pas été vérifié sur un appareil.
+
+### 9.13 Le moteur de répétition audio — porté, et éprouvé hors de l'application
+
+C'étaient les deux dernières lignes ⬜ de la section 4. `src/core/audio.ts` tient la
+répétition d'un passage dans une fonction de **quinze lignes**
+(`nextAudioPosition`), et la lecture d'une sourate entière dans un parseur
+d'horodatages de trente lignes. Aucune des deux ne demande AVFoundation : ce sont
+des **décisions**, et c'est ce qui les rend portables et éprouvables sans Mac.
+
+**Trois règles silencieuses**, et s'y tromper ne lève aucune erreur — cela répète
+seulement un passage une fois de trop, ou l'arrête une fois trop tôt :
+
+1. **Le nombre de répétitions est normalisé AILLEURS.** `PassageAudioPlayer.tsx:79`
+   le ramène à `'continuous'`, ou à un entier strictement positif, ou à `1`. Le
+   `Math.max(1, Math.floor(count))` de `nextAudioPosition` est donc **inatteignable
+   depuis l'application** : il ne protège que l'appel direct. Les deux sont portés —
+   la normalisation comme fonction (`normalizedCount`), le plancher comme garde.
+2. **En mode « passage », avancer d'un verset CONSERVE le compteur.** Une répétition
+   compte donc des **passages entiers**, pas des versets. À la position `{v1, r2}`
+   sur la plage `1…3`, le suivant est `{v2, r2}` — et non `{v2, r1}`.
+3. **En mode « verset par verset », `count == .continuous` ne fait JAMAIS avancer le
+   verset.** `{v2, r40}` donne `{v2, r41}`, indéfiniment.
+
+**Et une quatrième, hors du même fichier.** L'attente avant de rejouer
+(`PassageAudioPlayer.tsx:194-196`) fait de la marge technique de 200 ms un
+**plancher**, et le silence choisi par l'utilisateur ne s'y ajoute que sur un
+**redémarrage** de passage (`next.verseID == range.start && current.verseID ==
+range.end`) ou sur un **verset répété** (`each-verse` et `next.repetition >
+current.repetition`). Entre deux versets qui s'enchaînent, l'attente reste à
+200 ms — quel que soit le silence demandé. C'est le point qu'on ne devine pas :
+avec un silence de 10 s, on lit `200` ms sur un enchaînement et `10 000` ms sur un
+redémarrage.
+
+**Où c'est écrit.** `Core/PassageAudio.swift` — la partie pure, sans AVFoundation.
+Il porte `range`, `normalizedCount`, `next`, `waitMilliseconds`, `parse`,
+`continuous`, `isUsableCachedChapter`, `label` et `chapterResourceID`. Le type
+`RepeatCount` **restreint à l'entier** ce que l'original accepte en `number` :
+puisque `normalizedCount` rend cet espace inatteignable depuis l'interface, un type
+qui ne peut pas porter une valeur impossible vaut mieux qu'une garde qu'on peut
+oublier.
+
+**Deux divergences, mesurées et voulues.**
+
+| Cas | L'original | Le portage | Pourquoi |
+| --- | --- | --- | --- |
+| Clé de verset **fractionnaire** (`'1:1.5'`) | **accepté** — `Number('1.5')` vaut 1,5, `verseId(1, 1.5)` rend 1,5, et la clé `1.5` compte comme un verset | refusé, `Timestamps audio invalides.` | Le type est `Int` : un verset fractionnaire ne désigne rien. L'original produit un fichier dont une entrée n'est joignable par aucun verset. |
+| Libellé **hors bornes** (`label(6237)`) | `sourate undefined, verset undefined` | `nil` | Un libellé qui ment est pire qu'un libellé absent. |
+
+**L'épreuve, et pourquoi elle ne se contente pas d'un banc vert.** Les 22 tests de
+`Tests/PassageAudioTests.swift` ne tirent aucun nombre de la tête.
+`_banc/oracle-audio.mjs` ne réécrit pas l'original : il l'**empaquette** avec
+`esbuild` — résolution des imports comprise, `quran.ts` et les fichiers JSON
+inclus — et il le fait tourner. C'est plus solide que le retrait mécanique des
+annotations de type : il n'y a plus aucune transformation à garder juste. Le banc
+compare ensuite, cas par cas, la formulation du portage à celle de l'original :
+**560** cas pour la table de décision, **96** pour l'attente, **90** pour l'avance
+d'affichage, plus l'acceptation et les **treize** refus du parseur, les **huit**
+plages et les **sept** cas de validité du cache. Les deux règles qui vivent hors de
+`core/audio.ts` sont extraites **textuellement** du TSX, avec un garde-fou qui
+refuse de compter si la forme change.
+
+**Le banc est relié au portage par un contrôle explicite.** La table de décision
+compare une *translittération* du Swift à l'original : si la translittération se
+trompait **comme** le Swift, le banc serait vert et ne prouverait rien — les deux
+sources ne peuvent pas se lire l'une l'autre. Le banc vérifie donc que les **28
+lignes décisives** du portage s'y trouvent, **et dans l'ordre**, réparties en six
+fonctions. Un réordonnancement des branches est vu.
+
+**Et le banc est falsifié, sans quoi son vert ne voudrait rien dire.**
+`_banc/falsifier-audio.mjs` le fait rougir sur **neuf mutations** — cinq du Swift
+(la conservation de la répétition, le cas `continuous`, le facteur 1000 de
+l'attente, le plancher de 200 ms, un message de refus) et trois de sa
+translittération — plus un témoin non muté qui doit rester vert. Il prouve la
+restauration par **empreinte SHA-256**, relevée avant et après. Une première
+version du banc laissait passer la mutation de la borne de plage : ses cas ne
+distinguaient pas « le verset suivant manque » de « la plage est finie ». Une
+troisième chronologie, **plus large que la plage**, a été ajoutée pour les séparer.
+
+**Ce qui reste, et qui n'est pas dans ce fichier.** L'écran de réglages (nombre,
+mode, silence, vitesse, arrêt automatique) et la boucle AVFoundation qui consomme
+ces décisions. Les préférences restent **locales** : `LOCAL_DATA_MIGRATION.md` §4 a)
+a tranché « ne rien faire », donc aucune clé n'est ajoutée à `user_state` et les
+deux applications ne partagent pas ces réglages.

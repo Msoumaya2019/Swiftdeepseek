@@ -150,14 +150,14 @@ Trois pièges, mesurés :
 
 ### État mesuré
 
-Run de référence — celui qui porte les repères de progression de séance dans la
-marge : **#35** (`d33ee11`), **5 min 59 s**, les **16 étapes en `success`** et une
-seule annotation, le message de file d'attente macOS. L'IPA pèse **120 342 646
+Run de référence — celui qui porte le moteur de répétition audio : **#37**
+(`694d622`), **3 min 5 s**, les **16 étapes en `success`** et une seule
+annotation, le message de file d'attente macOS. L'IPA pèse **120 349 892
 octets** — les 604 pages sont donc bien embarquées. Le numéro est **ancré sur un
 commit**, et non « le dernier » : une poussée de documentation ajoute un run, si
 bien qu'une formule au superlatif serait périmée dès son écriture.
 
-**179 tests** sont exécutés à chaque run, répartis sur **onze groupes**, et **un
+**201 tests** sont exécutés à chaque run, répartis sur **douze groupes**, et **un
 seul** est ignoré : celui de la traversée du changement d'heure, qui n'a rien à
 éprouver dans un fuseau sans heure d'été.
 
@@ -262,6 +262,7 @@ la pagination du lecteur, intégré à SwiftUI par
 | `OfflineMergeTests` | La fusion à trois voies : un client ne doit jamais écraser les données de l'autre. |
 | `ProgramTests` | Les cycles 7/14/21/30, les quantités 1 Nisf / 1 Hizb / 1 Juz / 2 Juz. |
 | `ReviewTests` | Les consolidations J+1 / J+3 / J+7, la notation des révisions, le marquage « difficile ». |
+| `PassageAudioTests` | Les trois règles silencieuses de la répétition d'un passage — la répétition conservée en mode « passage », `continuous` qui ne change jamais de verset, la normalisation du nombre — et l'attente avant de rejouer, dont la marge de 200 ms est un plancher. |
 | `JSONValueTests` | La conservation des clés JSON inconnues — la condition de la compatibilité. |
 | `DateKeysTests` | Les dates « AAAA-MM-JJ » à midi local (jamais de décalage de fuseau). |
 | `VerseBoundsTests` | L'ordre des colonnes de `bounds.json` et la projection des rectangles. |
