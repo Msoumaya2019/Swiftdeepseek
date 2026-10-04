@@ -59,7 +59,7 @@ final class VerseBoundsTests: XCTestCase {
 
     // MARK: Ordre des colonnes
 
-    /// `[sourate, versetDébut, versetFin, x1, x2, y1, y2]` — et non `x1, y1, x2, y2`.
+    /// `[sourate, versetDébut, ligne, x1, x2, y1, y2]` — et non `x1, y1, x2, y2`.
     ///
     /// La première ligne de la page 1 est `[1, 1, 2, 627, 1295, 335, 453]` : le
     /// rectangle va donc de `x=627` à `x=1295` (largeur 668) et de `y=335` à
@@ -69,9 +69,212 @@ final class VerseBoundsTests: XCTestCase {
 
         XCTAssertEqual(row.surah, 1)
         XCTAssertEqual(row.ayahStart, 1)
-        XCTAssertEqual(row.ayahEnd, 2)
+        XCTAssertEqual(row.line, 2)
         XCTAssertEqual(row.rect, CGRect(x: 627, y: 335, width: 668, height: 118))
     }
+
+    // MARK: Les deux sources
+
+    /// La troisième colonne est un **numéro de ligne**, pas un verset de fin.
+    ///
+    /// C'est la correction d'une erreur de lecture qui a survécu un moment dans
+    /// ce fichier sous le nom `ayahEnd`. Deux mesures la tranchent :
+    ///
+    ///   - elle plafonne à **15** dans tout `bounds.json`, alors qu'un numéro de
+    ///     verset atteindrait 286 (al-Baqarah) ;
+    ///   - en triant les lignes d'une page par `y1`, elle ne produit **aucune
+    ///     inversion** : elle suit exactement la position verticale.
+    ///
+    /// Les deux sources ne comptent même pas à partir du même rang : Médine est
+    /// 1-basée (`1 … 15`), le Coran 1441 est 0-basé (`0 … 14`).
+    func testTheThirdColumnIsALineNumberAndNotAnAyahNumber() throws {
+        for source in VerseBounds.Source.allCases {
+            var seen: Set<Int> = []
+            for page in 1...604 {
+                for row in VerseBounds.rows(page: page, source: source) {
+                    seen.insert(row.line)
+                }
+            }
+
+            XCTAssertEqual(
+                seen.count, VerseBounds.linesPerPage,
+                "\(source) : 15 lignes par page attendues"
+            )
+            // Aucune valeur ne peut atteindre un numéro de verset.
+            XCTAssertLessThanOrEqual(seen.max() ?? 0, VerseBounds.linesPerPage)
+
+            switch source {
+            case .medine:
+                XCTAssertEqual(seen.min(), 1, "le Coran de Médine compte les lignes à partir de 1")
+            case .coran1441:
+                XCTAssertEqual(seen.min(), 0, "le Coran 1441 compte les lignes à partir de 0")
+            }
+        }
+    }
+
+    /// Le même contrôle que pour Médine, appliqué au fichier du Coran 1441 : le
+    /// garde-fou de validité ne doit écarter **aucune** ligne.
+    ///
+    /// Ce fichier porte en prime des coordonnées décimales. Décodé en `Int`, il
+    /// échouerait **en entier** : toutes les mises en évidence du Coran 1441
+    /// disparaîtraient, sans autre symptôme qu'un écran sans surbrillance.
+    func testTheCoran1441FileIsReadWholeAndInDouble() throws {
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: "coran_1441-bounds", withExtension: "json"),
+            "coran_1441-bounds.json doit être embarqué dans le paquet de l'application"
+        )
+        let raw = try JSONDecoder().decode([String: [[Double]]].self, from: Data(contentsOf: url))
+
+        XCTAssertEqual(raw.count, 604)
+
+        let expected = raw.values.reduce(0) { $0 + $1.count }
+        let actual = raw.keys.reduce(0) { total, page in
+            total + VerseBounds.rows(page: Int(page) ?? -1, source: .coran1441).count
+        }
+
+        XCTAssertEqual(expected, 13_273)
+        XCTAssertEqual(actual, expected)
+    }
+
+    /// Les rectangles du Coran 1441 sont **des rectangles de bande**.
+    ///
+    /// `MushafPage.tsx:48` empile quinze bandes de `1440 × 232` à pas constant
+    /// `(2320 - 232) / 14`. Mesure faite sur le fichier : les **13 273** lignes
+    /// ont `y1 == pas × ligne` et une hauteur de **232**, sans une exception.
+    ///
+    /// C'est ce qui autorise une seule fonction de projection pour les bandes et
+    /// pour les mises en évidence : les deux décrivent la même géométrie.
+    func testEveryCoran1441RowIsABandRectangle() throws {
+        let url = try XCTUnwrap(
+            Bundle.main.url(forResource: "coran_1441-bounds", withExtension: "json")
+        )
+        let raw = try JSONDecoder().decode([String: [[Double]]].self, from: Data(contentsOf: url))
+
+        let step = (2320 - VerseBounds.coran1441BandHeight) / CGFloat(VerseBounds.linesPerPage - 1)
+
+        var checked = 0
+        for (page, rows) in raw {
+            for values in rows {
+                let line = Int(values[2])
+                XCTAssertEqual(
+                    values[5], step * CGFloat(line), accuracy: 0.000001,
+                    "page \(page), ligne \(line) : le haut de la bande ne suit pas le pas"
+                )
+                XCTAssertEqual(
+                    values[6] - values[5], VerseBounds.coran1441BandHeight, accuracy: 0.000001,
+                    "page \(page), ligne \(line) : la hauteur n'est pas celle d'une bande"
+                )
+                checked += 1
+            }
+        }
+        XCTAssertEqual(checked, 13_273)
+    }
+
+    /// Une bande et la mise en évidence du verset qu'elle porte se projettent au
+    /// **même endroit**.
+    ///
+    /// C'est l'invariant qui compte : dans l'original, les bandes sont
+    /// positionnées dans l'espace de la vue et les mises en évidence dans
+    /// l'espace de l'image, si bien que les deux ne coïncident que si la vue a
+    /// exactement le ratio de la page. Ici les deux passent par `VerseBounds`,
+    /// donc elles coïncident toujours.
+    func testTheBandsAndTheHighlightsUseTheSameGeometry() {
+        let view = CGRect(x: 0, y: 0, width: 390, height: 700)
+        let size = VerseBounds.imageSize(for: .coran1441, page: 1)
+
+        let rows = VerseBounds.rows(page: 1, source: .coran1441)
+        XCTAssertFalse(rows.isEmpty)
+
+        for row in rows {
+            let band = VerseBounds.bandRect(line: row.line, in: view, imageSize: size)
+            let rect = VerseBounds.project(row.rect, into: view, imageSize: size)
+
+            XCTAssertEqual(rect.minY, band.minY, accuracy: 0.001, "ligne \(row.line)")
+            XCTAssertEqual(rect.height, band.height, accuracy: 0.001, "ligne \(row.line)")
+            XCTAssertEqual(rect.minX, band.minX, accuracy: 0.001, "ligne \(row.line)")
+        }
+    }
+
+    /// La taille de la page est **celle de la source**, et le repli est la taille
+    /// réelle — pas `1 × 1` comme dans l'original.
+    func testTheImageSizeIsReadPerSource() {
+        XCTAssertEqual(VerseBounds.imageSize(for: .medine, page: 1), CGSize(width: 1920, height: 3106))
+        XCTAssertEqual(VerseBounds.imageSize(for: .coran1441, page: 1), CGSize(width: 1440, height: 2320))
+        XCTAssertEqual(VerseBounds.imageSize(for: .coran1441, page: 604), CGSize(width: 1440, height: 2320))
+
+        // Page absente du fichier de dimensions : repli sur la taille de la
+        // source. Un repli sur `1 × 1` multiplierait toutes les coordonnées par
+        // la largeur de la vue.
+        XCTAssertEqual(VerseBounds.imageSize(for: .coran1441, page: 605), CGSize(width: 1440, height: 2320))
+        XCTAssertEqual(VerseBounds.imageSize(for: .coran1441, page: 0), CGSize(width: 1440, height: 2320))
+    }
+
+    /// Se tromper de taille ne lève aucune erreur : cela déplace les mises en
+    /// évidence. Le contrôle chiffre le décalage, pour que le défaut silencieux
+    /// ait au moins un témoin.
+    ///
+    /// Sur une vue 1200 × 3000, la même ligne du Coran 1441 tombe à environ
+    /// 1 155 pt avec la bonne taille et à environ 995 pt avec celle du Coran de
+    /// Médine : plus de 150 pt d'écart.
+    func testProjectingWithTheWrongImageSizeMovesTheHighlight() {
+        let view = CGRect(x: 0, y: 0, width: 1200, height: 3000)
+        let row = VerseBounds.rows(page: 1, source: .coran1441)[0]
+
+        let correct = VerseBounds.project(
+            row.rect,
+            into: view,
+            imageSize: VerseBounds.imageSize(for: .coran1441, page: 1)
+        )
+        let wrong = VerseBounds.project(
+            row.rect,
+            into: view,
+            imageSize: VerseBounds.imageSize(for: .medine, page: 1)
+        )
+
+        XCTAssertGreaterThan(abs(correct.minY - wrong.minY), 100)
+    }
+
+    /// La page 1 du Coran 1441 commence à la **ligne 5** et sa première ligne est
+    /// `[1, 1, 5, 352.08, 1087.92, 745.714…, 977.714…]`.
+    func testTheFirstRowOfTheCoran1441PageOne() {
+        let row = VerseBounds.rows(page: 1, source: .coran1441)[0]
+
+        XCTAssertEqual(row.surah, 1)
+        XCTAssertEqual(row.ayahStart, 1)
+        XCTAssertEqual(row.line, 5)
+        XCTAssertEqual(row.rect.minX, 352.08, accuracy: 0.000001)
+        XCTAssertEqual(row.rect.width, 735.84, accuracy: 0.000001)
+        XCTAssertEqual(row.rect.minY, 745.7142857142857, accuracy: 0.000001)
+        XCTAssertEqual(row.rect.height, 232, accuracy: 0.000001)
+    }
+
+    /// Les deux sources ne se confondent pas : mêmes pages, contenus différents.
+    func testTheTwoSourcesAreNotInterchangeable() {
+        XCTAssertEqual(VerseBounds.rows(page: 1, source: .medine).count, 10)
+        XCTAssertEqual(VerseBounds.rows(page: 1, source: .coran1441).count, 10)
+        // Même nombre de lignes sur cette page, mais pas les mêmes versets :
+        // la page 1 du Coran de Médine s'arrête à la ligne 8, celle du 1441 à
+        // la ligne 11.
+        XCTAssertEqual(VerseBounds.rows(page: 1, source: .medine).map(\.line).max(), 8)
+        XCTAssertEqual(VerseBounds.rows(page: 1, source: .coran1441).map(\.line).max(), 11)
+        XCTAssertNotEqual(
+            VerseBounds.rows(page: 1, source: .medine)[0].rect,
+            VerseBounds.rows(page: 1, source: .coran1441)[0].rect
+        )
+    }
+
+    /// Une bande hors de la page n'existe pas : rendre `.zero` plutôt qu'un
+    /// rectangle à une position inventée.
+    func testABandOutsideThePageYieldsNothing() {
+        let view = CGRect(x: 0, y: 0, width: 390, height: 700)
+        let size = VerseBounds.imageSize(for: .coran1441, page: 1)
+
+        XCTAssertEqual(VerseBounds.bandRect(line: -1, in: view, imageSize: size), .zero)
+        XCTAssertEqual(VerseBounds.bandRect(line: 15, in: view, imageSize: size), .zero)
+        XCTAssertGreaterThan(VerseBounds.bandRect(line: 14, in: view, imageSize: size).height, 0)
+    }
+
+    // MARK: Ordre des colonnes — le contrôle par l'absurde
 
     /// Le même fichier, lu comme `x1, y1, x2, y2`, donnerait pour cette ligne
     /// `x = 627`, `y = 1295`, largeur `335 - 627 = -292`, hauteur `453 - 1295 =

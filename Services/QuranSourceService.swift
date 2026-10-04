@@ -49,6 +49,21 @@ public enum QuranEdition: String, CaseIterable, Sendable {
     public static var available: [QuranEdition] {
         allCases.filter(\.isAvailable)
     }
+
+    /// La source de rectangles de versets qui correspond à cette édition.
+    ///
+    /// `nil` veut dire « on ne sait pas où sont les versets sur ces pages » — et
+    /// non « ce sont ceux du Coran de Médine ». Les éditions de Tajwid ont leurs
+    /// propres fichiers (`mushaf-tajweed-bounds.json`), non repris à ce stade :
+    /// leur appliquer les rectangles du Coran de Médine placerait les mises en
+    /// évidence à des endroits plausibles sur une image différente.
+    public var boundsSource: VerseBounds.Source? {
+        switch self {
+        case .medine: return .medine
+        case .coran1441: return .coran1441
+        case .tajweed, .tajweedPages, .coranTest: return nil
+        }
+    }
 }
 
 public struct PageGeometry: Sendable {
@@ -59,6 +74,8 @@ public struct PageGeometry: Sendable {
     public static let medine = PageGeometry(width: 1920, height: 3106)
     /// Dimensions réelles des pages du Coran 1441.
     public static let coran1441 = PageGeometry(width: 1440, height: 2320)
+
+    public var size: CGSize { CGSize(width: width, height: height) }
 }
 
 public actor QuranSourceService {
@@ -85,14 +102,26 @@ public actor QuranSourceService {
         }
     }
 
-    /// Chemin de l'image d'une page. `nil` si la ressource n'est pas disponible
-    /// localement — l'appelant décide alors d'afficher un état de chargement,
-    /// jamais une page blanche.
-    public func imageURL(for edition: QuranEdition, page: Int) -> URL? {
-        guard page >= 1, page <= Self.totalPages else { return nil }
+    /// Les images d'une page, dans l'ordre.
+    ///
+    /// **Une** pour le Coran de Médine, **quinze** pour le Coran 1441 : une page
+    /// du 1441 n'est pas une image mais quinze bandes empilées
+    /// (`MushafPage.tsx:48`). Rendre une seule de ces bandes afficherait la
+    /// quinzième partie de la page, et les mises en évidence des autres lignes
+    /// tomberaient hors de l'image.
+    ///
+    /// Seules les images **présentes** sont rendues : une page à moitié
+    /// téléchargée donne donc une liste incomplète, et c'est à l'appelant de
+    /// décider quoi en faire — l'afficher en partie, ou dire qu'elle manque.
+    ///
+    /// `nonisolated` à dessein : le calcul ne touche que des valeurs immuables
+    /// (`downloadDirectory`, `Bundle.main`) et doit pouvoir être appelé depuis
+    /// la mise en page, qui est synchrone.
+    public nonisolated func imageURLs(for edition: QuranEdition, page: Int) -> [URL] {
+        guard page >= 1, page <= Self.totalPages else { return [] }
         switch edition {
         case .medine:
-            return Bundle.main.url(
+            let url = Bundle.main.url(
                 forResource: String(format: "page%03d", page),
                 withExtension: "png",
                 subdirectory: "Mushaf"
@@ -100,15 +129,30 @@ public actor QuranSourceService {
                 forResource: String(format: "page%03d", page),
                 withExtension: "png"
             )
+            return url.map { [$0] } ?? []
         case .coran1441:
             // Le Coran 1441 est découpé en 15 lignes par page : « 001-01.png ».
             let directory = downloadDirectory
                 .appendingPathComponent("coran_1441", isDirectory: true)
-            let first = directory.appendingPathComponent(String(format: "%03d-01.png", page))
-            return fileManager.fileExists(atPath: first.path) ? first : nil
+            return (0..<VerseBounds.linesPerPage).compactMap { index in
+                let candidate = directory.appendingPathComponent(
+                    String(format: "%03d-%02d.png", page, index + 1)
+                )
+                return FileManager.default.fileExists(atPath: candidate.path) ? candidate : nil
+            }
         default:
-            return nil
+            return []
         }
+    }
+
+    /// Chemin de l'image d'une page. `nil` si la ressource n'est pas disponible
+    /// localement — l'appelant décide alors d'afficher un état de chargement,
+    /// jamais une page blanche.
+    ///
+    /// Pour le Coran 1441, la première des quinze bandes : sert à savoir si la
+    /// page est là, pas à l'afficher. `imageURLs` est la forme qui rend la page.
+    public nonisolated func imageURL(for edition: QuranEdition, page: Int) -> URL? {
+        imageURLs(for: edition, page: page).first
     }
 
     /// Vérifie qu'une page entière est présente hors ligne.

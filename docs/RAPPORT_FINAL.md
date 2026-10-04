@@ -12,8 +12,9 @@ Date : 4 octobre 2026.
 | Nom | **`Swiftdeepseek`** — exactement, sans variante |
 | Visibilité | **publique** (nécessaire : les exécuteurs macOS sont facturés sur un dépôt privé) |
 | Branche par défaut | `main` |
-| Taille | 116 693 Ko |
-| Commits | 10 |
+| Taille | 116 710 Ko (mesurée par l'API GitHub) |
+| Commits | 19 |
+| Fichiers suivis | 682 — dont **43 fichiers Swift** et **110 tests** déclarés |
 | Dépôt indépendant | oui — ni fourche, ni branche, ni sous-dossier, ni sous-module du dépôt de référence |
 
 ## 2. Dépôt de référence — intact, et aucun commit
@@ -55,7 +56,7 @@ La destination a été revérifiée **avant chaque poussée** de cette session.
 
 ## 4. Structure Swift créée
 
-Architecture MVVM, 39 fichiers Swift, 677 fichiers suivis.
+Architecture MVVM, **43 fichiers Swift**, 682 fichiers suivis.
 
 ```
 App/            SwiftdeepseekApp, ContentView
@@ -211,24 +212,37 @@ Lecteur plein écran du Moushaf, `Features/Quran/Reader/`.
   Moushaf Tajwid, Coran avec règles de Tajwid. **Seul le Coran de Médine est
   embarqué** (604 pages). Le téléchargement du Coran 1441 **n'est pas implémenté**
   — voir §11.
+- **Deux formes de page, et c'est la différence qui compte.** Le Coran de Médine
+  est **une** image par page (`1920 × 3106`) ; le Coran 1441 est **quinze bandes
+  par page** (`1440 × 232` chacune), empilées à pas constant
+  (`MushafPage.tsx:48`). Les deux formes sont rendues par le même
+  `MushafPageViewController`, et leurs quinze `UIImageView` sont positionnées par
+  `VerseBounds.bandRect` — la **même** fonction qui projette les mises en
+  évidence. Dans l'original, les bandes sont placées dans l'espace de la vue et
+  les mises en évidence dans l'espace de l'image : les deux ne coïncident que si
+  la vue a exactement le ratio de la page. Ici, elles coïncident toujours, et un
+  test le fixe.
 - Audio : `AVFoundation`, récitateurs et correspondance d'audio repris de
   l'application d'origine.
-- **Mise en évidence des versets** (ajoutée après la première mission) :
-  `Core/VerseBounds.swift` lit `Resources/Data/bounds.json` — 604 pages,
-  13 766 rectangles, jusqu'ici **lu par aucun code** — et
-  `VerseHighlightView` les dessine par-dessus l'image. Sont repris de
-  `MushafPage.tsx:51-52` le rouge `#E85B5B` à 0,18 pour un verset difficile, le
-  vert du signet à 0,18, la surbrillance de lecture à 0,42, les coins à 4 et
-  l'icône de signet sur le bord droit.
+- **Mise en évidence des versets** : `Core/VerseBounds.swift` lit
+  `Resources/Data/bounds.json` (604 pages, **13 766** rectangles) et
+  `coran_1441-bounds.json` (604 pages, **13 273** rectangles) — deux fichiers
+  jusqu'ici **lus par aucun code** — et `VerseHighlightView` les dessine
+  par-dessus la page. Sont repris de `MushafPage.tsx:51-52` le rouge `#E85B5B` à
+  0,18 pour un verset difficile, le vert du signet à 0,18, la surbrillance de
+  lecture à 0,42, les coins à 4 et l'icône de signet sur le bord droit.
+  La **taille de la page** est celle de la source, lue page par page pour le
+  Coran 1441 : se tromper de taille ne lève aucune erreur, cela déplace toutes
+  les mises en évidence — un test chiffre ce décalage (plus de 150 pt).
+- **Ce qui n'est pas repris** : les repères de progression de séance dans la marge
+  (`marginAnnotations`, `MushafPage.tsx:53`), qui dépendent du suivi de séance
+  (`sessionThrough`), non porté ; le bouton « Ma voix », l'enregistrement des
+  récitations n'étant pas implémenté ; et les libellés d'accessibilité par verset
+  mis en évidence, une page étant un élément d'accessibilité unique.
 - **Barre d'action selon la raison d'ouverture** : trois notes de révision
   (Parfait / Quelques hésitations / À retravailler) puis « Écouter » pour une
   tâche de révision ; « Valider la consolidation · J+n » pour une consolidation ;
   « Valider » pour une séance d'apprentissage.
-- **Non repris** : les repères de progression de séance dans la marge
-  (`marginAnnotations`, `MushafPage.tsx:53`), qui dépendent du suivi de séance
-  (`sessionThrough`), non porté ; le bouton « Ma voix », l'enregistrement des
-  récitations n'étant pas implémenté ; et les libellés d'accessibilité par verset
-  mis en évidence, l'image de page étant un élément d'accessibilité unique.
 
 ## 11. Fichiers et ressources copiés
 
@@ -261,6 +275,7 @@ licences incertaines. Vérifié : **aucun code Swift ne référence** `medallion
 | **#15** | `6102105` | **échec** — assertion de test inversée | — |
 | **#16** | `c0bf461` | **échec** — égalité exacte sur un flottant | — |
 | **#17** | `3e63067` | **success** | 4 min 49 s |
+| **#18** | `a89cf04` | **success** — documentation seule | — |
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
@@ -269,7 +284,7 @@ artefact de 120 263 470 octets**. La taille est le second témoin : elle prouve 
 les 604 pages sont réellement dans le paquet, et pas seulement que le fichier a
 été créé.
 
-Les **101 tests** de la cible de tests sont joués à chaque run. Deux d'entre eux
+Les **110 tests** de la cible de tests sont joués à chaque run. Deux d'entre eux
 (`AppWiringTests`) sont **ignorés** tant que les secrets `SUPABASE_URL` et
 `SUPABASE_ANON_KEY` ne sont pas posés sur le dépôt : ils vérifient la
 configuration, qui est alors absente. Ils s'activeront d'eux-mêmes.
@@ -380,6 +395,24 @@ Run #17 est vert avec le troisième correctif, en 4 min 49 s.
    en résolvant l'appareil à l'exécution (§12). Leçon générale : ce qui dépend du
    **contenu de l'image d'exécuteur** — nom d'appareil, version d'outil, catalogue
    de simulateurs — doit être résolu au moment de l'exécution, jamais écrit en dur.
+9. **Une colonne lue pour ce qu'elle n'était pas.** La troisième colonne de
+   `bounds.json` avait été nommée `ayahEnd` — « verset de fin » — dans le premier
+   jet de `VerseBounds`. Elle plafonne en réalité à **15** sur tout le fichier,
+   alors qu'un numéro de verset atteindrait 286 (al-Baqarah) ; et trier les lignes
+   d'une page par `y1` ne produit **aucune** inversion sur 13 162 paires. C'est un
+   **numéro de ligne**, que l'original appelle d'ailleurs `line` là où il s'en
+   sert. Deux pièges de plus s'y cachaient : la convention change de base selon la
+   source (Médine `1 … 15`, Coran 1441 `0 … 14`), et le fichier du 1441 porte des
+   coordonnées **décimales** — décodé en `Int`, il échouerait **en entier**, et
+   toutes les mises en évidence du Coran 1441 disparaîtraient sans autre symptôme.
+   Leçon : **un nom de champ recopié n'est pas une mesure**. Le renommage s'est
+   fait sur trois mesures indépendantes, pas sur la lecture du nom.
+10. **Un commentaire qui affirmait le contraire du code.** `VerseBounds` annonçait
+    un chargement « paresseux — la source non utilisée n'est jamais lue », alors
+    que la boucle sur `Source.allCases` chargeait **les deux** fichiers (1,2 Mo)
+    au premier accès. Corrigé en deux `static let` distincts, dont chacun n'est
+    initialisé qu'à son premier usage : le commentaire est désormais vrai par
+    construction, et non par intention.
 
 ## 14. Étapes suivantes
 
@@ -392,14 +425,24 @@ Run #17 est vert avec le troisième correctif, en 4 min 49 s.
 
 **Puis, par ordre d'importance fonctionnelle** (détaillé dans `SWIFT_MIGRATION.md` §9) :
 
-3. Brancher la **notation des révisions** dans l'interface (§9.6).
-4. **Affichage rouge des versets difficiles** (§9.7).
-5. **Téléchargement du Coran 1441** (§9.4) — non implémenté ; seule l'édition de
-   Médine est embarquée.
-6. Consommer `ReaderRequest.reviewTask` et `.consolidation` dans le lecteur.
-7. « Tawjeed test 2 » et « Medine Test » (§9.3).
-8. Assistant d'objectif hebdomadaire, écran d'apparence, messagerie, groupes,
+3. **Téléchargement du Coran 1441** (§9.4) — **le seul manque du lecteur**. Tout
+   le reste est en place : les quinze bandes sont rendues, la géométrie de leurs
+   rectangles est lue et testée, la mise en évidence fonctionne pour cette source.
+   Il manque les **9 060 images** (archive de 102 608 011 octets). L'édition est
+   proposée, et une page absente le **dit** au lieu d'afficher une page blanche.
+4. « Tawjeed test 2 » et « Medine Test » (§9.3). Les éditions de Tajwid n'ont ni
+   images ni rectangles : `QuranEdition.boundsSource` rend `nil`, ce qui produit
+   **aucune** mise en évidence plutôt que celles du Coran de Médine appliquées à
+   une autre image.
+5. **Repères de progression de séance dans la marge** (`marginAnnotations`,
+   `MushafPage.tsx:53`) — dépend du suivi de séance (`sessionThrough`), non porté.
+6. Assistant d'objectif hebdomadaire, écran d'apparence, messagerie, groupes,
    quiz, notifications, récitations, mini-lecteur.
+
+*Déjà faites depuis la rédaction de la première version de ce rapport, et donc
+retirées de cette liste : la notation des révisions dans l'interface (§10, barre
+d'action), l'affichage rouge des versets difficiles (§10, `VerseBounds`), et la
+consommation de `ReaderRequest.reviewTask` et `.consolidation` par le lecteur.*
 
 **Côté Apple** (README §« Ce qu'il reste à faire côté Apple ») : compte de
 développeur, identifiant de paquet enregistré, profil de provisionnement et

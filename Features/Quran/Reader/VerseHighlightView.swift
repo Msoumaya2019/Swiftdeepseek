@@ -84,6 +84,25 @@ final class VerseHighlightView: UIView {
         didSet { setNeedsDisplay() }
     }
 
+    /// Taille de l'image de page, en pixels.
+    ///
+    /// Elle **ne peut pas** être déduite de `bounds` : une vue plus large que
+    /// l'image et une vue plus haute donnent la même boîte, et le rapport de
+    /// l'image est justement ce qui manque pour la calculer. La vue la reçoit
+    /// donc, et s'en sert pour **tout** : la boîte de page comme chaque
+    /// rectangle.
+    ///
+    /// S'y tromper ne produit aucune erreur, seulement des mises en évidence au
+    /// mauvais endroit : c'est le défaut le plus silencieux de ce fichier. Le
+    /// Coran de Médine (1920 × 3106) et le Coran 1441 (1440 × 2320) ne se
+    /// projettent pas de la même façon.
+    var imageSize: CGSize = VerseBounds.imageSize {
+        didSet {
+            guard imageSize != oldValue else { return }
+            setNeedsDisplay()
+        }
+    }
+
     /// Taille de l'icône de signet — `Icon name="bookmark" size={14}`.
     private static let bookmarkGlyphSize = CGSize(width: 14, height: 14)
 
@@ -119,14 +138,11 @@ final class VerseHighlightView: UIView {
 
         // La boîte où l'image est RÉELLEMENT dessinée, bandes vides exclues.
         // C'est elle qui sert d'ancrage au signet sur le bord droit.
-        let imageBox = VerseBounds.project(
-            CGRect(origin: .zero, size: VerseBounds.imageSize),
-            into: bounds
-        )
+        let imageBox = VerseBounds.pageBox(in: bounds, imageSize: imageSize)
         guard !imageBox.isEmpty else { return }
 
         for highlight in highlights {
-            let projected = VerseBounds.project(highlight.rect, into: bounds)
+            let projected = VerseBounds.project(highlight.rect, into: bounds, imageSize: imageSize)
             guard projected.width > 0, projected.height > 0 else { continue }
 
             context.setFillColor(
@@ -155,7 +171,7 @@ final class VerseHighlightView: UIView {
         let size = Self.bookmarkGlyphSize
 
         for highlight in highlights where highlight.kind == .bookmark {
-            let projected = VerseBounds.project(highlight.rect, into: bounds)
+            let projected = VerseBounds.project(highlight.rect, into: bounds, imageSize: imageSize)
             guard projected.width > 0 else { continue }
             tinted.draw(
                 in: CGRect(
