@@ -57,6 +57,17 @@ public enum Review {
         tasks.flatMap { task in Array(task.start...max(task.start, task.end)) }
     }
 
+    /// Même chose, pour une liste de divisions coraniques (hizb, nisf, rub‘).
+    ///
+    /// `isFull` accepte déjà les deux formes — `VerseRange` et `Division` —
+    /// mais `idsOf` n'acceptait que `VerseRange`. La division en unités
+    /// coraniques entières (`partitionReviewCorpus`) et `reviewRhythm` lui
+    /// passent des `[Division]` : sans cette surcharge, les deux ne compilent
+    /// pas.
+    private static func idsOf(_ divisions: [Division]) -> [Int] {
+        idsOf(divisions.map { VerseRange(start: $0.start, end: $0.end) })
+    }
+
     private static func isFull(_ set: Set<Int>, _ range: VerseRange) -> Bool {
         for id in range.start...max(range.start, range.end) where !set.contains(id) {
             return false

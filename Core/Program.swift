@@ -131,7 +131,12 @@ public enum Program {
         }
         if let mushaf = next.reader?.mushaf, mushaf != "tajweedPages" { return next }
         next.reader?.mushaf = "coranTest"
-        next.reader?.followAudio = next.reader?.followAudio != false
+        // Lecture puis écriture, en deux temps. En une seule expression —
+        // `next.reader?.followAudio = next.reader?.followAudio != false` — le
+        // compilateur refuse : « overlapping accesses to 'next.reader' », les
+        // deux accès se recouvrant.
+        let followAudio = next.reader?.followAudio != false
+        next.reader?.followAudio = followAudio
         return next
     }
 

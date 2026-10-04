@@ -23,11 +23,16 @@ public struct SwiftdeepseekApp: App {
                 // `swiftdeepseek://auth` — le schéma propre à cette application.
                 // Celui de l'application React Native reste `coranmemoire://`.
                 .onOpenURL { url in
-                    Task { await model.auth.handleAuthLink(url) }
+                    // `handleAuthLink` est `throws` : une URL de retour
+                    // malformée ne doit pas faire tomber l'application. On
+                    // l'ignore, et la session reste simplement non connectée.
+                    Task { try? await model.auth.handleAuthLink(url) }
                 }
                 .task { await model.start() }
         }
-        .onChange(of: scenePhase) { _, phase in
+        // Forme à UN SEUL paramètre. La variante `{ _, phase in }` exige
+        // iOS 17, alors que la cible de déploiement est iOS 16 (`project.yml`).
+        .onChange(of: scenePhase) { phase in
             guard phase == .active else { return }
             Task {
                 await model.sync.refreshPendingCount()

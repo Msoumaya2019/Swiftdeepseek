@@ -21,8 +21,24 @@ public enum SessionStatus: String, Codable, Sendable {
     case todo, done, postponed
 }
 
+/// Note donnée à une TÂCHE de révision — `ReviewGrade`, `src/core/program.ts:23` :
+/// `'perfect' | 'hesitant' | 'rework'`.
+///
+/// ATTENTION — L'APPLICATION D'ORIGINE A DEUX VOCABULAIRES DE NOTES
+///   - les TÂCHES de révision notent `perfect | hesitant | rework`
+///     (`program.ts:23`, consommé par `gradeReviewTask`, `review.ts:138`) ;
+///   - les RÉVISIONS de versets notent `perfect | hesitant | errors | relearn`
+///     (`program.ts:11`, `Revision.lastGrade`).
+///
+/// Ce sont deux jeux de valeurs différents, aux noms qui se ressemblent. Les
+/// confondre écrirait dans le document synchronisé une valeur que l'application
+/// React Native ne saurait pas relire.
+///
+/// Ce type-ci ne porte donc que les trois valeurs des tâches. Les deux autres
+/// n'ont pas à figurer ici : `Revision.lastGrade` est un `String?`, ce qui
+/// laisse passer n'importe laquelle des quatre valeurs sans avoir à les nommer.
 public enum ReviewGrade: String, Codable, Sendable {
-    case perfect, hesitant, errors, relearn
+    case perfect, hesitant, rework
 }
 
 public enum ReviewCategory: String, Codable, Sendable {
