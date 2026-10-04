@@ -56,12 +56,13 @@ La destination a été revérifiée **avant chaque poussée** de cette session.
 
 ## 4. Structure Swift créée
 
-Architecture MVVM, **51 fichiers Swift**, 690 fichiers suivis.
+Architecture MVVM, **54 fichiers Swift**, 693 fichiers suivis.
 
 ```
 App/            SwiftdeepseekApp, ContentView
 Core/           AppState, OfflineMerge, JSONValue, DateKeys, Program, Review,
-                Quran, WeeklyProgress, Bookmark, AppConfig
+                Quran, WeeklyProgress, Bookmark, AppConfig,
+                VerseBounds, VerseMarkers, MarginAnnotations
 Features/       Home, Quran (QuranScreenView + Reader/), Program, Progress,
                 Review, Friends, Navigation, Shared
 Models/         ViewModels/
@@ -284,11 +285,24 @@ Lecteur plein écran du Moushaf, `Features/Quran/Reader/`.
   La **taille de la page** est celle de la source, lue page par page pour le
   Coran 1441 : se tromper de taille ne lève aucune erreur, cela déplace toutes
   les mises en évidence — un test chiffre ce décalage (plus de 150 pt).
-- **Ce qui n'est pas repris** : les repères de progression de séance dans la marge
-  (`marginAnnotations`, `MushafPage.tsx:53`), qui dépendent du suivi de séance
-  (`sessionThrough`), non porté ; le bouton « Ma voix », l'enregistrement des
+- **Repères de progression de séance dans la marge** — implémentés
+  (`SWIFT_MIGRATION.md` §9.12). C'était le dernier repère de `MushafPage.tsx` qui
+  manquait : quand une séance est ouverte, un rail vertical et une pastille par
+  **ligne** de la page, pleine quand tous les versets de la ligne sont validés.
+  `Core/MarginAnnotations.swift` porte le regroupement par ligne et la géométrie,
+  `Features/Quran/Reader/VerseMarginView.swift` dessine, et la dérivation de la
+  séance (`App.tsx:477-481`) est portée avec ses trois points exacts — en
+  apprentissage la séance enregistrée prime sur la plage demandée, la clé de suivi
+  dépend du mode, et `through` retombe sur `start - 1`. La vue se trace dans la
+  vue **entière** et non dans la boîte de page, parce que le diamètre d'une
+  pastille (`min(24, max(8, bordGaucheDeLaPage − 4))`) dépend de la place libre à
+  gauche de la page. Vingt-sept tests, dont les nombres sont mesurés par un banc
+  qui fait tourner le **vrai** `marginAnnotations.ts` du dépôt de référence.
+- **Ce qui n'est pas repris** : le bouton « Ma voix », l'enregistrement des
   récitations n'étant pas implémenté ; et les libellés d'accessibilité par verset
-  mis en évidence, une page étant un élément d'accessibilité unique.
+  mis en évidence, une page étant un élément d'accessibilité unique — ce qui vaut
+  aussi, sur le Coran 1441, pour les pastilles de numéro et les pastilles de
+  séance.
 - **Barre d'action selon la raison d'ouverture** : trois notes de révision
   (Parfait / Quelques hésitations / À retravailler) puis « Écouter » pour une
   tâche de révision ; « Valider la consolidation · J+n » pour une consolidation ;
@@ -742,9 +756,13 @@ de pousser n'est pas un luxe, mais le seul filtre disponible.
 *Déjà faites depuis la rédaction de la première version de ce rapport, et donc
 retirées de cette liste : la notation des révisions dans l'interface (§10, barre
 d'action), l'affichage rouge des versets difficiles (§10, `VerseBounds`), la
-consommation de `ReaderRequest.reviewTask` et `.consolidation` par le lecteur, et
+consommation de `ReaderRequest.reviewTask` et `.consolidation` par le lecteur,
 les **pastilles de numéro de verset du Coran 1441** (§10, `SWIFT_MIGRATION.md`
-§9.11).*
+§9.11), et les **repères de progression de séance dans la marge** (§10,
+`SWIFT_MIGRATION.md` §9.12) — dont la version précédente de ce rapport disait
+qu'ils dépendaient d'un suivi de séance « non porté », alors que
+`StudyProgress.through`, `Program.studyKey` et `ReaderRequest.sessionID`
+existaient déjà.*
 
 **Côté Apple** (README §« Ce qu'il reste à faire côté Apple ») : compte de
 développeur, identifiant de paquet enregistré, profil de provisionnement et

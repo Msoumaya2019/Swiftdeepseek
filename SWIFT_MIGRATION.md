@@ -493,3 +493,86 @@ dépôt, et l'invariant « chaque pastille est dans sa bande » vérifié sur le
 glyphe, alors que l'original resserre la hauteur de ligne. Les deux donnent le
 même résultat à l'œil ; aucun test ne peut le trancher, faute de pouvoir dessiner
 sur cette machine.
+
+### 9.12 Les repères de progression de séance dans la marge — implémentés
+
+C'était le dernier repère de `MushafPage.tsx` qui manquait. Quand une séance est
+ouverte — apprentissage ou révision — l'original affiche, dans la marge gauche de
+la page, un rail vertical et une pastille par **ligne** de la page, portant le ou
+les numéros de verset de cette ligne. Une pastille pleine marque une ligne dont
+tous les versets sont validés, une pastille creuse une ligne qui reste à faire.
+
+Ce n'était pas un manque de données : `StudyProgress.through` existait déjà
+(`Core/AppState.swift`), `Program.studyKey(_:_:)` aussi, et `ReaderRequest`
+portait déjà `range` et `sessionID`. Ce qui manquait était la **dérivation** qui
+les relie (`App.tsx:477-481`) et la géométrie.
+
+**Trois règles silencieuses de `marginAnnotations.ts`**, reproduites à la lettre :
+
+1. **Un verset à cheval sur deux lignes n'est retenu qu'une fois**, sur sa
+   première ligne dans l'ordre (ligne, puis `y`). Prendre la seconde place le
+   numéro une ligne trop bas.
+2. **`bottom` se calcule sur TOUTES les régions du verset**, pas seulement sur
+   la ligne retenue. Mesuré sur la page 1 du 1441 : le groupe « 5·6 » tient la
+   ligne à `y = 0,514286` d'une hauteur de `0,1`, donc `y + height = 0,614286` —
+   mais le verset 6 continue, et le rail va jusqu'à `0,678571`. Lire `bottom` sur
+   le seul groupe retenu raccourcirait le rail sans lever la moindre erreur.
+3. **Le tri des groupes est rendu stable.** `Array.prototype.sort` est stable
+   depuis ES2019, `Array.sorted` ne l'est pas : à `y` égal, deux lignes
+   pourraient s'ordonner autrement qu'en React Native. Le départage se fait par
+   l'ordre d'apparition.
+
+**Où c'est écrit.** `Core/MarginAnnotations.swift` porte le regroupement, la
+géométrie et la dérivation de la séance ;
+`Features/Quran/Reader/VerseMarginView.swift` dessine ; `MushafPageViewController`
+ajoute la couche **en dernier**, donc au-dessus des mises en évidence — l'original
+la place après `</Pressable>`.
+
+**La vue se trace dans la vue ENTIÈRE, et non dans la boîte de page.** C'est la
+différence avec `VerseHighlightView`, et elle est nécessaire : le diamètre d'une
+pastille vaut `min(24, max(8, bordGaucheDeLaPage - 4))`, donc il dépend de la
+place libre **à gauche** de la page. Une vue posée sur la boîte de page aurait
+perdu cette place et le diamètre serait faux.
+
+**Une seule différence de forme avec l'original, et elle est vérifiée.** L'original
+calcule `edge` dans le repère de sa `Pressable` — qui commence à `marginGutter`
+dans la vue — puis ajoute `marginGutter` pour obtenir le diamètre. Ici la boîte de
+page est déjà mesurée dans la vue entière, donc `marginGutter` est **contenu** dans
+`pageBox.minX` et disparaît de la formule. `_banc/oracle-margin.mjs` charge le
+**vrai** `src/core/marginAnnotations.ts` du dépôt de référence — en retirant
+mécaniquement ses annotations de type — et le fait tourner sur les vrais fichiers
+de rectangles, page par page ; il compare ensuite les deux formulations à trois
+valeurs de `marginGutter` près, dont deux qui donnent des diamètres **différents**
+(`16,9`, `18,9`, `24` sur la page 1 du 1441). Neuf comparaisons, zéro écart : les
+six de l'équivalence des formulations, plus les **trois bornes du diamètre** que le
+test fige — le banc mesure désormais les cas exacts du fichier de tests, et non des
+cas approchants. C'est précisément l'écart entre les deux qui avait laissé passer un
+diamètre de `20` là où le test devait lire `16,4`.
+
+**La dérivation de la séance, et ses trois points exacts** (`App.tsx:477-481`) :
+
+- en **apprentissage**, la séance **enregistrée** prime sur la plage demandée. Le
+  lecteur peut être ouvert sur une plage rétrécie — « Reprendre au verset N » —
+  alors que l'original affiche la plage entière de la séance ;
+- la **clé de suivi dépend du mode** : `learning:<id>` ou `revision:<id>`. La
+  fabriquer à la main une fois de travers rend le suivi invisible ;
+- **`through` retombe sur `start - 1`** quand aucun suivi n'existe : aucun verset
+  n'est marqué fait, ce qui est le bon défaut pour une séance jamais ouverte.
+
+**L'épreuve.** `Tests/MarginAnnotationsTests.swift` (27 tests) fige les nombres
+mesurés par l'oracle : le regroupement (7 versets → 5 pastilles, « 3·4 » et
+« 5·6 »), les trois règles ci-dessus, les positions du rail et des pastilles sur
+un téléphone de 390 × 700 pour les **deux** éditions, la même chose sur une vue
+1200 × 3000 dont le ratio **n'est pas** celui de la page, les bornes du diamètre
+(8 et 24, plus une valeur intermédiaire), la croissance vers le bas d'un libellé
+replié, et les sept cas de la dérivation de la séance. La couverture est
+vérifiée page par page : **604** pages par édition, **13 273** et **13 766**
+régions, aucune page vide, **aucune ligne écartée**.
+
+**Une limite connue, et elle n'est pas dans ce code.** Sur une page du Coran 1441,
+`MushafPageViewController` fait de la vue de page entière un élément
+d'accessibilité, donc les enfants ne sont pas parcourus et les pastilles de
+séance ne sont pas atteignables au lecteur d'écran. Le défaut vaut aussi pour les
+mises en évidence et les pastilles de numéro ; il est antérieur à ce travail. Sur
+le Coran de Médine, l'élément est l'image et non le conteneur, donc ces pastilles
+*devraient* être parcourues — cela n'a pas été vérifié sur un appareil.
