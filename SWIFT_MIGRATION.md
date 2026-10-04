@@ -335,11 +335,12 @@ Sont repris de `MushafPage.tsx:51-52` : le rouge `#E85B5B` du verset difficile
    la boîte de la vue au lieu de la boîte de l'image dessinée décale la mise en
    évidence vers le haut — d'environ 400 pt sur une vue 1200 × 3000.
 
-Reste à faire : les **repères de progression de séance** dans la marge
-(`MushafPage.tsx:53`, `marginAnnotations`), qui dépendent du suivi de séance
-(`sessionThrough`) — non porté. Et les libellés d'accessibilité par verset mis en
-évidence : l'image de page est un élément d'accessibilité unique, ses sous-vues
-sont donc ignorées.
+Les **repères de progression de séance** dans la marge ne figurent plus dans cette
+liste : ils sont portés, voir §9.12. Ce qui reste ici est ce que
+`VerseHighlightView` ne fait toujours pas — les libellés d'accessibilité **par
+verset mis en évidence** : l'image de page est un élément d'accessibilité unique,
+donc ses sous-vues sont ignorées. La marge, elle, expose désormais un élément par
+pastille.
 
 ### 9.8 Objets observables imbriqués : un défaut silencieux, corrigé
 

@@ -133,26 +133,33 @@ curl -sL "https://github.com/Msoumaya2019/Swiftdeepseek/actions/runs/<run>/job/<
 > (91 occurrences pour 13 blocs, sur un run réel). Éprouver l'extraction sur un run **en échec**
 > avant de s'y fier : sur un run vert, une commande cassée rend un résultat plausible.
 
-Deux pièges, mesurés :
+Trois pièges, mesurés :
 
 - **`GET /actions/jobs/{id}` renvoie `annotations: []` même sur un job en échec**
   qui en porte treize dans le HTML. Le HTML est la source complète pour la cause ;
   l'API ne sert qu'au détail des étapes (`steps[].conclusion`).
 - une étape qui capture un code de sortie doit faire **`set +e`** : le shell par
   défaut d'un `run:` est `bash -e`, donc l'échec tue le script avant `code=$?`.
+- **les annotations sont PARTIELLES, et ne le disent pas.** Sur le run #34, les
+  annotations du contrôle ne portaient qu'**un** des **trois** tests en échec. Le
+  seul moyen de les connaître tous est le journal : avec un `gh` authentifié,
+  `gh run view <run> --repo … --log-failed` le donne, et l'artefact porte
+  `build-tests.log` **complet**. Corollaire mesuré : deux tests rouges distincts
+  peuvent produire deux lignes d'erreur **textuellement identiques** — un `sort -u`
+  distrait en fusionne une, et l'on croit à un seul échec.
 
 ### État mesuré
 
-Run de référence — celui qui porte les pastilles de numéro de verset du Coran 1441 :
-**#32** (`9b9dd27`), **4 min 33 s**, les **16 étapes en `success`**, un artefact
-`Swiftdeepseek-unsigned-ipa` de **120 323 680 octets** — les 604 pages sont donc
-bien embarquées. Le numéro est **ancré sur un commit**, et non « le dernier » : une
-poussée de documentation ajoute un run, si bien qu'une formule au superlatif serait
-périmée dès son écriture.
+Run de référence — celui qui porte les repères de progression de séance dans la
+marge : **#35** (`d33ee11`), **5 min 59 s**, les **16 étapes en `success`** et une
+seule annotation, le message de file d'attente macOS. L'IPA pèse **120 342 646
+octets** — les 604 pages sont donc bien embarquées. Le numéro est **ancré sur un
+commit**, et non « le dernier » : une poussée de documentation ajoute un run, si
+bien qu'une formule au superlatif serait périmée dès son écriture.
 
-**152 tests** sont exécutés à chaque run, et **un seul** est ignoré : celui de la
-traversée du changement d'heure, qui n'a rien à éprouver dans un fuseau sans
-heure d'été.
+**179 tests** sont exécutés à chaque run, répartis sur **onze groupes**, et **un
+seul** est ignoré : celui de la traversée du changement d'heure, qui n'a rien à
+éprouver dans un fuseau sans heure d'été.
 
 Deux autres (`AppWiringTests`) ne s'exécutent que si la configuration Supabase est
 présente : ils vérifient que l'URL arrive **intacte** dans l'application — non

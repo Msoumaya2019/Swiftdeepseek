@@ -12,9 +12,9 @@ Date : 4 octobre 2026.
 | Nom | **`Swiftdeepseek`** — exactement, sans variante |
 | Visibilité | **publique** (nécessaire : les exécuteurs macOS sont facturés sur un dépôt privé) |
 | Branche par défaut | `main` |
-| Taille | 116 825 Ko (mesurée par l'API GitHub) |
-| Commits | 32 au commit `9b9dd27`, celui qui porte les pastilles de numéro de verset du Coran 1441. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
-| Fichiers suivis | 690 — dont **51 fichiers Swift** et **152 tests** déclarés |
+| Taille | 116 916 Ko (mesurée par l'API GitHub) |
+| Commits | 36 au commit `d33ee11`, celui qui porte les repères de progression de séance dans la marge, la correction des trois nombres de leurs tests et leur documentation. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
+| Fichiers suivis | 693 — dont **54 fichiers Swift** et **179 tests** déclarés |
 | Dépôt indépendant | oui — ni fourche, ni branche, ni sous-dossier, ni sous-module du dépôt de référence |
 
 ## 2. Dépôt de référence — intact, et aucun commit
@@ -360,13 +360,18 @@ référence** `medallion.png`,
 | **#30** | `6d49506` | **échec** — `flatMap` résolu sur `Sequence`, non sur `Optional` (`SWIFT_MIGRATION.md` §9.10) | — |
 | **#31** | `18ab77e` | **success** — 140 tests, 1 ignoré, 0 échec ; IPA de 120 316 560 octets | 5 min 31 s |
 | **#32** | `9b9dd27` | **success** — les pastilles de numéro de verset (`SWIFT_MIGRATION.md` §9.11) ; **152 tests, 1 ignoré, 0 échec** ; IPA de 120 323 680 octets | 4 min 33 s |
+| **#33** | `5d25f38` | **success** — documentation seule ; c'est le run #32 qui porte les pastilles | 4 min 35 s |
+| **#34** | `d5bc987` | **échec** — trois nombres du test des repères de marge, écrits de mémoire et non mesurés (voir ci-dessous) | 3 min 58 s |
+| **#35** | `d33ee11` | **success** — les repères de progression de séance dans la marge (`SWIFT_MIGRATION.md` §9.12) ; **179 tests, 1 ignoré, 0 échec** ; IPA de 120 342 646 octets | 5 min 59 s |
 
 Le tableau ne s'étend pas pour un run dont la seule cause est une modification de
 ce rapport : il s'étend quand un run **porte un fait**. Les runs #22 à #25 en
 portent deux ; #28 à #30 en portent trois — une constante fausse, une exigence
 que j'avais inventée, et une résolution de méthode ; #31 porte le correctif de
-l'édition affichée. Les trois premiers sont détaillés plus bas, parce qu'aucun n'a
-la cause que son message laissait croire.
+l'édition affichée ; #33 ne porte rien, et c'est dit ; #34 et #35 portent les
+repères de progression de séance, et la correction des trois nombres de leurs
+tests qui avaient été écrits de mémoire. Les trois premiers sont détaillés plus
+bas, parce qu'aucun n'a la cause que son message laissait croire.
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
@@ -375,8 +380,15 @@ artefact de 120 263 470 octets**. La taille est le second témoin : elle prouve 
 les 604 pages sont réellement dans le paquet, et pas seulement que le fichier a
 été créé.
 
-Les **152 tests** de la cible de tests sont joués à chaque run. Deux d'entre eux
-(`AppWiringTests`) sont **ignorés** tant que les secrets `SUPABASE_URL` et
+Les **179 tests** de la cible de tests sont joués à chaque run, répartis sur
+**onze groupes**. Le compte est lu sur l'**artefact** du run #35 — et non sur le
+journal du flux, qui est tronqué (`tail -60`) et ne porte pas la fin de la suite :
+`AppWiringTests` 3, `Coran1441DownloadTests` 20, `DateKeysTests` 8 (dont **1
+ignoré**), `JSONValueTests` 11, `MarginAnnotationsTests` 27, `OfflineMergeTests`
+18, `ProgramTests` 14, `QuranEditionTests` 10, `ReviewTests` 30, `VerseBoundsTests`
+26, `VerseMarkersTests` 12 — la ligne du paquet le confirme indépendamment
+(`SwiftdeepseekTests.xctest` : `179 tests, 1 ignoré, 0 échec`). Deux des tests
+d'`AppWiringTests` sont **ignorés** tant que les secrets `SUPABASE_URL` et
 `SUPABASE_ANON_KEY` ne sont pas posés sur le dépôt : ils vérifient la
 configuration, qui est alors absente. Ils s'activent d'eux-mêmes — mesuré, run
 #31 : `AppWiringTests` passe de « 3 tests, 2 ignorés » à « 3 tests, 0 ignoré ».
@@ -626,6 +638,50 @@ l'attraper : il n'y a pas de compilateur Swift sur la machine de rédaction, et
 distant est donc la seule barrière — et c'est pourquoi relire ligne à ligne avant
 de pousser n'est pas un luxe, mais le seul filtre disponible.
 
+### L'échec #34 : trois nombres écrits de mémoire, et le canal qui les cache
+
+Le run #34 (`d5bc987`) a échoué sur l'étape des **tests**, avec **trois** tests
+rouges — tous dans `Tests/MarginAnnotationsTests.swift`, **aucun** dans le code de
+production. Les trois portaient le même défaut, et c'est le seul qui compte ici :
+**un nombre écrit de mémoire au lieu d'être mesuré.**
+
+```
+error: testTheRegionsAreFractionsOfTheSourcePage : XCTAssertEqual failed: ("10") is not equal to ("7")
+error: testTheDiameterIsClampedBetweenEightAndTwentyFour : XCTAssertEqualWithAccuracy failed: ("16.4") is not equal to ("20.0")
+error: testALabelThatWrapsGrowsTheMarkerDownwards : XCTAssertEqualWithAccuracy failed: ("32.0") is not equal to ("17.45")
+```
+
+1. **Sept régions au lieu de dix.** J'avais écrit le nombre de **versets** de la
+   Fâtiha — sept — là où le fichier de rectangles en décrit **dix** : les versets 6
+   et 7 sont à cheval sur deux lignes, donc chacun y figure deux fois. Le nombre de
+   **pastilles** est celui des groupes, cinq. Trois nombres distincts pour la même
+   page, et je les avais confondus.
+2. **Un diamètre de 20 au lieu de 16,4.** Le banc portait un cas « milieu » avec
+   `x = 0.01`, d'où `edge = 24` ; le test, lui, utilise `x = 0.001`, d'où
+   `edge = 20,4` et un diamètre de `16,4`. J'avais recopié le nombre d'un cas
+   **approchant**, pas du cas joué. L'assertion voisine — `minX == 2` — passait
+   déjà, et elle le disait : `2 + 16,4 + 2 = 20,4`.
+3. **Une assertion qui se comparait à elle-même.** Le test du libellé replié
+   passait une mesure constante de `30` pour **tous** les libellés, puis vérifiait
+   que « les autres pastilles ne sont pas touchées ». Elles l'étaient toutes, donc
+   la comparaison portait sur deux grandeurs identiques : elle ne pouvait pas
+   échouer. La mesure ne se replie plus que pour le libellé `3·4`, et la boucle
+   compare désormais des pastilles réellement distinctes.
+
+**Le canal a caché la répétition.** La première lecture a été faite sur les
+**annotations** du contrôle, qui n'en rendaient qu'**une** — `("10") is not equal
+to ("7")`. Le test portait en réalité **deux** fois cette assertion, pour le 1441
+et pour le Médine, et les deux lignes d'erreur étaient **textuellement
+identiques** : mon `sort -u` les avait fusionnées. Le journal complet, lui, donne
+les trois échecs. Lire les annotations ne suffit donc pas — il faut le journal.
+
+**La réparation est dans le banc, pas seulement dans le test.**
+`_banc/oracle-margin.mjs` mesurait des cas **approchants** de ceux du test ; il
+mesure désormais les cas **exacts**, y compris les trois bornes du diamètre, et il
+les **vérifie** au lieu de les imprimer : neuf comparaisons, zéro écart. Le
+fichier de tests porte cette mesure dans son en-tête, pour que le prochain nombre
+ajouté ait un endroit d'où venir. Run #35 (`d33ee11`) : vert, 179 tests, 1 ignoré.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a
@@ -748,9 +804,7 @@ de pousser n'est pas un luxe, mais le seul filtre disponible.
    **`tajweed` est le meilleur rapport effort/résultat** : ses données sont déjà
    embarquées, et il reste à écrire le rendu du texte coloré. Ni l'une ni l'autre
    ne demande de copier les 185 Mo que la version précédente annonçait.
-5. **Repères de progression de séance dans la marge** (`marginAnnotations`,
-   `MushafPage.tsx:53`) — dépend du suivi de séance (`sessionThrough`), non porté.
-6. Assistant d'objectif hebdomadaire, écran d'apparence, messagerie, groupes,
+5. Assistant d'objectif hebdomadaire, écran d'apparence, messagerie, groupes,
    quiz, notifications, récitations, mini-lecteur.
 
 *Déjà faites depuis la rédaction de la première version de ce rapport, et donc
