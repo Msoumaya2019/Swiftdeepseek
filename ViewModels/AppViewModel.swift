@@ -15,6 +15,16 @@ public final class AppViewModel: ObservableObject {
     @Published public var selectedTab: MainTab = .home
     @Published public var notice: String?
 
+    /// Les réglages de répétition audio — **locaux**, et jamais dans `user_state`
+    /// (`LOCAL_DATA_MIGRATION.md` §4 a)).
+    ///
+    /// Ils vivent ici, et non dans la vue, pour une raison précise :
+    /// `LocalStore` savait lire et écrire `audio-repeat-preferences.json` depuis
+    /// le début, mais **personne ne l'appelait** — les réglages n'étaient donc
+    /// persistés nulle part, et l'écran `AudioRepeatSettingsView` n'avait rien à
+    /// lire. Le modèle est désormais le seul écrivain.
+    @Published public private(set) var repeatPreferences: AudioRepeatPreferences
+
     public let auth: AuthService
     public let repository: AppStateRepository
     public let sync: StateSyncService
@@ -48,6 +58,10 @@ public final class AppViewModel: ObservableObject {
         self.social = SocialService(client: client)
         self.coran1441 = Coran1441DownloadService()
         self.state = repository.state
+        // Lu **au démarrage**, pas à l'ouverture de l'écran : un réglage absent,
+        // illisible ou d'une forme inattendue rend les valeurs par défaut, jamais
+        // une erreur — l'application doit s'ouvrir hors ligne.
+        self.repeatPreferences = store.loadAudioPreferences()
 
         // Les vues observent ce modèle ; on répercute les changements du dépôt.
         repository.$state
@@ -205,6 +219,36 @@ public final class AppViewModel: ObservableObject {
             next.audioPreferences = AudioPreferences(reciterId: reciter.id)
             return next
         }
+    }
+
+    // MARK: Réglages de répétition audio (locaux)
+
+    /// Enregistre les réglages de répétition et les écrit sur disque.
+    ///
+    /// L'original écrit **à chaque changement**, une fois les préférences lues
+    /// (`PassageAudioPlayer.tsx:184`). Le fichier reste local : il n'est pas dans
+    /// `user_state`, donc les deux applications ne partagent pas ces réglages.
+    public func setRepeatPreferences(_ updated: AudioRepeatPreferences) {
+        guard updated != repeatPreferences else { return }
+        repeatPreferences = updated
+        try? store.saveAudioPreferences(updated)
+    }
+
+    /// Lance la lecture d'un passage.
+    ///
+    /// L'ordre est celui de `PassageAudioPlayer.tsx:176` : la plage est résolue
+    /// **avant** le refus du compte — une plage invalide se plaint donc de la
+    /// plage, même quand le compte est refusé lui aussi. Rend le message d'échec,
+    /// ou `nil` quand la lecture a commencé.
+    ///
+    /// Ce qui reste : la **boucle**. `Core/PassageAudioEngine.swift` décide des
+    /// transitions, mais rien ne les exécute encore — la couche AVFoundation n'est
+    /// pas branchée. Ce point démarre donc le **premier** verset de la plage.
+    public func launchAudioPassage(_ requested: VerseRange) throws -> String? {
+        let range = try PassageAudio.range(start: requested.start, end: requested.end)
+        if let refusal = repeatPreferences.launchError { return refusal.message }
+        audio.play(verseID: range.start)
+        return nil
     }
 
     // MARK: Indicateurs pour les vues

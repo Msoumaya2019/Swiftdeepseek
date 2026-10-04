@@ -31,6 +31,7 @@ public struct ReaderView: View {
 
     @State private var page: Int
     @State private var showAudio = false
+    @State private var showAudioSettings = false
     @State private var showEditionPicker = false
     @State private var chromeHeight: CGFloat = 0
 
@@ -82,6 +83,18 @@ public struct ReaderView: View {
         .ignoresSafeArea(edges: .bottom)
         .onDisappear { model.recordReading(page: page) }
         .sheet(isPresented: $showEditionPicker) { editionPicker }
+        .sheet(isPresented: $showAudioSettings) {
+            AudioRepeatSettingsView(sessionRange: audioSessionRange, page: page)
+        }
+    }
+
+    /// La plage que l'écran de réglages appelle « Ma séance ».
+    ///
+    /// C'est celle de la demande quand elle existe — une séance du programme ou
+    /// une tâche de révision —, sinon la page affichée. Jamais une plage vide :
+    /// l'écran doit toujours avoir quelque chose à lancer.
+    private var audioSessionRange: VerseRange {
+        request.range ?? Quran.pageRange(page) ?? VerseRange(start: 1, end: 1)
     }
 
     // MARK: Barre de titre
@@ -392,6 +405,14 @@ public struct ReaderView: View {
                     .font(.system(size: 16))
             }
             .accessibilityLabel("Changer de récitateur")
+
+            Button {
+                showAudioSettings = true
+            } label: {
+                Image(systemName: "slider.horizontal.3")
+                    .font(.system(size: 16))
+            }
+            .accessibilityLabel("Réglages de répétition")
         }
         .foregroundStyle(model.palette.green)
         .padding(.horizontal, Theme.Spacing.lg)
