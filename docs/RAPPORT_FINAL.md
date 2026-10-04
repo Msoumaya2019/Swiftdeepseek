@@ -13,7 +13,7 @@ Date : 4 octobre 2026.
 | Visibilité | **publique** (nécessaire : les exécuteurs macOS sont facturés sur un dépôt privé) |
 | Branche par défaut | `main` |
 | Taille | 116 710 Ko (mesurée par l'API GitHub) |
-| Commits | 20 |
+| Commits | 20 au commit `aa90394`, dernier run vert de code (#20). Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
 | Fichiers suivis | 682 — dont **43 fichiers Swift** et **110 tests** déclarés |
 | Dépôt indépendant | oui — ni fourche, ni branche, ni sous-dossier, ni sous-module du dépôt de référence |
 
@@ -291,6 +291,11 @@ licences incertaines. Vérifié : **aucun code Swift ne référence** `medallion
 | **#18** | `a89cf04` | **success** — documentation seule | — |
 | **#19** | `a23ba05` | **échec** — une assertion de test trop forte | — |
 | **#20** | `aa90394` | **success** | — |
+| **#21** | `0e4a19f` | **success** — documentation seule | 4 min 56 s |
+
+Le tableau s'arrête ici : un run déclenché par une modification de ce seul rapport
+ajouterait une ligne, et la ligne suivante ajouterait la suivante. Les runs
+ultérieurs ne sont donc pas consignés.
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
