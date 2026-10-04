@@ -82,6 +82,27 @@ public actor QuranSourceService {
 
     public static let totalPages = 604
 
+    /// Nom du dossier où sont installées les 9 060 bandes du Coran 1441, sous le
+    /// dossier de téléchargement.
+    ///
+    /// Une seule définition, parce que trois endroits s'accordent sur ce nom :
+    /// le lecteur pour trouver une image (`imageURLs`), le compte des pages
+    /// installées (`downloadedPageCount`), et l'installeur pour écrire. Deux
+    /// littéraux qui doivent coïncider finissent par diverger — et la divergence
+    /// serait **silencieuse** : l'installeur écrirait dans un dossier, le lecteur
+    /// chercherait dans un autre, et l'écran resterait vide alors que le
+    /// téléchargement aurait réussi.
+    public static let coran1441FolderName = "coran_1441"
+
+    /// L'archive publiée des pages du Coran 1441 — même adresse que celle
+    /// qu'utilise l'application React Native (`src/services/quranDownload.ts:5`).
+    ///
+    /// Constante statique : elle ne dépend d'aucun état, et la lire ne doit pas
+    /// exiger de construire le service.
+    public static let coran1441ArchiveURL = URL(
+        string: "https://files.quran.app/hafs/madani_1441/zips/images_1440.zip"
+    )
+
     private let fileManager = FileManager.default
     private let downloadDirectory: URL
     /// Nombre de pages gardées en mémoire. Volontairement petit : le lecteur
@@ -133,7 +154,7 @@ public actor QuranSourceService {
         case .coran1441:
             // Le Coran 1441 est découpé en 15 lignes par page : « 001-01.png ».
             let directory = downloadDirectory
-                .appendingPathComponent("coran_1441", isDirectory: true)
+                .appendingPathComponent(Self.coran1441FolderName, isDirectory: true)
             return (0..<VerseBounds.linesPerPage).compactMap { index in
                 let candidate = directory.appendingPathComponent(
                     String(format: "%03d-%02d.png", page, index + 1)
@@ -162,7 +183,7 @@ public actor QuranSourceService {
 
     /// Nombre de pages téléchargées pour le Coran 1441.
     public func downloadedPageCount() -> Int {
-        let directory = downloadDirectory.appendingPathComponent("coran_1441", isDirectory: true)
+        let directory = downloadDirectory.appendingPathComponent(Self.coran1441FolderName, isDirectory: true)
         guard let files = try? fileManager.contentsOfDirectory(atPath: directory.path) else { return 0 }
         let pages = Set(files.compactMap { name -> Int? in
             guard let prefix = name.split(separator: "-").first else { return nil }
@@ -171,11 +192,10 @@ public actor QuranSourceService {
         return pages.count
     }
 
-    /// Pages du Coran 1441 : archive publiée par la même source que celle
-    /// utilisée par l'application React Native (`src/services/quranDownload.ts:5`).
-    public nonisolated var coran1441ArchiveURL: URL? {
-        URL(string: "https://files.quran.app/hafs/madani_1441/zips/images_1440.zip")
-    }
-
+    /// Le dossier de téléchargement, où l'installeur écrit le Coran 1441.
+    ///
+    /// `cacheDirectory()` existait déjà ; c'est la forme asynchrone qui donne
+    /// accès au dossier depuis l'extérieur de l'acteur, sans ajouter une seconde
+    /// définition du chemin.
     public func cacheDirectory() -> URL { downloadDirectory }
 }

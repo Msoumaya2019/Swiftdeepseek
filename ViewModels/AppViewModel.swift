@@ -22,6 +22,7 @@ public final class AppViewModel: ObservableObject {
     public let audio: AudioService
     public let sources: QuranSourceService
     public let social: SocialService
+    public let coran1441: Coran1441DownloadService
 
     private let store: LocalStore
     private let client: SupabaseRESTClient
@@ -45,6 +46,7 @@ public final class AppViewModel: ObservableObject {
         self.audio = AudioService()
         self.sources = QuranSourceService()
         self.social = SocialService(client: client)
+        self.coran1441 = Coran1441DownloadService()
         self.state = repository.state
 
         // Les vues observent ce modèle ; on répercute les changements du dépôt.
@@ -59,7 +61,16 @@ public final class AppViewModel: ObservableObject {
         // la mise en évidence du verset en cours de récitation ne suivrait pas,
         // et une bannière « hors ligne » n'apparaîtrait jamais. Le défaut est
         // silencieux — la vue s'affiche, simplement elle ne se met plus à jour.
-        for publisher in [audio.objectWillChange, sync.objectWillChange, connectivity.objectWillChange] {
+        //
+        // `coran1441` est dans la liste pour la même raison : sans lui, la barre
+        // de progression du téléchargement resterait à zéro du début à la fin,
+        // alors que l'installation avancerait réellement.
+        for publisher in [
+            audio.objectWillChange,
+            sync.objectWillChange,
+            connectivity.objectWillChange,
+            coran1441.objectWillChange
+        ] {
             publisher
                 .sink { [weak self] _ in self?.objectWillChange.send() }
                 .store(in: &cancellables)

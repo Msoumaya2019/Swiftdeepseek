@@ -215,7 +215,7 @@ final class MushafPageViewController: UIViewController {
         guard !imageURLs.isEmpty else {
             showPlaceholder(
                 banded
-                    ? "Le téléchargement du Coran 1441 n'est pas encore implémenté. Le Coran de Médine reste lisible hors ligne."
+                    ? "Le Coran 1441 n'est pas encore installé. Ouvre l'onglet Coran pour le télécharger — le Coran de Médine, lui, reste lisible hors ligne."
                     : "Cette page n'est pas encore disponible hors ligne."
             )
             return
