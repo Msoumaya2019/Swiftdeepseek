@@ -21,9 +21,11 @@
 //   L'application actuelle répartit ses réglages sur deux pages — « Profil »
 //   (prénom, compte, récitations, connaissances, objectif) et « Réglages »
 //   (apparence, affichage du Coran, notifications, remise à zéro, sources).
-//   Cet écran ne porte que ce qui a été porté : connaissances, objectif et
-//   rythme, remise à zéro de l'apprentissage. Les autres cartes viendront
-//   avec leurs écrans respectifs ; il n'y a pas de bouton mort ici.
+//   Cet écran porte les connaissances, l'objectif et le rythme, l'apparence, et
+//   la remise à zéro de l'apprentissage. Restent l'affichage du Coran, les
+//   notifications, les sources et le compte : ils viendront avec leurs écrans
+//   respectifs. Il n'y a pas de bouton mort ici — chaque ligne ouvre quelque
+//   chose qui existe.
 
 import SwiftUI
 
@@ -35,6 +37,7 @@ struct SettingsView: View {
 
     @State private var showKnowledge = false
     @State private var showProgram = false
+    @State private var showAppearance = false
     @State private var confirmReset = false
 
     var body: some View {
@@ -58,6 +61,15 @@ struct SettingsView: View {
                     ) { showProgram = true }
                 }
 
+                Section {
+                    settingsRow(
+                        title: "Apparence",
+                        detail: AppearanceOptions.cardDetail(for: model.state.theme),
+                        action: "Choisir mon apparence",
+                        symbol: "paintpalette"
+                    ) { showAppearance = true }
+                }
+
                 Section("Tout remettre à 0") {
                     Text(Program.resetProgressDetail)
                         .font(.system(size: Theme.Typography.secondary))
@@ -79,6 +91,7 @@ struct SettingsView: View {
             }
             .sheet(isPresented: $showKnowledge) { KnowledgeEditorView() }
             .sheet(isPresented: $showProgram) { ProgramEditorView(state: model.state) }
+            .sheet(isPresented: $showAppearance) { AppearanceView() }
             .confirmationDialog(
                 Program.resetProgressTitle,
                 isPresented: $confirmReset,

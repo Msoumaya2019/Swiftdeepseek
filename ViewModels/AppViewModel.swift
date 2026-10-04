@@ -227,6 +227,38 @@ public final class AppViewModel: ObservableObject {
         }
     }
 
+    // MARK: Apparence (thème et couleur d'accent)
+
+    /// Le thème choisi — `update(touch({...state, theme}))`,
+    /// `src/ui/AppearanceScreen.tsx:6`.
+    ///
+    /// Aucune validation en amont, et c'est délibéré : `Theme.palette(named:)`
+    /// et `AppearanceOptions` replient déjà un thème inconnu sur « white ».
+    /// Refuser la valeur ici priverait le sous-titre de la ligne « Apparence »
+    /// de son cas « aucun nom », qui est celui de l'original — une version plus
+    /// ancienne peut avoir stocké une clé que celle-ci ne connaît plus.
+    public func setTheme(_ theme: String) {
+        update { state in
+            var next = state
+            next.theme = theme
+            return Program.touch(next)
+        }
+    }
+
+    /// L'accent choisi — `update(touch({...state, accent}))`.
+    ///
+    /// L'accent **stocké** décide du rond coché
+    /// (`AppearanceOptions.displayedAccent`) ; la palette suit une règle
+    /// voisine mais distincte, portée par `palette` plus bas : elle n'applique
+    /// l'accent que s'il est donné ou si le thème est blanc.
+    public func setAccent(_ accent: String) {
+        update { state in
+            var next = state
+            next.accent = accent
+            return Program.touch(next)
+        }
+    }
+
     public func selectReciter(_ reciter: Reciter) {
         audio.select(reciter: reciter)
         update { state in

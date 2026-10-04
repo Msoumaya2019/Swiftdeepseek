@@ -98,16 +98,33 @@ public enum Theme {
 
     public struct Accent: Equatable, Sendable {
         public var label: String
+        /// La pastille du sélecteur — `swatch`, `src/theme/tokens.ts:6-9`.
+        ///
+        /// Elle n'est PAS `primary` : trois des quatre accents portent une
+        /// pastille plus claire que leur couleur appliquée (rose `#D9899A` pour
+        /// un `primary` `#A95069`, vert `#6E8B68` pour `#54734E`, doré
+        /// `#C89A52` pour `#916825`). Le rond affiché serait donc faux pour
+        /// trois accents sur quatre si l'on confondait les deux.
+        public var swatch: Color
         public var primary: Color
         public var soft: Color
     }
 
     public static let accents: [String: Accent] = [
-        "prune": Accent(label: "Prune", primary: hex(0x7B285C), soft: hex(0xF5EDF2)),
-        "rose": Accent(label: "Rose", primary: hex(0xA95069), soft: hex(0xFCF0F3)),
-        "green": Accent(label: "Vert", primary: hex(0x54734E), soft: hex(0xEDF5EA)),
-        "gold": Accent(label: "Doré", primary: hex(0x916825), soft: hex(0xFBF4E8))
+        "prune": Accent(label: "Prune", swatch: hex(0x7B285C), primary: hex(0x7B285C), soft: hex(0xF5EDF2)),
+        "rose": Accent(label: "Rose", swatch: hex(0xD9899A), primary: hex(0xA95069), soft: hex(0xFCF0F3)),
+        "green": Accent(label: "Vert", swatch: hex(0x6E8B68), primary: hex(0x54734E), soft: hex(0xEDF5EA)),
+        "gold": Accent(label: "Doré", swatch: hex(0xC89A52), primary: hex(0x916825), soft: hex(0xFBF4E8))
     ]
+
+    /// L'ordre des accents — celui d'insertion de l'objet `accents`
+    /// (`src/theme/tokens.ts:5-10`), que `AccentSelector` parcourt par
+    /// `Object.keys` (`DesignSystem.tsx:18`).
+    ///
+    /// Un dictionnaire Swift n'a **aucun** ordre : sans cette liste, le
+    /// sélecteur afficherait les quatre pastilles dans un ordre arbitraire, et
+    /// donc pas celui de l'application actuelle.
+    public static let accentOrder: [String] = ["prune", "rose", "green", "gold"]
 
     // MARK: Métriques (src/theme/tokens.ts:1-3)
 
