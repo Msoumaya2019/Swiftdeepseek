@@ -13,8 +13,8 @@ Date : 4 octobre 2026.
 | Visibilité | **publique** (nécessaire : les exécuteurs macOS sont facturés sur un dépôt privé) |
 | Branche par défaut | `main` |
 | Taille | 117 138 Ko (mesurée par l'API GitHub) |
-| Commits | 47 au commit `ba1c091`, celui qui porte l'écran des réglages de répétition et le banc qui vérifie que cette vue ne décide de rien. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
-| Fichiers suivis | 700 — dont **61 fichiers Swift** et **253 tests** déclarés |
+| Commits | 51 au commit `76d57a5`, celui qui porte les réglages (« modifier son programme et ses connaissances ») et le correctif de compilation du run #49. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
+| Fichiers suivis | 707 — dont **68 fichiers Swift** et **286 tests** déclarés |
 | Dépôt indépendant | oui — ni fourche, ni branche, ni sous-dossier, ni sous-module du dépôt de référence |
 
 ## 2. Dépôt de référence — intact, et aucun commit
@@ -382,6 +382,10 @@ référence** `medallion.png`,
 | **#44** | `82674fd` | **success** — la machine d'état de la boucle de répétition (`SWIFT_MIGRATION.md` §9.15) ; **253 tests, 1 ignoré, 0 échec** ; IPA de 120 363 268 octets | 8 min 0 s |
 | **#45** | `d383010` | **échec** — **une seule** erreur de compilation : `LocalStore` est un **acteur**, donc sa lecture ne peut pas se faire dans un `init` (voir ci-dessous) | 1 min 32 s |
 | **#46** | `ba1c091` | **success** — l'écran des réglages de répétition et le banc qui vérifie que cette vue ne décide de rien (`SWIFT_MIGRATION.md` §9.16) ; **253 tests, 1 ignoré, 0 échec** ; IPA de 120 399 682 octets | 7 min 58 s |
+| **#47** | `3049696` | **success** — documentation seule ; c'est le run #46 qui porte l'écran des réglages de répétition | 5 min 43 s |
+| **#48** | `eaca778` | **success** — la boucle de répétition branchée sur AVFoundation (`SWIFT_MIGRATION.md` §9.17) | 5 min 35 s |
+| **#49** | `f34737d` | **échec** — **deux** erreurs de compilation, toutes deux dans `ProgramEditorView.swift` : une seule fermeture `(Division) -> Bool` y servait à interroger `Quran.surahs`, qui est un tableau de `Surah` (voir ci-dessous) | 55 s |
+| **#50** | `76d57a5` | **success** — les réglages : modifier son programme et ses connaissances (`SWIFT_MIGRATION.md` §9.18) ; **286 tests, 1 ignoré, 0 échec** ; IPA de 120 511 485 octets | 6 min 45 s |
 
 Le tableau ne s'étend pas pour un run dont la seule cause est une modification de
 ce rapport : il s'étend quand un run **porte un fait**. Les runs #22 à #25 en
@@ -401,7 +405,11 @@ cours, et c'est le prix d'un correctif poussé trop tôt — le n° 44 l'a rempl
 #44 porte la **machine d'état de la boucle de répétition** et ses **vingt-cinq**
 tests ; #45 porte **une seule erreur de compilation**, et cette erreur vaut d'être
 racontée ; #46 porte l'**écran des réglages** et le banc qui vérifie qu'il ne
-décide de rien.
+décide de rien ; #47 ne porte rien, et c'est dit ; #48 branche la boucle de
+répétition sur AVFoundation ; #49 porte **deux** erreurs de compilation, et
+celles-là aussi valent d'être racontées — elles disent la **limite** des bancs ;
+#50 porte les **réglages du programme et des connaissances**, et c'est le premier
+run où la cible de tests compile **et** s'exécute avec le nouveau groupe.
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
@@ -410,16 +418,16 @@ artefact de 120 263 470 octets**. La taille est le second témoin : elle prouve 
 les 604 pages sont réellement dans le paquet, et pas seulement que le fichier a
 été créé.
 
-Les **253 tests** de la cible de tests sont joués à chaque run, répartis sur
-**quatorze groupes**. Le compte est lu sur l'**artefact** du run #46 — et non sur
+Les **286 tests** de la cible de tests sont joués à chaque run, répartis sur
+**quinze groupes**. Le compte est lu sur l'**artefact** du run #50 — et non sur
 le journal du flux, qui est tronqué (`tail -60`) et ne porte pas la fin de la
 suite : `AppWiringTests` 3, `AudioRepeatPreferencesTests` 27,
 `Coran1441DownloadTests` 20, `DateKeysTests` 8 (dont **1 ignoré**),
 `JSONValueTests` 11, `MarginAnnotationsTests` 27, `OfflineMergeTests` 18,
-`PassageAudioEngineTests` 25, `PassageAudioTests` 22, `ProgramTests` 14,
-`QuranEditionTests` 10, `ReviewTests` 30, `VerseBoundsTests` 26,
-`VerseMarkersTests` 12 — la ligne du paquet le confirme indépendamment
-(`SwiftdeepseekTests.xctest` : `253 tests, 1 ignoré, 0 échec`). Le seul test
+`PassageAudioEngineTests` 25, `PassageAudioTests` 22, `ProgramGoalTests` 33,
+`ProgramTests` 14, `QuranEditionTests` 10, `ReviewTests` 30, `VerseBoundsTests`
+26, `VerseMarkersTests` 12 — la ligne du paquet le confirme indépendamment
+(`SwiftdeepseekTests.xctest` : `286 tests, 1 ignoré, 0 échec`). Le seul test
 ignoré est celui de la traversée du changement d'heure, qui n'a rien à éprouver
 dans un fuseau sans heure d'été. Deux des tests d'`AppWiringTests` étaient
 **ignorés** tant que les secrets `SUPABASE_URL` et `SUPABASE_ANON_KEY` n'étaient
@@ -757,6 +765,41 @@ elle est appelée. Le banc exige désormais l'`await` des deux côtés **et** l'
 du magasin, et le falsificateur rejoue le retrait du `await` des deux côtés. Il n'y
 a pas de compilateur Swift sur la machine de rédaction : c'est le run qui trouve
 cette classe de défaut, et c'est sa fonction.
+
+### L'échec #49 : deux types distincts, et un banc qui ne peut pas le voir
+
+Le run #49 (`f34737d`) a échoué en **55 s**, sur la première étape de compilation,
+avec **deux** erreurs — toutes deux au même endroit :
+
+```
+Features/Settings/ProgramEditorView.swift:375:41: error: cannot convert value of
+type '(Division) -> Bool' to expected argument type '(Surah) throws -> Bool'
+Features/Settings/ProgramEditorView.swift:393:41: error: cannot call value of
+non-function type 'Surah?'
+```
+
+`initialUnit(for:)` et `initialIndex(for:)` partageaient **une seule** fermeture,
+`let matches: (Division) -> Bool`, pour interroger trois tables : `Quran.juzs` et
+`Quran.hizbs` — qui sont des `[Division]` —, puis `Quran.surahs`, qui est un
+`[Surah]`. Or `Surah` et `Division` sont deux structures **distinctes**
+(`Core/Quran.swift:18` et `:29`), toutes deux porteuses de `start` et `end`, ce
+qui les rend interchangeables à la lecture et **incompatibles** au compilateur.
+Chaque table a désormais sa fermeture, typée sur son propre élément.
+
+Ce que ce run dit de la méthode, et c'est plus grave que le défaut lui-même :
+**les bancs ne pouvaient pas le voir, par construction.** `_banc/verifier-reglages.mjs`
+lisait `Quran.surahs` et la fermeture, chacun de son côté, et les trouvait tous
+les deux — sans jamais pouvoir dire qu'ils ne vont pas ensemble. Un contrôle qui
+vérifie la **présence** de deux choses ne dit rien de leur **compatibilité de
+type**. Et la cible de tests n'a pas aidé non plus : l'étape du run qui compile
+l'application (`xcodebuild build`) ne compile **pas** la cible de tests — le run
+#50 est donc le premier où `ProgramGoalTests.swift` est compilé, et il le confirme
+vert.
+
+La règle qui en sort, et qui complète celle de `SWIFT_MIGRATION.md` §9.18 :
+**un banc vert ne prouve pas que le Swift compile.** Les bancs lisent le flux, les
+textes et les noms ; la compilation est la seule à connaître les types. Sur une
+machine sans compilateur Swift, c'est le run — et lui seul.
 
 ## 13. Problèmes rencontrés
 

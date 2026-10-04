@@ -150,19 +150,21 @@ Trois pièges, mesurés :
 
 ### État mesuré
 
-Run de référence — celui qui porte l'écran des réglages de répétition et le banc
-qui vérifie que cette vue ne décide de rien : **#46** (`ba1c091`), **7 min 58 s**,
-les **16 étapes en `success`** et **une annotation** — le message de file
-d'attente macOS, qui va et vient d'un run à l'autre. L'IPA pèse **120 399 682
-octets** — les 604 pages sont donc bien embarquées. Le numéro est **ancré sur un
-commit**, et non « le dernier » : une poussée de documentation ajoute un run, si
-bien qu'une formule au superlatif serait périmée dès son écriture.
+Run de référence — celui qui porte les réglages (« modifier son programme et ses
+connaissances ») : **#50** (`76d57a5`), **6 min 45 s**, les **16 étapes en
+`success`** et **une annotation** — le message de file d'attente macOS, qui va et
+vient d'un run à l'autre. L'IPA pèse **120 511 485 octets** — les 604 pages sont
+donc bien embarquées. Le numéro est **ancré sur un commit**, et non « le
+dernier » : une poussée de documentation ajoute un run, si bien qu'une formule au
+superlatif serait périmée dès son écriture.
 
-**253 tests** sont exécutés à chaque run, répartis sur **quatorze groupes**, et
+**286 tests** sont exécutés à chaque run, répartis sur **quinze groupes**, et
 **un seul** est ignoré : celui de la traversée du changement d'heure, qui n'a
-rien à éprouver dans un fuseau sans heure d'été.
+rien à éprouver dans un fuseau sans heure d'été. Le groupe **`ProgramGoalTests`**
+en porte **33** à lui seul — les six objectifs préréglés, leurs bornes, le
+filtrage, la validation et la remise à zéro.
 
-Deux runs voisins disent ce que ce chiffre ne dit pas. **#39** (`6f502a3`) a
+Plusieurs runs voisins disent ce que ce chiffre ne dit pas. **#39** (`6f502a3`) a
 échoué à la compilation : quatre références à un membre statique depuis un
 contexte d'instance, qu'il fallait qualifier de `Self.`. **#40** (`6c3a7b0`) a
 compilé puis rendu **deux échecs** — non dans le portage, mais dans le fichier de
@@ -175,7 +177,15 @@ compilation — « call to actor-isolated instance method … in a synchronous m
 actor-isolated context » : `LocalStore` est un **acteur**, donc sa lecture ne peut
 pas se faire dans un `init`, qui ne peut pas `await`. Le défaut tenait dans un mot
 — le `await` —, et aucun banc ne le voyait ; il est corrigé par `ba1c091`, et le
-banc exige désormais l'`await` des deux côtés.
+banc exige désormais l'`await` des deux côtés. Et **#49** (`f34737d`) s'est arrêté
+en **55 s** sur **deux** erreurs de compilation, toutes deux dans
+`ProgramEditorView.swift` : une seule fermeture `(Division) -> Bool` y servait à
+interroger `Quran.surahs`, qui est un tableau de `Surah` — deux types
+**distincts**, tous deux porteurs de `start` et `end`. Le banc lisait bien
+`Quran.surahs` et la fermeture, chacun de son côté, sans pouvoir dire qu'ils ne
+vont pas ensemble ; et l'étape qui compile l'application ne compile pas la cible
+de tests. Un banc vert ne prouve donc pas que le Swift compile — seule la
+compilation le dit.
 
 Deux autres (`AppWiringTests`) ne s'exécutent que si la configuration Supabase est
 présente : ils vérifient que l'URL arrive **intacte** dans l'application — non

@@ -1136,6 +1136,25 @@ D'où deux garde-fous, tous deux éprouvés :
    est passé exactement par là. Une fois les fichiers neufs à l'index, une mutation
    restée en place se lit en `git diff` et se rend par `git checkout --`.
 
+**Ce que le run n° 49 a appris, et que les bancs ne pouvaient pas dire.** Poussé en
+`f34737d`, le bloc a été refusé en **55 s** par la compilation : **deux** erreurs dans
+`Features/Settings/ProgramEditorView.swift`, où **une seule** fermeture
+`(Division) -> Bool` servait à interroger `Quran.juzs`, `Quran.hizbs` **et**
+`Quran.surahs` — ce dernier étant un `[Surah]`. Or `Surah` (`Core/Quran.swift:18`) et
+`Division` (`:29`) sont deux structures **distinctes**, toutes deux porteuses de `start`
+et `end` : interchangeables à la lecture, **incompatibles** au compilateur.
+
+Les bancs trouvaient `Quran.surahs` et la fermeture, **chacun de son côté**, sans pouvoir
+dire qu'ils ne vont pas ensemble : un contrôle qui vérifie la **présence** de deux choses
+ne dit rien de leur **compatibilité de type**. Et l'étape du run qui compile
+l'application (`xcodebuild build`) ne compile **pas** la cible de tests — le run n° 50 est
+donc le premier où `ProgramGoalTests.swift` est compilé, et il le confirme vert :
+**286 tests, 1 ignoré, 0 échec**, sur **quinze groupes**, dont les **33** de
+`ProgramGoalTests`.
+
+Règle : **un banc vert ne prouve pas que le Swift compile.** Les bancs lisent le flux,
+les textes et les noms ; la compilation est seule à connaître les types.
+
 **Ce qui reste.** Les autres cartes des réglages : apparence, affichage du Coran,
 notifications, sources, profil et compte, et l'**entrée** de l'assistant (l'écran
 d'accueil qui demande le sexe et le prénom). Aucun bouton mort n'a été posé pour
