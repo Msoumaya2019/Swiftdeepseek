@@ -143,9 +143,9 @@ Deux pièges, mesurés :
 
 ### État mesuré
 
-Run de référence — celui qui porte le correctif de l'édition affichée — : **#31**
-(`18ab77e`), **5 min 31 s**, les **16 étapes en `success`**, un artefact
-`Swiftdeepseek-unsigned-ipa` de **120 316 560 octets** — les 604 pages sont donc
+Run de référence — celui qui porte les pastilles de numéro de verset du Coran 1441 :
+**#32** (`9b9dd27`), **4 min 33 s**, les **16 étapes en `success`**, un artefact
+`Swiftdeepseek-unsigned-ipa` de **120 323 680 octets** — les 604 pages sont donc
 bien embarquées. Le numéro est **ancré sur un commit**, et non « le dernier » : une
 poussée de documentation ajoute un run, si bien qu'une formule au superlatif serait
 périmée dès son écriture.

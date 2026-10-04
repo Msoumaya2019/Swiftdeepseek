@@ -13,7 +13,7 @@ Date : 4 octobre 2026.
 | Visibilité | **publique** (nécessaire : les exécuteurs macOS sont facturés sur un dépôt privé) |
 | Branche par défaut | `main` |
 | Taille | 116 825 Ko (mesurée par l'API GitHub) |
-| Commits | 31 au commit `18ab77e`, celui qui porte la correction de l'édition affichée. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
+| Commits | 32 au commit `9b9dd27`, celui qui porte les pastilles de numéro de verset du Coran 1441. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
 | Fichiers suivis | 690 — dont **51 fichiers Swift** et **152 tests** déclarés |
 | Dépôt indépendant | oui — ni fourche, ni branche, ni sous-dossier, ni sous-module du dépôt de référence |
 
@@ -345,7 +345,7 @@ référence** `medallion.png`,
 | **#29** | `16ee5ca` | **success** — 130 tests | — |
 | **#30** | `6d49506` | **échec** — `flatMap` résolu sur `Sequence`, non sur `Optional` (`SWIFT_MIGRATION.md` §9.10) | — |
 | **#31** | `18ab77e` | **success** — 140 tests, 1 ignoré, 0 échec ; IPA de 120 316 560 octets | 5 min 31 s |
-| **#32** | *(le commit qui suit `18ab77e`)* | porte les **pastilles de numéro de verset** (`SWIFT_MIGRATION.md` §9.11) ; verdict inconnu au moment de la rédaction | — |
+| **#32** | `9b9dd27` | **success** — les pastilles de numéro de verset (`SWIFT_MIGRATION.md` §9.11) ; **152 tests, 1 ignoré, 0 échec** ; IPA de 120 323 680 octets | 4 min 33 s |
 
 Le tableau ne s'étend pas pour un run dont la seule cause est une modification de
 ce rapport : il s'étend quand un run **porte un fait**. Les runs #22 à #25 en
