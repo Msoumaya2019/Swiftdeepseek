@@ -150,19 +150,25 @@ Trois pièges, mesurés :
 
 ### État mesuré
 
-Run de référence — celui qui porte les réglages (« modifier son programme et ses
-connaissances ») : **#50** (`76d57a5`), **6 min 45 s**, les **16 étapes en
-`success`** et **une annotation** — le message de file d'attente macOS, qui va et
-vient d'un run à l'autre. L'IPA pèse **120 511 485 octets** — les 604 pages sont
-donc bien embarquées. Le numéro est **ancré sur un commit**, et non « le
-dernier » : une poussée de documentation ajoute un run, si bien qu'une formule au
-superlatif serait périmée dès son écriture.
+Run de référence — celui qui porte l'**écran d'apparence** (le thème et la couleur
+d'accent) : **#52** (`085a7f4`), **6 min 1 s**, les **16 étapes en `success`** et
+**une annotation** — le message de file d'attente macOS, qui va et vient d'un run à
+l'autre. L'IPA pèse **120 542 217 octets** — les 604 pages sont donc bien
+embarquées. Le numéro est **ancré sur un commit**, et non « le dernier » : une
+poussée de documentation ajoute un run, si bien qu'une formule au superlatif serait
+périmée dès son écriture.
 
-**286 tests** sont exécutés à chaque run, répartis sur **quinze groupes**, et
-**un seul** est ignoré : celui de la traversée du changement d'heure, qui n'a
-rien à éprouver dans un fuseau sans heure d'été. Le groupe **`ProgramGoalTests`**
-en porte **33** à lui seul — les six objectifs préréglés, leurs bornes, le
-filtrage, la validation et la remise à zéro.
+**306 tests** sont déclarés, répartis sur **seize groupes**, et **un seul** est
+ignoré : celui de la traversée du changement d'heure, qui n'a rien à éprouver dans
+un fuseau sans heure d'été. Le groupe **`AppearanceTests`** en porte **20**, et
+**`ProgramGoalTests`** **33** à lui seul — les six objectifs préréglés, leurs bornes,
+le filtrage, la validation et la remise à zéro.
+
+Le compte du run n° 52 est **déduit**, pas lu sur l'artefact : celui-ci rend **401**
+sans jeton, et `gh` n'est plus authentifié dans la session de mesure. La déduction
+s'adosse à une **mesure** — le run n° 50 a mesuré **286** tests exécutés, exactement
+le nombre de méthodes déclarées par les quinze fichiers qui existaient alors. La
+correspondance « déclaré / exécuté » est donc établie, et non supposée.
 
 Plusieurs runs voisins disent ce que ce chiffre ne dit pas. **#39** (`6f502a3`) a
 échoué à la compilation : quatre références à un membre statique depuis un

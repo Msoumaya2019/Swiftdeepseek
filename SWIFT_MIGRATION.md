@@ -32,7 +32,7 @@
 | File d'attente hors ligne | ✅ | ✅ | — (locale) | `Storage/LocalStore.swift`, `Services/StateSyncService.swift` | Écritures atomiques (`.part`), cache exclu des sauvegardes iCloud. |
 | Détection du retour du réseau | ✅ | ✅ | — | `Services/ConnectivityService.swift` | `NWPathMonitor`. |
 | Thèmes (5) et accents (4) | ✅ | ✅ | `user_state.theme`, `.accent` | `Theme/Theme.swift` | Mêmes codes couleur que `src/theme/tokens.ts`. |
-| Écran de choix de l'apparence | ✅ | ⬜ | `user_state.theme`, `.accent` | — | Le thème s'applique, mais n'est pas encore modifiable depuis l'interface. |
+| Écran de choix de l'apparence | ✅ | ✅ | `user_state.theme`, `.accent` | `Core/AppearanceOptions.swift`, `Theme/Theme.swift`, `Features/Settings/AppearanceView.swift` | Le thème ET l'accent sont modifiables — §9.19. La section « Police de l'interface » de l'original n'est **pas** portée : elle écrirait un réglage que rien ne lit ici (voir §9.19). |
 
 ## 2. Navigation et accueil
 
@@ -1155,7 +1155,121 @@ donc le premier où `ProgramGoalTests.swift` est compilé, et il le confirme ver
 Règle : **un banc vert ne prouve pas que le Swift compile.** Les bancs lisent le flux,
 les textes et les noms ; la compilation est seule à connaître les types.
 
-**Ce qui reste.** Les autres cartes des réglages : apparence, affichage du Coran,
-notifications, sources, profil et compte, et l'**entrée** de l'assistant (l'écran
-d'accueil qui demande le sexe et le prénom). Aucun bouton mort n'a été posé pour
-autant : l'écran ne montre que ce qui fonctionne.
+**Ce qui reste.** L'apparence est portée depuis §9.19. Restent les autres cartes des
+réglages : affichage du Coran, notifications, sources, profil et compte, et l'**entrée** de
+l'assistant (l'écran d'accueil qui demande le sexe et le prénom). Aucun bouton mort n'a été
+posé pour autant : l'écran ne montre que ce qui fonctionne.
+
+## 9.19 L'apparence : quatre décisions qui ne doivent pas vivre dans la vue
+
+Le thème s'appliquait déjà — `AppViewModel.palette` reproduit `applyTheme` depuis le début.
+Ce qui manquait, c'est de pouvoir en **changer** : la première des lignes ⬜ de l'écran des
+réglages. Le travail n'est donc pas d'afficher une palette, mais de porter quatre décisions
+qui, écrites dans la vue, divergeraient en silence.
+
+**Première décision : l'ordre d'affichage n'est pas l'ordre de la table.** L'original écrit
+`[themeOptions[0], themeOptions[2], themeOptions[1]]` (`src/ui/DesignSystem.tsx:17`) — blanc,
+**rose**, **vert**. Le vert passe derrière le rose alors qu'il le précède dans
+`themeOptions`. Une recopie littérale « blanc, rose, vert » a une chance sur deux d'être
+juste, et rien en Swift ne le signale. Le banc ne compare donc pas la liste à elle-même : il
+lit les trois **indices** dans la référence, les applique à la table réellement lue, et
+compare le résultat. Il exige en outre que l'ordre affiché **diffère** de l'ordre de la table
+— sans quoi une recopie serait indiscernable d'une dérivation juste, et le contrôle ne
+prouverait rien.
+
+**Deuxième décision : la bascule des thèmes supplémentaires.** `useState(theme === 'lilac'
+|| theme === 'night')` : elle est ouverte **d'emblée** si le thème stocké est l'un des deux.
+Un `false` initial cacherait sa propre carte à un utilisateur de « Lilas & Perle ». Le
+portage garde donc l'absence de choix distincte du choix (`@State private var extrasChoice:
+Bool?`), et c'est le modèle qui dit ce que vaut l'absence.
+
+**Troisième décision : l'ordre des accents est une donnée.** `AccentSelector` parcourt
+`Object.keys(accents)` (`:18`), donc l'ordre d'insertion de `src/theme/tokens.ts:5-10` :
+prune, rose, vert, doré. Un dictionnaire Swift n'a **aucun** ordre. `Theme.accentOrder` le
+fixe, et le banc le compare à l'ordre d'insertion lu dans la référence.
+
+**Quatrième décision : l'accent AFFICHÉ n'est pas l'accent stocké.**
+`value={state.accent ?? accent}` (`AppearanceScreen.tsx:6`) : à défaut, l'accent se déduit du
+thème — `classic` → vert, `feminine` → rose, sinon prune.
+
+### Le champ qui manquait, et pourquoi il n'est pas cosmétique
+
+`Theme.Accent` n'avait que `label`, `primary` et `soft`. La référence en porte un quatrième :
+`swatch`. Ce n'est pas un ornement — c'est **la seule chose** qui distingue visuellement les
+quatre ronds du sélecteur. Et il n'est pas égal à `primary` :
+
+| Accent | `swatch` | `primary` |
+|---|---|---|
+| prune | `#7B285C` | `#7B285C` |
+| rose | `#D9899A` | `#A95069` |
+| vert | `#6E8B68` | `#54734E` |
+| doré | `#C89A52` | `#916825` |
+
+**Trois accents sur quatre.** Confondre les deux champs donnerait trois pastilles fausses, le
+code compilerait, et le test passerait si l'on ne vérifiait pas le **compte** exact des
+accents divergents. C'est ce compte (trois) que fixe `AppearanceTests`, avec la raison : un
+test qui passerait aussi bien si les deux champs coïncidaient partout ne prouverait rien.
+
+Corollaire mesuré, et contre-intuitif : `Theme.white.green` **est** le `primary` de « prune ».
+C'est pourquoi le thème blanc « fonctionne » sans accent — et pourquoi le thème vert, lui,
+coche l'accent « Vert » **sans** que sa palette soit réécrite : `applyTheme` n'applique
+l'accent que s'il est donné **ou** si le thème est blanc. Le rond coché et la couleur
+appliquée suivent deux règles voisines mais distinctes, et `AppearanceTests` fixe l'écart qui
+les sépare.
+
+### Le sous-titre, où deux caractères comptent
+
+La carte des réglages affiche `\(nom du thème) · couleur d’accent` (`src/App.tsx:329`). Le
+séparateur est un **point médian** (U+00B7) entouré d'espaces, et l'apostrophe de `d’accent`
+est **typographique** (U+2019). Deux caractères qu'on croit avoir tapés justes. Le contrôle
+compare donc la chaîne **entière**, et le test vérifie en plus qu'aucune apostrophe droite ni
+aucun tiret n'y figure.
+
+Le nom, lui, vient de `themeOptions.find(t => t.key === (state.theme ?? 'white'))?.name` : un
+thème **inconnu** rend `undefined`, donc **rien**. Le portage rend la chaîne vide et compose
+` · couleur d’accent` — un sous-titre amputé plutôt qu'un nom inventé. Ce n'est pas un cas
+d'école : une version plus ancienne peut avoir stocké une clé que celle-ci ne connaît plus.
+
+### Ce qui n'est pas porté, et pourquoi c'est dit
+
+**La section « Police de l'interface »** — trois choix (élégante, moderne, classique),
+`AppearanceScreen.tsx:6`. Le choix **écrit** bien `state.uiFont`, mais rien ici ne le lit :
+`src/theme/fonts.ts` branche `titleFont()` sur « Cormorant-Semibold » et `interfaceFont()` sur
+« Cormorant-Regular », deux polices livrées par `@expo-google-fonts` et **absentes** de ce
+dépôt. Afficher trois choix dont aucun ne change quoi que ce soit à l'écran serait un
+mensonge : l'utilisateur croirait l'application cassée. Cette section viendra avec les
+polices — **197** appels `.font(.system(` répartis sur **treize** fichiers, plus les fichiers
+de police à embarquer.
+
+**L'illustration des cartes de thème** — `themeArt`, cinq PNG de `assets/themes/`,
+**10 199 065** octets au total. Ces cinq images servent **aussi** l'en-tête de l'accueil
+(`IslamicHero`, `src/ui/Premium.tsx:13`) : elles seront portées **une seule fois**, avec le
+bloc des ressources. Le banc ne se contente pas de constater l'absence : il vérifie que
+l'écran n'invente **aucun substitut** — pas de bande de couleurs tirée de `swatches` (table
+déclarée mais **jamais rendue** dans l'original), aucun code couleur écrit en dur.
+
+### Vérification, et ce que le banc a appris sur lui-même
+
+`_banc/verifier-apparence.mjs` — **63** contrôles, 0 échec. `_banc/falsifier-apparence.mjs` —
+**25** cas, 0 non conforme, **24** mutations détectées, chaque fichier restauré **octet pour
+octet**. `Tests/AppearanceTests.swift` — **20** tests. `Theme` n'était testé **nulle part**
+avant ce bloc.
+
+Le falsificateur a servi **immédiatement**, et pas sur le code : sa première exécution a
+montré **huit** défauts dans le banc lui-même. Trois venaient de la même erreur, qui mérite
+d'être retenue :
+
+> `bodyOf(source, marqueur, fin)` **inclut** son marqueur. Pour une déclaration Swift comme
+> `accentOrder: [String] = ["prune", …]`, partir du marqueur `accentOrder: [String] = [`
+> fait rencontrer le premier `]` du **type** `[String]`, pas celui de la **liste**. Le corps
+> se réduisait à `accentOrder: [String`, qui ne contient aucune chaîne — et le banc annonçait
+> « le portage ne déclare rien » sur trois listes parfaitement présentes.
+
+Deux autres défauts du même genre : un motif qui exigeait `return` là où Swift l'omet
+(fonction à expression unique), et une ancre « aucune image » qui attrapait
+`Image(systemName:)` — la coche de sélection, qui n'a rien à voir avec l'illustration du
+thème.
+
+Règle : **un contrôle qui échoue accuse trois choses** — la source, l'ancre, ou lui-même.
+Les huit défauts étaient tous dans le contrôle.
+

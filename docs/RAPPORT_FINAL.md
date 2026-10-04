@@ -12,9 +12,9 @@ Date : 4 octobre 2026.
 | Nom | **`Swiftdeepseek`** — exactement, sans variante |
 | Visibilité | **publique** (nécessaire : les exécuteurs macOS sont facturés sur un dépôt privé) |
 | Branche par défaut | `main` |
-| Taille | 117 138 Ko (mesurée par l'API GitHub) |
-| Commits | 51 au commit `76d57a5`, celui qui porte les réglages (« modifier son programme et ses connaissances ») et le correctif de compilation du run #49. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
-| Fichiers suivis | 707 — dont **68 fichiers Swift** et **286 tests** déclarés |
+| Taille | 117 329 Ko (mesurée par l'API GitHub) |
+| Commits | 53 au commit `085a7f4`, celui qui porte l'**écran d'apparence** (le thème et la couleur d'accent) et le `swatch` qui manquait sur `Theme.Accent`. Ancré sur ce commit : un compteur de commits ne peut pas se citer lui-même, puisque le commit qui porte ce rapport en ajoute un. |
+| Fichiers suivis | 710 — dont **71 fichiers Swift** et **306 tests** déclarés |
 | Dépôt indépendant | oui — ni fourche, ni branche, ni sous-dossier, ni sous-module du dépôt de référence |
 
 ## 2. Dépôt de référence — intact, et aucun commit
@@ -56,17 +56,19 @@ La destination a été revérifiée **avant chaque poussée** de cette session.
 
 ## 4. Structure Swift créée
 
-Architecture MVVM, **68 fichiers Swift**, 707 fichiers suivis.
+Architecture MVVM, **71 fichiers Swift**, 710 fichiers suivis.
 
 ```
 App/            SwiftdeepseekApp, ContentView
 Core/           AppState, OfflineMerge, JSONValue, DateKeys, Program, ProgramGoal,
                 Review, Quran, WeeklyProgress, Bookmark, AppConfig,
                 VerseBounds, VerseMarkers, MarginAnnotations, PassageAudio,
-                AudioRepeatPreferences, PassageAudioEngine, ChapterAudioCache
+                AudioRepeatPreferences, PassageAudioEngine, ChapterAudioCache,
+                AppearanceOptions
 Features/       Home, Quran (QuranScreenView, AudioRepeatSettingsView + Reader/),
                 Program, Progress, Review, Friends, Navigation, Shared,
-                Settings (SettingsView, KnowledgeEditorView, ProgramEditorView)
+                Settings (SettingsView, KnowledgeEditorView, ProgramEditorView,
+                AppearanceView)
 Models/         ViewModels/
 Networking/     SupabaseRESTClient
 Repositories/   AppStateRepository
@@ -80,8 +82,12 @@ Config/         Base/Debug/Release.xcconfig, Secrets.xcconfig.example
 
 `Core/ProgramGoal.swift` porte la couche « objectif » de `src/core/program.ts` —
 objectifs préréglés, `validGoal`, `resetAllProgress`, niveaux de rythme —, qui
-manquait. `Features/Settings/` porte les trois écrans : les réglages, « Modifier mes
-connaissances » et « Modifier mon programme » (voir `SWIFT_MIGRATION.md` §9.18).
+manquait. `Core/AppearanceOptions.swift` porte les quatre décisions de l'apparence
+qui ne doivent pas vivre dans une vue — ordre d'affichage des thèmes, bascule des
+thèmes supplémentaires, ordre des accents, accent affiché (`SWIFT_MIGRATION.md`
+§9.19). `Features/Settings/` porte les **quatre** écrans : les réglages, « Modifier
+mes connaissances », « Modifier mon programme » (`SWIFT_MIGRATION.md` §9.18) et
+« Apparence » (§9.19).
 
 Navigation conservée : **Accueil, Coran, Programme, Progrès, Amis**.
 
@@ -386,6 +392,8 @@ référence** `medallion.png`,
 | **#48** | `eaca778` | **success** — la boucle de répétition branchée sur AVFoundation (`SWIFT_MIGRATION.md` §9.17) | 5 min 35 s |
 | **#49** | `f34737d` | **échec** — **deux** erreurs de compilation, toutes deux dans `ProgramEditorView.swift` : une seule fermeture `(Division) -> Bool` y servait à interroger `Quran.surahs`, qui est un tableau de `Surah` (voir ci-dessous) | 55 s |
 | **#50** | `76d57a5` | **success** — les réglages : modifier son programme et ses connaissances (`SWIFT_MIGRATION.md` §9.18) ; **286 tests, 1 ignoré, 0 échec** ; IPA de 120 511 485 octets | 6 min 45 s |
+| **#51** | `54ef7be` | **success** — documentation seule ; c'est le run #50 qui porte les réglages | — |
+| **#52** | `085a7f4` | **success** — l'écran d'apparence (`SWIFT_MIGRATION.md` §9.19) ; **306 tests attendus, 1 ignoré, 0 échec** sur **seize** groupes — compte **déduit**, l'artefact étant inaccessible sans jeton (voir ci-dessous) ; IPA de 120 542 217 octets | 6 min 1 s |
 
 Le tableau ne s'étend pas pour un run dont la seule cause est une modification de
 ce rapport : il s'étend quand un run **porte un fait**. Les runs #22 à #25 en
@@ -409,7 +417,10 @@ décide de rien ; #47 ne porte rien, et c'est dit ; #48 branche la boucle de
 répétition sur AVFoundation ; #49 porte **deux** erreurs de compilation, et
 celles-là aussi valent d'être racontées — elles disent la **limite** des bancs ;
 #50 porte les **réglages du programme et des connaissances**, et c'est le premier
-run où la cible de tests compile **et** s'exécute avec le nouveau groupe.
+run où la cible de tests compile **et** s'exécute avec le nouveau groupe. #51 ne
+porte rien, et c'est dit ; #52 porte l'**écran d'apparence** et le champ `swatch`
+qui manquait sur `Theme.Accent` — le run dont le compte de tests est **déduit**
+faute d'artefact accessible, et la déduction est expliquée plus bas.
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
@@ -418,16 +429,28 @@ artefact de 120 263 470 octets**. La taille est le second témoin : elle prouve 
 les 604 pages sont réellement dans le paquet, et pas seulement que le fichier a
 été créé.
 
-Les **286 tests** de la cible de tests sont joués à chaque run, répartis sur
-**quinze groupes**. Le compte est lu sur l'**artefact** du run #50 — et non sur
-le journal du flux, qui est tronqué (`tail -60`) et ne porte pas la fin de la
-suite : `AppWiringTests` 3, `AudioRepeatPreferencesTests` 27,
-`Coran1441DownloadTests` 20, `DateKeysTests` 8 (dont **1 ignoré**),
+Les **306 tests** de la cible de tests sont joués à chaque run, répartis sur
+**seize groupes**. Pour les quinze premiers, le compte est lu sur l'**artefact**
+du run #50 — et non sur le journal du flux, qui est tronqué (`tail -60`) et ne
+porte pas la fin de la suite : `AppWiringTests` 3, `AudioRepeatPreferencesTests`
+27, `Coran1441DownloadTests` 20, `DateKeysTests` 8 (dont **1 ignoré**),
 `JSONValueTests` 11, `MarginAnnotationsTests` 27, `OfflineMergeTests` 18,
 `PassageAudioEngineTests` 25, `PassageAudioTests` 22, `ProgramGoalTests` 33,
 `ProgramTests` 14, `QuranEditionTests` 10, `ReviewTests` 30, `VerseBoundsTests`
 26, `VerseMarkersTests` 12 — la ligne du paquet le confirme indépendamment
-(`SwiftdeepseekTests.xctest` : `286 tests, 1 ignoré, 0 échec`). Le seul test
+(`SwiftdeepseekTests.xctest` : `286 tests, 1 ignoré, 0 échec`). Le seizième
+groupe, **`AppearanceTests`**, en porte **20**.
+
+**Un compte déduit n'est pas un compte mesuré, et la différence est écrite ici.**
+Le run n° 52 est vert — cela est **mesuré** (verdict, étapes, taille de l'IPA,
+annotation) —, mais son compte de tests ne l'est pas : le téléchargement de
+l'artefact rend **401** sans jeton, `gh` n'est plus authentifié dans la session de
+mesure, et le résumé du contrôle de commit est vide. Ce qui rend la déduction
+solide n'est pas une intuition, c'est une **égalité mesurée** : les quinze fichiers
+qui existaient au run n° 50 déclarent **286** méthodes, et le run n° 50 en a
+**exécuté 286**. La correspondance « déclaré / exécuté » est donc établie, et
+**306** s'en déduit pour seize groupes. Un tableau ou une phrase qui présenterait
+ce nombre comme lu sur l'artefact serait faux. Le seul test
 ignoré est celui de la traversée du changement d'heure, qui n'a rien à éprouver
 dans un fuseau sans heure d'été. Deux des tests d'`AppWiringTests` étaient
 **ignorés** tant que les secrets `SUPABASE_URL` et `SUPABASE_ANON_KEY` n'étaient
@@ -801,6 +824,43 @@ La règle qui en sort, et qui complète celle de `SWIFT_MIGRATION.md` §9.18 :
 textes et les noms ; la compilation est la seule à connaître les types. Sur une
 machine sans compilateur Swift, c'est le run — et lui seul.
 
+### L'écran d'apparence : huit défauts dans le banc, et un compte déduit
+
+Le run #52 (`085a7f4`) est vert, et c'est **mesuré** : `success`, **16 / 16**
+étapes, une annotation (la file d'attente macOS), IPA de **120 542 217** octets,
+**6 min 1 s**. Deux choses de ce bloc méritent d'être racontées, et aucune n'est
+dans le code Swift.
+
+**Les huit défauts étaient dans le contrôle.** La première exécution de
+`_banc/verifier-apparence.mjs` a donné **8 échecs sur 63** — aucun dans le portage.
+Trois venaient d'une seule erreur, qui vaut d'être retenue :
+
+> `bodyOf(source, marqueur, fin)` **inclut** son marqueur. Pour une déclaration
+> Swift comme `accentOrder: [String] = ["prune", …]`, partir du marqueur
+> `accentOrder: [String] = [` fait rencontrer le premier `]` du **type**
+> `[String]`, pas celui de la **liste**. Le corps se réduisait à
+> `accentOrder: [String`, qui ne contient aucune chaîne — et le banc annonçait
+> « le portage ne déclare rien » sur **trois** listes parfaitement présentes.
+
+Les autres : un motif qui exigeait `return` là où Swift l'omet (une fonction à
+expression unique), et une ancre « aucune image » qui attrapait
+`Image(systemName:)` — la **coche de sélection**, qui n'a rien à voir avec
+l'illustration du thème. Un troisième type, plus insidieux, a été commis **hors
+du banc** : la comparaison du sous-titre a d'abord été faite avec
+`grep -o '· couleur d.accent'`, dont le `.` **joker** a matché un **commentaire**
+du fichier — apostrophe ASCII dans ma propre prose —, et j'ai cru à une corruption
+d'encodage. **Un motif qui contient un joker ne prouve rien sur un caractère.**
+
+**Le compte de tests du run #52 est déduit, et c'est écrit comme tel.** Le
+téléchargement de l'artefact rend **401** sans jeton, `gh` n'est plus authentifié
+dans la session de mesure, et le résumé du contrôle de commit est vide. Le nombre
+**306** ne vient donc pas de l'artefact : il vient de ce que les quinze fichiers
+existants déclarent **286** méthodes, nombre que le run n° 50 a **exécuté** — la
+correspondance « déclaré / exécuté » est établie par cette mesure, et 306 s'en
+déduit pour seize groupes. Présenter ce nombre comme lu sur l'artefact aurait été
+faux, et c'est exactement le défaut que le run #34 avait puni : **un nombre écrit
+de mémoire au lieu d'être mesuré**.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a
@@ -923,7 +983,7 @@ machine sans compilateur Swift, c'est le run — et lui seul.
    **`tajweed` est le meilleur rapport effort/résultat** : ses données sont déjà
    embarquées, et il reste à écrire le rendu du texte coloré. Ni l'une ni l'autre
    ne demande de copier les 185 Mo que la version précédente annonçait.
-5. Assistant d'objectif hebdomadaire, écran d'apparence, messagerie, groupes,
+5. Assistant d'objectif hebdomadaire, messagerie, groupes,
    quiz, notifications, récitations, mini-lecteur.
 
 *Déjà faites depuis la rédaction de la première version de ce rapport, et donc
@@ -935,7 +995,9 @@ les **pastilles de numéro de verset du Coran 1441** (§10, `SWIFT_MIGRATION.md`
 `SWIFT_MIGRATION.md` §9.12) — dont la version précédente de ce rapport disait
 qu'ils dépendaient d'un suivi de séance « non porté », alors que
 `StudyProgress.through`, `Program.studyKey` et `ReaderRequest.sessionID`
-existaient déjà.*
+existaient déjà —, les **réglages** du programme et des connaissances
+(`SWIFT_MIGRATION.md` §9.18), et l'**écran d'apparence** — le thème et la couleur
+d'accent (§9.19).*
 
 **Côté Apple** (README §« Ce qu'il reste à faire côté Apple ») : compte de
 développeur, identifiant de paquet enregistré, profil de provisionnement et
