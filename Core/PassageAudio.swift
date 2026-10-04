@@ -20,9 +20,10 @@
 // LES VALEURS ATTENDUES SONT MESURÉES, PAS DÉDUITES DU CODE
 //   Toutes les valeurs figées par `Tests/PassageAudioTests.swift` viennent de
 //   `_banc/oracle-audio.mjs`, qui charge le **vrai** `src/core/audio.ts` du
-//   dépôt de référence — en retirant mécaniquement ses annotations de type — et
-//   énumère sa table de décision. Les dériver du code testé reviendrait à
-//   comparer le code à lui-même.
+//   dépôt de référence — en l'**empaquetant** avec `esbuild`, imports et JSON
+//   résolus, plutôt qu'en retirant ses annotations de type — et énumère sa table
+//   de décision. Les dériver du code testé reviendrait à comparer le code à
+//   lui-même.
 
 import Foundation
 

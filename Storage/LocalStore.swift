@@ -109,4 +109,32 @@ public actor LocalStore {
     public func clearQueue() throws {
         try saveQueue([])
     }
+
+    // MARK: Préférences audio
+
+    /// Les préférences de répétition audio, gardées **localement**.
+    ///
+    /// `LOCAL_DATA_MIGRATION.md` §4 a) a tranché : rien n'est ajouté à
+    /// `user_state`, et les deux applications ne partagent pas ces réglages —
+    /// l'AsyncStorage de l'application React Native n'est de toute façon pas
+    /// lisible depuis une autre application.
+    ///
+    /// Le fichier reprend malgré tout la **forme** de l'original
+    /// (`audio-repeat-preferences` : `countChoice`, `customCount`, `repeatMode`,
+    /// `gap`, `speed`, `autoStop`), pour que les deux applications se comportent
+    /// identiquement à choix égal et qu'un export n'ait rien à traduire.
+    ///
+    /// Un fichier absent, illisible ou d'une forme inattendue rend les valeurs
+    /// par défaut — jamais une erreur : l'application doit s'ouvrir.
+    public func loadAudioPreferences() -> AudioRepeatPreferences {
+        guard let data = read("audio-repeat-preferences.json"),
+              let document = try? JSONDecoder().decode(JSONValue.self, from: data) else {
+            return .defaults
+        }
+        return AudioRepeatPreferences.decode(document)
+    }
+
+    public func saveAudioPreferences(_ preferences: AudioRepeatPreferences) throws {
+        try write(try JSONEncoder().encode(preferences.encoded), to: "audio-repeat-preferences.json")
+    }
 }
