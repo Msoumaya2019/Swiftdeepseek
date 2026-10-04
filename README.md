@@ -103,6 +103,43 @@ le tarif Linux.
 Les secrets `SUPABASE_URL` et `SUPABASE_ANON_KEY` sont **facultatifs** : sans eux,
 la compilation passe et l'application affiche l'écran de configuration.
 
+### Lire un échec sans jeton
+
+Le journal complet exige une session GitHub (HTTP 403 sans jeton). Les
+**annotations**, elles, sont publiques — et le flux réémet lui-même les erreurs du
+compilateur et des tests en annotations (`::error::`), précisément pour qu'un échec
+soit diagnosticable sans ouvrir la page Actions :
+
+```bash
+curl -sL "https://github.com/Msoumaya2019/Swiftdeepseek/actions/runs/<run>/job/<job>" \
+  | tr '\n' '\f' \
+  | sed 's/<annotation-message/\n<annotation-message/g' \
+  | grep '^<annotation-message' \
+  | sed 's|</annotation-message>.*||; s/<[^>]*>//g; s/\f/ /g' \
+  | sed 's/  */ /g; s/^ *//; s/ *Show more Show less *$//'
+```
+
+> Le texte d'une annotation est **imbriqué** dans des éléments : `grep -o '<annotation-message[^>]*>[^<]*'`
+> ne rend rien du tout, et un `grep -c` sur le nom de classe annonce sept fois trop d'annotations
+> (91 occurrences pour 13 blocs, sur un run réel). Éprouver l'extraction sur un run **en échec**
+> avant de s'y fier : sur un run vert, une commande cassée rend un résultat plausible.
+
+Deux pièges, mesurés :
+
+- **`GET /actions/jobs/{id}` renvoie `annotations: []` même sur un job en échec**
+  qui en porte treize dans le HTML. Le HTML est la source complète pour la cause ;
+  l'API ne sert qu'au détail des étapes (`steps[].conclusion`).
+- une étape qui capture un code de sortie doit faire **`set +e`** : le shell par
+  défaut d'un `run:` est `bash -e`, donc l'échec tue le script avant `code=$?`.
+
+### État mesuré
+
+Dernier run vert : **6 min 46 s**, 13 étapes en `success`, un artefact
+`Swiftdeepseek-unsigned-ipa` de **120 242 542 octets** — les 604 pages sont donc
+bien embarquées. Les actions sont épinglées à `checkout@v5` et
+`upload-artifact@v6`, les plus petites versions qui déclarent `node24` (v5 de
+`upload-artifact` déclare encore `node20`).
+
 ### Installation de l'IPA sur un appareil
 
 L'IPA est **non signé**. Il s'installe par un outil de sideloading (AltStore,
