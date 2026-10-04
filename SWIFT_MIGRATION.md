@@ -987,7 +987,6 @@ audible** entre deux versets d'une même piste, que la coupure sur segment tombe
 le mot suivant**, et que la session audio tienne en arrière-plan. Aucun de ces trois
 points ne se mesure sans appareil ; le reste de l'exécuteur se lit.
 
-
 ### 9.18 Modifier son programme et ses connaissances : une couche qui manquait
 
 **Ce qui était demandé, et ce que c'est dans l'original.** « Dans réglages, mets la
@@ -1272,4 +1271,88 @@ thème.
 
 Règle : **un contrôle qui échoue accuse trois choses** — la source, l'ancre, ou lui-même.
 Les huit défauts étaient tous dans le contrôle.
+
+### 9.20 L'horodatage d'une remise à zéro : une divergence sous la milliseconde
+
+Le run n° 54 ne porte **que de la documentation** — la correction de quatre défauts de forme
+dans ce document et dans `RAPPORT_DE_TEST.md`. Il est pourtant **rouge**, sur **un seul**
+test. Un envoi de documentation ne peut pas changer le code des tests : l'échec ne peut donc
+pas venir de ce qu'il porte, et il faut le lire comme la **sortie au grand jour d'un défaut
+latent**.
+
+**Le défaut.** `Core/DateKeys.swift` porte `maxISO`, qui reproduit la ligne 93 de
+`src/core/program.ts` :
+
+```js
+const now = Date.now();
+const previousTime = Date.parse(previous.updatedAt);
+updatedAt: new Date(Math.max(now, previousTime + 1)).toISOString()
+```
+
+Tout y est en millisecondes **entières** : `Date.now()` en rend une, `Date.parse` en rend
+une, et `toISOString()` n'écrit que trois décimales. `Math.max(now, previousTime + 1)` est
+donc **toujours** strictement supérieur à `previousTime` — la référence ne peut pas rendre
+une valeur égale, et c'est cette garantie qui fait qu'une remise à zéro **gagne la fusion**
+contre l'état qu'elle remplace.
+
+Le portage, lui, comparait `previous` à une lecture d'horloge **plus fine** que la
+milliseconde :
+
+```swift
+var latest = Date()
+for value in values.compactMap({ $0 }) where value >= latest {
+    latest = value.addingTimeInterval(0.001)
+}
+return iso(latest)
+```
+
+Dès que les deux lectures tombent dans la **même** milliseconde, la comparaison est fausse,
+`latest` reste `now`, et `iso()` rend la milliseconde de `previous` — une valeur **égale**.
+La fenêtre n'est pas hypothétique, elle se mesure : c'est la fraction de milliseconde qui
+restait au moment de la première lecture. D'où une cinquantaine de runs verts avant le
+rouge — et un test qui ne l'attrape qu'une fois sur cinquante n'est pas un mauvais test,
+c'est un bon test sur un défaut rare.
+
+**Pourquoi c'est un défaut de compatibilité, et pas un détail.** L'application React Native
+garantit un `updatedAt` strictement croissant ; le portage ne le garantissait pas. Les deux
+applications auraient donc pu, sur la même remise à zéro, écrire deux horodatages dont l'un
+n'est pas plus récent que l'autre — et diverger sur le champ même qui décide quelle version
+gagne. C'est exactement ce que cette migration doit empêcher.
+
+**La correction** (`a5a25fd`) calcule en millisecondes entières, comme le modèle JS, et rend
+`now` **injectable** pour que la fenêtre se teste sans dépendre de l'horloge :
+
+```swift
+public static func maxISO(_ values: [Date?], now: Date = Date()) -> String {
+    var latest = milliseconds(now)
+    for value in values.compactMap({ $0 }) {
+        let candidate = milliseconds(value)
+        if candidate >= latest { latest = candidate + 1 }
+    }
+    return iso(Date(timeIntervalSince1970: Double(latest) / 1000))
+}
+```
+
+**Deux bancs, parce qu'un contrôle de forme ne prouve pas une propriété.**
+`_banc/oracle-horodatage.mjs` — **53 vérifications, 0 écart** — empaquette le **vrai**
+`src/core/program.ts` et exécute la **vraie** `resetAllProgress`, `Date.now` étant remplacé
+sur une grille de **quinze cas** (cinq positions de `previous` × trois lectures d'horloge
+fractionnaires). Son **témoin**, le portage d'avant correction, diverge sur **6 des 15** cas
+— sans quoi la grille n'aurait pas de cas discriminant, et le banc ne prouverait que la
+ressemblance de deux codes identiques. `_banc/falsifier-horodatage.mjs` — **4 mutations,
+4 détectées** — restaure chaque source par empreinte SHA-256 : revenir au portage fautif,
+passer `>=` à `>`, rendre la lecture d'horloge fractionnaire, et décaler la constante `+1`
+de la formule de référence.
+
+**Et un libellé qui promettait trop.** `_banc/verifier-reglages.mjs:338` portait
+`verdict(/DateKeys\.maxISO\(/.test(…), 'l'horodatage avance strictement')`. Un contrôle de
+**présence de motif** ne peut pas prouver une propriété **sémantique** — la même famille de
+défaut que le §9.18 raconte pour la compatibilité de types. Le libellé dit désormais ce que
+le contrôle fait — « la remise à zéro passe par `DateKeys.maxISO` (forme) » — et renvoie à
+l'oracle pour le fond.
+
+**Ce qui a changé dans les comptes.** Un test est né,
+`testMaxISOAdvancesStrictlyEvenInTheSameMillisecond`, qui recopie trois chaînes **mesurées
+par le banc** — jamais écrites de tête. `ProgramGoalTests` passe de **33** à **34** tests,
+et le total déclaré de **306** à **307**.
 

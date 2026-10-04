@@ -162,17 +162,42 @@ Un run n° **53** (`f1517a1`), **documentation seule**, est vert ensuite : **16 
 étapes en `success`, **5 min 26 s**, **une** annotation — le message de file d'attente
 macOS. Il ne porte **aucun fait**, et c'est le n° 52 qui reste la référence.
 
-**306 tests** sont déclarés, répartis sur **seize groupes**, et **un seul** est
+Un run n° **54** (`92874b3`), **documentation seule** lui aussi, est en revanche
+**ROUGE** — et il vaut d'être lu. Un seul test échoue,
+`testResetAdvancesTheTimestamp` : le portage de l'horodatage d'une remise à zéro
+comparait `previous` à une lecture d'horloge de précision **inférieure**, si bien
+que les deux pouvaient tomber dans la **même milliseconde** et rendre une valeur
+**égale**. L'original, lui, calcule en millisecondes entières et rend donc toujours
+une valeur strictement supérieure. C'est une **divergence de compatibilité**, pas
+un test instable — et le défaut a survécu à une cinquantaine de runs verts. Corrigé
+par `a5a25fd`, avec `_banc/oracle-horodatage.mjs` (53 vérifications sur le vrai
+`program.ts` empaqueté) et son falsificateur (4 mutations, 4 détectées).
+
+Un run n° **55** (`a5a25fd`), qui porte **le correctif de `maxISO`**, est **vert** :
+**16 / 16** étapes en `success`, **6 min 31 s** (le job, lui, 6 min 18 s). Et il apporte la mesure qui manquait.
+Le journal complet est lisible dès lors que `gh` est **authentifié**, et il porte la
+ligne du coureur :
+
+```
+Executed 307 tests, with 1 test skipped and 0 failures (0 unexpected)
+```
+
+Le compte n'est donc **plus déduit** : il est **mesuré**, et il vaut exactement la
+somme attendue — **286** mesurés au run n° 50, plus les **20** d'`AppearanceTests`,
+plus le cas `maxISO` ajouté.
+
+**307 tests** sont déclarés, répartis sur **seize groupes**, et **un seul** est
 ignoré : celui de la traversée du changement d'heure, qui n'a rien à éprouver dans
 un fuseau sans heure d'été. Le groupe **`AppearanceTests`** en porte **20**, et
-**`ProgramGoalTests`** **33** à lui seul — les six objectifs préréglés, leurs bornes,
+**`ProgramGoalTests`** **34** à lui seul — les six objectifs préréglés, leurs bornes,
 le filtrage, la validation et la remise à zéro.
 
-Le compte du run n° 52 est **déduit**, pas lu sur l'artefact : celui-ci rend **401**
-sans jeton, et `gh` n'est plus authentifié dans la session de mesure. La déduction
-s'adosse à une **mesure** — le run n° 50 a mesuré **286** tests exécutés, exactement
-le nombre de méthodes déclarées par les quinze fichiers qui existaient alors. La
-correspondance « déclaré / exécuté » est donc établie, et non supposée.
+Le run n° 52, lui, ne portait qu'un compte **déduit** : l'artefact publié est
+l'**IPA seul** — aucun résultat de tests — et `gh` n'était alors pas authentifié dans
+la session de mesure. La déduction s'adossait à une **mesure** — le run n° 50 a mesuré
+**286** tests exécutés, exactement le nombre de méthodes déclarées par les quinze
+fichiers qui existaient alors. La correspondance « déclaré / exécuté » est donc
+établie, et non supposée ; le run n° 55 l'a confirmée sur les seize groupes.
 
 Plusieurs runs voisins disent ce que ce chiffre ne dit pas. **#39** (`6f502a3`) a
 échoué à la compilation : quatre références à un membre statique depuis un

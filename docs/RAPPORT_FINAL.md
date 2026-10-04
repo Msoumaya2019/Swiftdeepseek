@@ -395,6 +395,8 @@ référence** `medallion.png`,
 | **#51** | `54ef7be` | **success** — documentation seule ; c'est le run #50 qui porte les réglages | — |
 | **#52** | `085a7f4` | **success** — l'écran d'apparence (`SWIFT_MIGRATION.md` §9.19) ; **306 tests attendus, 1 ignoré, 0 échec** sur **seize** groupes — compte **déduit**, l'artefact étant inaccessible sans jeton (voir ci-dessous) ; IPA de 120 542 217 octets | 6 min 1 s |
 | **#53** | `f1517a1` | **success** — documentation seule ; c'est le run #52 qui porte l'écran d'apparence | 5 min 26 s |
+| **#54** | `92874b3` | **échec** — **un seul** test rouge, `testResetAdvancesTheTimestamp` : le portage de `maxISO` divergeait de l'original **sous la milliseconde** (voir ci-dessous) | 4 min 51 s |
+| **#55** | `a5a25fd` | **success** — le correctif de `maxISO` ; **307 tests mesurés, 1 ignoré, 0 échec** — c'est le run qui **mesure** le compte au lieu de le déduire | 6 min 31 s |
 
 Le tableau s'étend aussi pour un run qui ne porte qu'une modification de
 documentation : il est alors marqué « documentation seule ». Il s'étend surtout quand un run
@@ -423,7 +425,10 @@ run où la cible de tests compile **et** s'exécute avec le nouveau groupe. #51 
 porte rien, et c'est dit ; #52 porte l'**écran d'apparence** et le champ `swatch`
 qui manquait sur `Theme.Accent` — le run dont le compte de tests est **déduit**
 faute d'artefact accessible, et la déduction est expliquée plus bas. #53 ne porte
-rien non plus — il compile une correction de documentation —, et c'est dit.
+rien non plus — il compile une correction de documentation —, et c'est dit. #54
+porte **un défaut de portage**, révélé par un test que cinquante runs verts
+avaient laissé passer : c'est le run le plus instructif de la série, et il est
+raconté plus bas.
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
@@ -447,13 +452,15 @@ groupe, **`AppearanceTests`**, en porte **20**.
 **Un compte déduit n'est pas un compte mesuré, et la différence est écrite ici.**
 Le run n° 52 est vert — cela est **mesuré** (verdict, étapes, taille de l'IPA,
 annotation) —, mais son compte de tests ne l'est pas : le téléchargement de
-l'artefact rend **401** sans jeton, `gh` n'est plus authentifié dans la session de
+l'artefact rend **401** sans jeton, `gh` n'était pas authentifié dans la session de
 mesure, et le résumé du contrôle de commit est vide. Ce qui rend la déduction
 solide n'est pas une intuition, c'est une **égalité mesurée** : les quinze fichiers
 qui existaient au run n° 50 déclarent **286** méthodes, et le run n° 50 en a
 **exécuté 286**. La correspondance « déclaré / exécuté » est donc établie, et
 **306** s'en déduit pour seize groupes. Un tableau ou une phrase qui présenterait
-ce nombre comme lu sur l'artefact serait faux. Le seul test
+ce nombre comme lu sur l'artefact serait faux. **Le run n° 55 a depuis mesuré ce
+compte** — **307**, un ignoré, zéro échec — en lisant le journal avec un `gh`
+authentifié ; la déduction tombe donc juste, et la nuance reste écrite ici. Le seul test
 ignoré est celui de la traversée du changement d'heure, qui n'a rien à éprouver
 dans un fuseau sans heure d'été. Deux des tests d'`AppWiringTests` étaient
 **ignorés** tant que les secrets `SUPABASE_URL` et `SUPABASE_ANON_KEY` n'étaient
@@ -855,7 +862,7 @@ du fichier — apostrophe ASCII dans ma propre prose —, et j'ai cru à une cor
 d'encodage. **Un motif qui contient un joker ne prouve rien sur un caractère.**
 
 **Le compte de tests du run #52 est déduit, et c'est écrit comme tel.** Le
-téléchargement de l'artefact rend **401** sans jeton, `gh` n'est plus authentifié
+téléchargement de l'artefact rend **401** sans jeton, `gh` n'était pas authentifié
 dans la session de mesure, et le résumé du contrôle de commit est vide. Le nombre
 **306** ne vient donc pas de l'artefact : il vient de ce que les quinze fichiers
 existants déclarent **286** méthodes, nombre que le run n° 50 a **exécuté** — la
@@ -863,6 +870,113 @@ correspondance « déclaré / exécuté » est établie par cette mesure, et 306
 déduit pour seize groupes. Présenter ce nombre comme lu sur l'artefact aurait été
 faux, et c'est exactement le défaut que le run #34 avait puni : **un nombre écrit
 de mémoire au lieu d'être mesuré**.
+
+**Le run #55 lève la déduction.** L'artefact publié reste l'**IPA seul** — aucun
+résultat de tests n'y est joint —, mais le **journal** est lisible dès lors que
+`gh` est authentifié, et l'étape « Jouer les tests » en publie la fin
+(`tail -60 build-tests.log`). La ligne du coureur y est :
+
+```
+Executed 307 tests, with 1 test skipped and 0 failures (0 unexpected)
+```
+
+Le compte est donc **mesuré**, et il tombe exactement sur la déduction : 286 mesurés
+au run #50, plus les **20** d'`AppearanceTests`, plus le cas `maxISO` ajouté par
+`a5a25fd`. La **ventilation par groupe**, elle, reste **déduite** : `tail -60` ne
+laisse passer que les derniers groupes, et aucun artefact ne la porte. La nuance est
+écrite ici pour qu'elle ne se perde pas.
+
+### L'échec #54 : une divergence sous la milliseconde, révélée par un test de forme
+
+Le run n° 54 (`92874b3`) **ne porte que de la documentation** — la correction des
+quatre défauts de forme de ce rapport et de `SWIFT_MIGRATION.md`. Il est pourtant
+**rouge**, sur **un seul** test :
+
+```
+Tests/ProgramGoalTests.swift:455: error:
+-[SwiftdeepseekTests.ProgramGoalTests testResetAdvancesTheTimestamp] :
+XCTAssertGreaterThan failed: ("2026-10-04 21:50:16 +0000")
+    is not greater than ("2026-10-04 21:50:16 +0000")
+```
+
+**La première lecture — « test instable » — est fausse, et la vérifier a changé le
+diagnostic.** Le test affirme qu'une remise à zéro avance l'horodatage. Le portage
+de cet horodatage est `DateKeys.maxISO`, qui doit reproduire `src/core/program.ts:93` :
+
+```js
+const now = Date.now();                                  // entier de millisecondes
+const previousTime = Date.parse(previous.updatedAt);
+updatedAt: new Date(Math.max(now, previousTime + 1)).toISOString()
+```
+
+Tout y est en millisecondes **entières**, et `toISOString()` n'écrit que trois
+décimales. `Math.max(now, previousTime + 1)` est donc **toujours** strictement
+supérieur à `previousTime` : la référence ne peut pas rendre une valeur égale.
+
+Le portage, lui, comparait `previous` à une lecture d'horloge de précision
+inférieure :
+
+```swift
+var latest = Date()
+for value in values.compactMap({ $0 }) where value >= latest {
+    latest = value.addingTimeInterval(0.001)
+}
+return iso(latest)
+```
+
+Dès que les deux lectures tombent dans la **même** milliseconde, la condition est
+fausse, `latest` reste `now`, et `iso()` rend la milliseconde de `previous` — une
+valeur **égale**. La fenêtre se mesure : elle vaut la fraction de milliseconde
+restante au moment de la première lecture. C'est pourquoi le défaut a survécu à une
+cinquantaine de runs verts avant de sortir — et pourquoi un test qui ne l'attrape
+qu'une fois sur cent n'est pas un mauvais test, mais un bon test sur un défaut rare.
+
+**Le défaut est donc dans le portage, et il est de compatibilité.** L'application
+React Native garantit un horodatage strictement croissant ; le portage Swift ne le
+garantissait pas. Or c'est cet horodatage qui fait reconnaître la remise à zéro
+comme la version la plus récente lors d'une fusion. Les deux applications ne se
+seraient pas comportées de la même façon — exactement ce que cette migration doit
+empêcher.
+
+**Correction.** `maxISO` calcule en millisecondes entières, comme le modèle JS, et
+`now` devient **injectable** :
+
+```swift
+public static func maxISO(_ values: [Date?], now: Date = Date()) -> String {
+    var latest = milliseconds(now)
+    for value in values.compactMap({ $0 }) {
+        let candidate = milliseconds(value)
+        if candidate >= latest { latest = candidate + 1 }
+    }
+    return iso(Date(timeIntervalSince1970: Double(latest) / 1000))
+}
+```
+
+L'injection n'est pas un ornement : c'est elle qui rend la fenêtre **déterministe**
+au lieu d'attendre une coïncidence d'horloge.
+
+**Deux contrôles, et un troisième corrigé.**
+
+- `_banc/oracle-horodatage.mjs` **empaquette le vrai `program.ts`** avec `esbuild`,
+  remplace `Date.now` par une valeur fixe, et confronte la référence au portage sur
+  une grille de **15 cas** — cinq positions de `previous` (la même milliseconde, une
+  et deux millisecondes avant, cinq cents millisecondes dans le futur, l'époque 0)
+  croisées avec trois lectures d'horloge **fractionnaires**. **53 vérifications, 0
+  écart.** Son **témoin** — l'ancienne formulation — diverge sur **6 cas sur 15** :
+  sans ce témoin, la grille pourrait ne pas contenir le cas discriminant, et le banc
+  serait vert sans rien prouver.
+- `_banc/falsifier-horodatage.mjs` : **4 mutations, 4 détectées**, chaque source
+  restaurée **à l'octet**, et un refus de continuer si le témoin est rouge.
+- `_banc/verifier-reglages.mjs` étiquetait ce contrôle **« l'horodatage avance
+  strictement »** alors qu'il ne fait qu'une recherche de motif sur `DateKeys.maxISO(`.
+  Un test de forme ne peut pas prouver une sémantique : l'étiquette annonçait donc
+  plus que le contrôle. Elle dit désormais ce qu'il fait.
+
+Le test `ProgramGoalTests` gagne un cas qui **reproduit** le défaut à coup sûr, avec
+les trois chaînes attendues **recopiées du banc** — `2027-01-15T08:00:00.001Z`,
+`…000Z`, `…501Z` — et non écrites de mémoire. **307 tests déclarés** (306 avant).
+
+Le défaut, raconté côté migration, est documenté en `SWIFT_MIGRATION.md` §9.20.
 
 ## 13. Problèmes rencontrés
 
