@@ -141,6 +141,44 @@ jobs:
         run: xcodegen generate --spec project.yml
 
       # ───────────────────────────────────────────────────────────────────────
+      #  GARDE-FOU : LA CONFIGURATION ATTEINT-ELLE VRAIMENT LA COMPILATION ?
+      #
+      #  POURQUOI CE PAS EXISTE
+      #  Mesuré sur un artefact réel : `Config/Secrets.xcconfig` faisait 137
+      #  octets et contenait bien l'URL, et pourtant l'`Info.plist` de
+      #  l'application construite portait `SUPABASE_URL = ''`. Cause : dans
+      #  `Base.xcconfig`, les deux valeurs de repli vides étaient écrites APRÈS
+      #  le `#include?`, et dans un xcconfig la DERNIÈRE affectation gagne.
+      #
+      #  Ce défaut était invisible, et il désactivait ses propres garde-fous :
+      #  les deux tests qui vérifient la configuration se SAUTENT quand elle
+      #  paraît absente — donc ils se sautaient, et le run restait vert.
+      #
+      #  Ce pas rend le cas bruyant : si le secret est posé et que la variable
+      #  de compilation ressort vide, le run échoue au lieu de se taire. On
+      #  n'imprime pas la valeur — GitHub la masquerait de toute façon — sa
+      #  longueur suffit à décider.
+      # ───────────────────────────────────────────────────────────────────────
+      - name: Vérifier que la configuration Supabase atteint la compilation
+        env:
+          ATTENDU: ${{ secrets.SUPABASE_URL }}
+        run: |
+          set -euo pipefail
+          if [ -z "${ATTENDU:-}" ]; then
+            echo "Secret SUPABASE_URL absent : rien à vérifier, c'est un état supporté."
+            exit 0
+          fi
+          VU=$(xcodebuild -project "$PROJECT" -scheme "$SCHEME" -configuration Debug \
+                 -showBuildSettings 2>/dev/null \
+               | sed -n 's/^[[:space:]]*SUPABASE_URL[[:space:]]*=[[:space:]]*//p' | head -1)
+          echo "SUPABASE_URL résolu par la compilation : ${#VU} caractère(s)."
+          if [ -z "$VU" ]; then
+            echo "::error::Le secret SUPABASE_URL est posé, mais la variable de compilation est VIDE : Config/Secrets.xcconfig n'atteint pas la compilation. Vérifier l'ORDRE des lignes dans Config/Base.xcconfig — les replis vides doivent précéder le #include?."
+            exit 1
+          fi
+          echo "La configuration Supabase atteint bien la compilation."
+
+      # ───────────────────────────────────────────────────────────────────────
       #  Compilation.
       #
       #  POURQUOI `set +e` — ET PAS SEULEMENT UN COMMENTAIRE

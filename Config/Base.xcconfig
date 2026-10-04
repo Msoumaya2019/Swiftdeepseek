@@ -1,18 +1,35 @@
 // Base.xcconfig
 // Réglages communs aux configurations Debug et Release.
 //
+// ─────────────────────────────────────────────────────────────────────────────
+//  ORDRE DES LIGNES — LE PIÈGE QUI A COÛTÉ UN DÉFAUT SILENCIEUX
+// ─────────────────────────────────────────────────────────────────────────────
+//  Dans un xcconfig, la DERNIÈRE affectation gagne. Les valeurs de repli
+//  ci-dessous doivent donc être écrites AVANT le `#include?` : placées après,
+//  elles écrasent les vraies valeurs de `Secrets.xcconfig`.
+//
+//  Mesuré sur un artefact réel : avec les deux lignes vides SOUS l'include,
+//  l'`Info.plist` de l'application construite portait `SUPABASE_URL = ''` et
+//  `SUPABASE_ANON_KEY = ''`, alors que `Secrets.xcconfig` faisait 137 octets et
+//  contenait bien l'URL et la clé. L'application affichait donc l'écran de
+//  configuration, et les deux tests qui l'auraient signalé étaient **ignorés** —
+//  précisément parce que la configuration paraissait absente. Le défaut
+//  désactivait ses propres garde-fous.
+//
+//  Ces replis ne sont pas indispensables — une variable non définie s'étend en
+//  chaîne vide — mais ils documentent l'intention.
+SUPABASE_URL =
+SUPABASE_ANON_KEY =
+
 // `#include?` (avec le point d'interrogation) inclut le fichier S'IL EXISTE.
 // C'est ce qui permet au dépôt de rester sans secret : `Secrets.xcconfig` est
 // ignoré par Git, et la compilation fonctionne quand même sans lui — l'écran de
 // configuration de l'application explique alors ce qui manque, au lieu de
 // laisser l'application se fermer sans rien dire.
-
+//
+// DERNIER, et c'est volontaire : ce qui est inclus ici doit l'emporter sur les
+// replis ci-dessus.
 #include? "Secrets.xcconfig"
-
-// Valeurs de repli : vides si `Secrets.xcconfig` est absent.
-// Ce sont des variables de compilation, recopiées dans Info.plist.
-SUPABASE_URL =
-SUPABASE_ANON_KEY =
 
 // ─────────────────────────────────────────────────────────────────────────────
 //  PIÈGE DES xcconfig — À NE PAS OUBLIER
