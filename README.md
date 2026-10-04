@@ -186,6 +186,10 @@ Le compte n'est donc **plus déduit** : il est **mesuré**, et il vaut exactemen
 somme attendue — **286** mesurés au run n° 50, plus les **20** d'`AppearanceTests`,
 plus le cas `maxISO` ajouté.
 
+Un run n° **56** (`e26c817`), **documentation seule**, **re-mesure** ce même compte —
+**16 / 16** étapes, **4 min 40 s**, `Executed 307 tests, with 1 test skipped and 0 failures`.
+Deux runs indépendants disent donc **307**, ce qui vaut mieux qu'une déduction, même juste.
+
 **307 tests** sont déclarés, répartis sur **seize groupes**, et **un seul** est
 ignoré : celui de la traversée du changement d'heure, qui n'a rien à éprouver dans
 un fuseau sans heure d'été. Le groupe **`AppearanceTests`** en porte **20**, et

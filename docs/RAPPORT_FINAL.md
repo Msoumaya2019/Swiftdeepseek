@@ -397,6 +397,7 @@ référence** `medallion.png`,
 | **#53** | `f1517a1` | **success** — documentation seule ; c'est le run #52 qui porte l'écran d'apparence | 5 min 26 s |
 | **#54** | `92874b3` | **échec** — **un seul** test rouge, `testResetAdvancesTheTimestamp` : le portage de `maxISO` divergeait de l'original **sous la milliseconde** (voir ci-dessous) | 4 min 51 s |
 | **#55** | `a5a25fd` | **success** — le correctif de `maxISO` ; **307 tests mesurés, 1 ignoré, 0 échec** — c'est le run qui **mesure** le compte au lieu de le déduire | 6 min 31 s |
+| **#56** | `e26c817` | **success** — documentation seule ; il consigne le §9.20 et le run #55, et **re-mesure 307 tests** — une seconde mesure indépendante | 4 min 40 s |
 
 Le tableau s'étend aussi pour un run qui ne porte qu'une modification de
 documentation : il est alors marqué « documentation seule ». Il s'étend surtout quand un run
@@ -428,7 +429,14 @@ faute d'artefact accessible, et la déduction est expliquée plus bas. #53 ne po
 rien non plus — il compile une correction de documentation —, et c'est dit. #54
 porte **un défaut de portage**, révélé par un test que cinquante runs verts
 avaient laissé passer : c'est le run le plus instructif de la série, et il est
-raconté plus bas.
+raconté plus bas. #55 porte le **correctif** de ce défaut, et **mesure** le compte
+de tests — le premier run dont ce rapport peut écrire le nombre sans le déduire.
+#56 ne consigne qu'une documentation, et **re-mesure** ce même nombre : deux runs
+indépendants disent **307**.
+
+Le tableau reste donc **en retard d'un run** sur la réalité : consigner un run
+demande une poussée, et cette poussée est elle-même un run. C'est structurel, et
+c'est dit ici plutôt que corrigé.
 
 Run #17 : **les 13 étapes en `success`** — garde-fou de dépôt, contrôle des flux,
 Xcode, XcodeGen, génération du projet, **compilation**, **tests**, **archive non
