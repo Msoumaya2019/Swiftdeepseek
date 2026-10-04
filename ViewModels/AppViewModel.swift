@@ -217,14 +217,34 @@ public final class AppViewModel: ObservableObject {
         }
     }
 
+    /// Enregistre l'édition choisie.
+    ///
+    /// La règle d'écriture vit dans `QuranDisplayOptions.settingEdition` — avec
+    /// celles du fond et du suivi audio, qui posent un défaut différent sur
+    /// `reader.mushaf`. Les recopier ici ferait trois copies d'un contrat qui
+    /// décide de ce que l'application React Native relira.
     public func setEdition(_ edition: QuranEdition) {
-        update { state in
-            var next = state
-            var reader = next.reader ?? ReaderPreferences(mushaf: edition.rawValue, followAudio: true)
-            reader.mushaf = edition.rawValue
-            next.reader = reader
-            return next
-        }
+        update { QuranDisplayOptions.settingEdition($0, edition) }
+    }
+
+    /// Enregistre le fond du Coran (`state.reader.paper`) —
+    /// `App.tsx:330`, `quranPaperOptions`.
+    ///
+    /// Le fond n'est consommé que par l'édition rendue en WebView, absente de ce
+    /// portage : la préférence est donc stockée et affichée, mais elle ne colore
+    /// encore rien ici. Voir l'en-tête de `Core/QuranDisplayOptions.swift`.
+    public func setPaper(_ paper: String) {
+        update { QuranDisplayOptions.settingPaper($0, paper) }
+    }
+
+    /// Enregistre le suivi automatique de la récitation —
+    /// `App.tsx:330` et `App.tsx:445`.
+    ///
+    /// Comme le fond, il n'est pas encore appliqué : le lecteur de ce portage
+    /// n'enchaîne pas encore sur la page du verset récité. La préférence est
+    /// stockée pour que les deux applications s'accordent.
+    public func setFollowAudio(_ value: Bool) {
+        update { QuranDisplayOptions.settingFollowAudio($0, value) }
     }
 
     // MARK: Apparence (thème et couleur d'accent)

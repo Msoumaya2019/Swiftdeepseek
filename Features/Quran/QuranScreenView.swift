@@ -1,6 +1,15 @@
 // QuranScreenView.swift
 // Onglet Coran : choix de l'édition, installation du Coran 1441, reprise,
 // marques-pages, accès au lecteur.
+//
+// LE CHOIX D'ÉDITION N'EST PAS DÉCIDÉ ICI
+//   La liste des quatre éditions, l'ordre, la décision d'un appui et le texte du
+//   refus vivent dans `Core/QuranDisplayOptions.swift`, et le rendu dans
+//   `Features/Quran/QuranEditionChooser.swift`. Cet écran ne fournit que les
+//   effets. C'est ce qui le tient d'accord avec la carte « Affichage du Coran »
+//   des réglages : deux copies d'une même règle finissent par diverger, et la
+//   divergence serait ici silencieuse — l'écran s'afficherait, avec une liste
+//   différente.
 
 import SwiftUI
 
@@ -15,26 +24,35 @@ public struct QuranScreenView: View {
         NavigationStack {
             List {
                 Section("Éditions") {
-                    ForEach(QuranEdition.allCases, id: \.rawValue) { edition in
-                        Button {
-                            choose(edition)
-                        } label: {
-                            HStack {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text(edition.label)
-                                        .foregroundStyle(edition.isAvailable ? model.palette.text : model.palette.muted)
-                                    Text(subtitle(for: edition))
-                                        .font(.system(size: Theme.Typography.metadata))
-                                        .foregroundStyle(model.palette.muted)
-                                }
-                                Spacer()
-                                if QuranEdition(rawValue: model.state.reader?.mushaf ?? "") == edition {
-                                    Image(systemName: "checkmark").foregroundStyle(model.palette.green)
-                                }
-                            }
+                    // Les quatre éditions viennent de `QuranDisplayOptions` — la
+                    // même liste, dans le même ordre, que la carte de réglages.
+                    // Parcourir `QuranEdition.allCases` affichait cinq éditions
+                    // dans un autre ordre, dont « Moushaf Tajwid » que l'original
+                    // ne propose nulle part.
+                    QuranEditionChooser(
+                        stored: model.state.reader?.mushaf,
+                        coran1441Installed: model.coran1441.isInstalled,
+                        onSelect: { edition in
+                            model.setEdition(edition)
+                            readerRequest = ReaderRequest(
+                                range: nil, sessionID: nil, page: model.resumePage
+                            )
+                        },
+                        onInstall: { _ in
+                            model.coran1441.start()
+                        },
+                        onUnavailable: { edition in
+                            model.notice = QuranDisplayOptions.unavailableNotice(for: edition)
                         }
-                        .buttonStyle(.plain)
-                    }
+                    )
+                    .listRowInsets(
+                        EdgeInsets(
+                            top: 0,
+                            leading: Theme.Spacing.lg,
+                            bottom: 0,
+                            trailing: Theme.Spacing.lg
+                        )
+                    )
                 }
 
                 // L'installation n'apparaît que lorsqu'elle a quelque chose à
@@ -102,31 +120,12 @@ public struct QuranScreenView: View {
 
     // MARK: Choix d'une édition
 
-    /// Sélectionne une édition — ou, pour le Coran 1441, propose de l'installer.
-    ///
-    /// Le Coran 1441 n'est pas dans le paquet : ouvrir le lecteur sur une édition
-    /// dont les 9 060 images ne sont pas là donnerait des pages vides. Mieux vaut
-    /// lancer l'installation et le dire, que d'ouvrir un lecteur muet.
-    private func choose(_ edition: QuranEdition) {
-        guard edition.isAvailable else {
-            model.notice = "\(edition.label) n'est pas encore disponible dans cette version."
-            return
-        }
-
-        if edition == .coran1441, !model.coran1441.isInstalled {
-            model.coran1441.start()
-            return
-        }
-
-        model.setEdition(edition)
-        readerRequest = ReaderRequest(range: nil, sessionID: nil, page: model.resumePage)
-    }
-
-    private func subtitle(for edition: QuranEdition) -> String {
-        guard edition.isAvailable else { return "À venir" }
-        guard edition == .coran1441 else { return "Disponible" }
-        return model.coran1441.isInstalled ? "Installé" : "À installer"
-    }
+    // La décision vit dans `QuranDisplayOptions.choice(for:coran1441Installed:)`,
+    // et le rendu des quatre éditions dans `QuranEditionChooser`. Cet écran ne
+    // fournit que les **effets** : changer la préférence et ouvrir le lecteur,
+    // lancer l'installation, ou dire le refus. C'est ce qui garantit que
+    // l'onglet Coran et l'écran de réglages proposent la même liste et prennent
+    // la même décision — deux copies d'une même règle divergent en silence.
 
     // MARK: Installation du Coran 1441
 

@@ -37,6 +37,32 @@ private func hex(_ value: UInt32) -> Color {
 
 public enum Theme {
 
+    // MARK: Couleurs écrites en hexadécimal
+
+    /// Lit une couleur `#rrggbb` telle que l'original l'écrit dans ses tables.
+    ///
+    /// POURQUOI CETTE FONCTION
+    ///   Les palettes de ce fichier portent leurs couleurs en `UInt32`
+    ///   (`hex(0x7B285C)`), ce qui suffit pour des constantes écrites ici. Mais
+    ///   deux tables de l'original donnent leurs couleurs sous forme de
+    ///   **chaînes** — les quatre fonds du Coran
+    ///   (`src/core/readerAppearance.ts:2-5`) et la couleur du libellé d'un fond
+    ///   (`'#342a27'`, `src/App.tsx:330`). Les recopier en `UInt32` ferait perdre
+    ///   la chaîne, et c'est justement la chaîne que le banc peut comparer au
+    ///   fichier de référence : deux écritures différentes de la même couleur
+    ///   (`#FAF7F2` et `#faf7f2`) ne se distinguent plus une fois converties.
+    ///
+    /// REND `nil` PLUTÔT QU'UNE COULEUR FAUSSE
+    ///   Une chaîne qui n'est pas six chiffres hexadécimaux n'a pas de couleur.
+    ///   Rendre du noir ou du transparent ferait passer une faute de frappe pour
+    ///   un choix de design.
+    public static func color(hexString: String) -> Color? {
+        var text = hexString
+        if text.hasPrefix("#") { text.removeFirst() }
+        guard text.count == 6, let value = UInt32(text, radix: 16) else { return nil }
+        return hex(value)
+    }
+
     // MARK: Palettes (src/ui/theme.tsx:9-13)
 
     public static let white = Palette(

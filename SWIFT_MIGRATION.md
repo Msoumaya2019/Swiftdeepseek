@@ -1427,3 +1427,164 @@ peut pas être atteint par une substitution de texte** : le falsificateur porte 
 section **binaire**, qui écrase le contenu de `rose.png` par celui de `white.png` puis
 restaure à l'octet.
 
+### 9.22 L'affichage du Coran : quatre éditions, trois écritures, et une liste qui n'était pas la bonne
+
+La carte « Affichage du Coran » de `src/App.tsx:330` a trois parties : le choix de
+l'édition, le fond du Coran avec règles de Tajwid, et le suivi automatique de la
+récitation. Elle a été portée avec `Core/QuranDisplayOptions.swift`,
+`Features/Quran/QuranEditionChooser.swift` et
+`Features/Settings/QuranDisplaySettingsView.swift`.
+
+#### Une divergence réelle, trouvée en lisant la référence
+
+`QuranScreenView` parcourait `QuranEdition.allCases` : il affichait donc **cinq**
+éditions — Coran de Médine, Coran 1441, Lecture simplifiée, Moushaf Tajwid, Coran
+avec règles de Tajwid — dans cet ordre-là. L'original n'en propose que **quatre**,
+dans un autre ordre.
+
+L'onglet Coran de l'original ne choisit pas son édition dans une liste : il ouvre un
+sélecteur modal (`App.tsx:515`), qui énumère
+
+    [{label:'Coran de Médine',           mode:'traditional'},
+     {label:'Coran avec règles de Tajwid', mode:'coranTest'},
+     {label:'Lecture simplifiée',         mode:'tajweed'},
+     ...zipSources.map(s => ({label: s.label, mode: s.id}))]
+
+et `zipSources` vaut `[{id:'coran_1441', label:'Coran 1441'}]`
+(`src/core/quranSources.ts:5`). La carte de réglages (`App.tsx:330`) énumère
+exactement les mêmes quatre entrées, dans le même ordre.
+
+`tajweedPages` (« Moushaf Tajwid ») n'apparaît dans **aucun** des deux — et c'est
+cohérent : `migrateReaderState` réécrit cette clé vers `coranTest` à chaque
+chargement (`src/core/program.ts:60`). C'est une clé d'écriture que l'original ne
+laisse jamais choisir. Le portage la proposait, ce qui donnait un choix
+immédiatement annulé au chargement suivant.
+
+La liste et son ordre vivent désormais dans `QuranDisplayOptions.editionKeys`, et le
+banc exige l'**écart** avec `allCases` — si les deux coïncidaient un jour, le
+contrôle échouerait en le disant.
+
+#### Une seule décision, partagée par deux écrans
+
+`QuranScreenView.choose()` portait la règle : une édition que cette version ne sait
+pas rendre est refusée ; le Coran 1441 non installé lance l'installation **sans**
+changer la préférence ; le reste sélectionne. Cette règle est maintenant
+`QuranDisplayOptions.choice(for:coran1441Installed:)`, une fonction **pure** — elle
+ne démarre rien et n'écrit rien —, et `QuranEditionChooser` la lit pour router vers
+l'un de ses trois rappels. Les deux écrans partagent donc une seule décision.
+
+Le refus de ne pas changer la préférence avant l'installation vient de
+`QuranDownload.tsx:8` :
+
+    if (quranDownloaded()) onSelect(); else setExpanded(true);
+
+Tant que les pages ne sont pas là, l'original ouvre son installateur et **n'appelle
+pas** `onSelect`. Écrire la préférence d'abord ouvrirait le lecteur sur une édition
+dont les 9 060 images manquent — c'est-à-dire sur des pages vides.
+
+#### Les trois écritures ne posent pas le même défaut
+
+C'est le point qu'une relecture rapide rate. Les trois `onPress` de `App.tsx:330`
+s'écrivent presque pareil, et ne font pas la même chose :
+
+| appui | `mushaf` écrit | `followAudio` écrit |
+|---|---|---|
+| une édition | la valeur choisie | `state.reader?.followAudio !== false` |
+| un fond | `state.reader?.mushaf ?? 'coranTest'` | `state.reader?.followAudio !== false` |
+| le suivi audio | `state.reader?.mushaf ?? 'coranTest'` | la valeur donnée |
+
+Deux conséquences que le portage reproduit telles quelles :
+
+1. **Un appui sur un fond, sur une installation neuve, enregistre
+   `mushaf: 'coranTest'`.** C'est surprenant — l'utilisateur croit n'avoir changé
+   que la couleur du papier — mais c'est le contrat : l'application React Native
+   relira ce document, et l'écrire autrement ferait diverger les deux.
+2. **`followAudio` vaut `!== false`, pas `|| true`.** Un `false` stocké reste
+   `false` ; une valeur absente devient `true`. Les trois écritures qui ne le
+   posent pas explicitement le préservent, et seule celle du suivi audio peut
+   écrire `false` sur un lecteur neuf.
+
+#### L'horodatage : une divergence qui n'en est pas une
+
+Le résumé de la session précédente affirmait que la carte de réglages n'appelait
+**pas** `touch`, contrairement à `changeQuranSource` (`App.tsx:458`). C'est faux, et
+la mesure le dit : les **six** `onPress` de la ligne 330 sont enveloppés dans
+`touch(...)`. Trois des vingt-sept contrôles d'un autre banc portaient déjà une
+valeur venue de la tête plutôt que du fichier ; celui-ci a été vérifié avant d'être
+écrit.
+
+Les trois règles du portage sont donc **pures** : elles ne touchent pas
+`updatedAt`. Ce n'est pas un oubli — `AppStateRepository.mutate` applique
+`Program.touch(transform(state))` (`Repositories/AppStateRepository.swift:113`), donc
+**toute** écriture est horodatée une fois, et une seule. Le banc exige les **deux**
+côtés de cette décision : la référence qui enveloppe, et le dépôt qui horodate. Si
+l'un des deux changeait seul, le document cesserait d'avancer — ou avancerait deux
+fois.
+
+#### Les quatre fonds, et un lecteur hexadécimal qui manquait
+
+`quranPaperOptions` (`src/core/readerAppearance.ts:1-6`) porte quatre fonds en
+chaînes hexadécimales, et `quranPaperColor` replie une clé inconnue sur le
+**premier** fond — pas sur une constante, ni sur la couleur du thème. Les quatre
+chaînes sont conservées telles quelles dans `QuranDisplayOptions.paperOptions`, à
+côté de la couleur résolue : c'est la chaîne que le banc compare au fichier de
+référence, deux écritures de la même couleur étant indiscernables une fois
+converties.
+
+Le portage n'avait aucun lecteur de chaîne hexadécimale — `hex(_:)` prend un
+`UInt32`, et il n'existe **aucune** `extension Color` dans le dépôt. D'où
+`Theme.color(hexString:)`, qui rend `Color?` : une chaîne qui n'est pas six chiffres
+hexadécimaux n'a pas de couleur, et rendre du noir ferait passer une faute de frappe
+pour un choix de design.
+
+La couleur du libellé d'un fond est écrite en clair dans l'original —
+`'#342a27'` — et n'est **pas** `colors.text`. Les quatre fonds sont clairs, donc le
+libellé doit rester sombre quel que soit le thème ; prendre la couleur de la palette
+donnerait un libellé illisible sur fond clair dans un thème sombre. Elle est donc
+dans le modèle, et le banc refuse tout code couleur écrit en clair dans l'écran.
+
+#### Ce qui est stocké n'est pas encore appliqué, et c'est dit
+
+Le fond n'est consommé qu'à un seul endroit de l'original : `readerState.background`
+de `CoranTestScreen`, l'édition rendue par une page HTML dans un WebView avec 607
+polices `.woff2` — une chaîne que ce portage n'a pas. Le suivi audio, lui, n'est lu
+que par `followAudio(id)` (`App.tsx:445`), dans le même écran.
+
+Les deux préférences sont donc **stockées, affichées et vérifiées**, mais elles ne
+colorent et n'enchaînent encore rien ici. Les stocker est nécessaire : c'est ce qui
+fait que l'utilisateur retrouve ses choix d'une application à l'autre. Le dire est
+nécessaire aussi — un interrupteur qui ne change rien à l'écran ferait croire
+l'application cassée. C'est le même raisonnement que pour `state.uiFont`.
+
+Une divergence assumée, enfin : `DownloadSourceChoice` déplie son installateur
+**dans** le sélecteur. L'écran de réglages du portage est une feuille : il lance
+l'installation et le dit, et l'avancement reste visible dans l'onglet Coran, où
+l'installateur vit depuis le début.
+
+#### Les contrôles
+
+`_banc/verifier-coran-affichage.mjs` — **97 vérifications**, `EXPECTED = 97`. Il lit
+les quatre fonds, les trois sous-titres de la carte, le sous-titre du Coran 1441,
+l'ordre des quatre éditions, les six mesures, la couleur du libellé, les trois
+règles d'écriture, les deux côtés de la décision d'horodatage, et l'absence de
+toute valeur recopiée dans les écrans.
+
+`_banc/falsifier-coran-affichage.mjs` — **58 mutations plus un témoin**, 59 cas, 0
+non conforme. Aucune source n'est laissée mutée : `git status` et `git diff` sont
+identiques avant et après.
+
+Deux ancres fautives ont été trouvées en l'écrivant, dont une par le falsificateur :
+
+- la fenêtre de la carte commençait à sa phrase d'**explication**
+  (`Choisis la présentation arabe des pages.`), qui vient **après** le titre dans le
+  JSX. Le contrôle qui demandait d'y trouver `>Affichage du Coran<` ne pouvait donc
+  pas réussir — il échouait sur un banc par ailleurs juste. L'ancre encodait ce
+  qu'on attendait lire, pas ce que le fichier dit ;
+- `borderWidth:.*?\?(\d+):(\d+)` : un `[^,}]*?` s'arrêterait au premier `?`, qui est
+  celui de `state.reader?.paper`. Le quantificateur paresseux sur `.` est
+  nécessaire.
+
+Et une leçon de forme, revécue : `grep -cF` sur un motif de **deux lignes** compte
+les lignes qui satisfont l'un **ou** l'autre — il a rendu `253` pour un contrôle qui
+devait rendre `0`. Les vérifications de sous-chaîne se font sur le fichier entier,
+par égalité de présence, jamais par comptage de lignes.

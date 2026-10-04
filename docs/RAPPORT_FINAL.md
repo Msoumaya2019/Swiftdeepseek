@@ -1020,6 +1020,49 @@ laissé sur le disque.
 
 Le portage, raconté côté migration, est documenté en `SWIFT_MIGRATION.md` §9.21.
 
+### L'affichage du Coran : une liste qui n'était pas la bonne, et trois écritures qui n'écrivent pas la même chose
+
+La carte « Affichage du Coran » (`src/App.tsx:330`) a été portée avec
+`Core/QuranDisplayOptions.swift`, `Features/Quran/QuranEditionChooser.swift` et
+`Features/Settings/QuranDisplaySettingsView.swift`. Deux choses valent d'être racontées.
+
+**L'onglet Coran proposait la mauvaise liste.** Il parcourait `QuranEdition.allCases`,
+donc affichait **cinq** éditions — dont « Moushaf Tajwid », une clé que l'original ne
+laisse jamais choisir, `migrateReaderState` la réécrivant vers `coranTest` à chaque
+chargement (`src/core/program.ts:60`). L'original n'en propose que **quatre**, dans un
+autre ordre, et les deux endroits où il les propose — le sélecteur modal de l'onglet
+Coran (`App.tsx:515`) et la carte de réglages (`App.tsx:330`) — s'accordent : Coran de
+Médine, Coran avec règles de Tajwid, Lecture simplifiée, Coran 1441. Le défaut était
+silencieux : la liste s'affichait, simplement ce n'était pas la bonne. Le banc exige
+désormais l'**écart** avec `allCases`, de sorte que la confusion ne puisse pas revenir
+sans le dire.
+
+**Les trois écritures de la carte ne posent pas le même défaut.** Celles des éditions
+écrivent la valeur choisie ; celles du fond et du suivi audio écrivent
+`state.reader?.mushaf ?? 'coranTest'`. Un appui sur un fond, sur une installation
+neuve, **enregistre donc `coranTest`** — surprenant, mais c'est le contrat que
+l'application React Native relit. Et `followAudio` est comparé `!== false`, pas
+`|| true` : un `false` stocké reste `false`.
+
+Une correction de méthode, au passage : le résumé de la session précédente affirmait que
+cette carte n'appelait **pas** `touch`, contrairement à `changeQuranSource`
+(`App.tsx:458`). La mesure dit le contraire — les **six** `onPress` de la ligne 330 sont
+enveloppés dans `touch(...)`. Les trois règles du portage restent donc **pures**, et
+l'horodatage vient de `AppStateRepository.mutate` (`Program.touch(transform(state))`,
+ligne 113). Le banc exige les **deux** côtés de cette décision : si l'un des deux
+changeait seul, le document cesserait d'avancer — ou avancerait deux fois.
+
+Deux ancres fautives ont été trouvées en écrivant le banc, dont une par le
+falsificateur : la fenêtre de la carte commençait à sa phrase d'**explication**, qui
+vient **après** son titre dans le JSX — le contrôle qui demandait d'y trouver
+`>Affichage du Coran<` ne pouvait donc pas réussir, et il échouait sur un banc par
+ailleurs juste. L'ancre encodait ce qu'on attendait lire, pas ce que le fichier dit.
+
+`_banc/verifier-coran-affichage.mjs` compte **97** vérifications,
+`_banc/falsifier-coran-affichage.mjs` **58** mutations plus un témoin — 59 cas, tous
+détectés, aucun orphelin laissé sur le disque. Le portage est documenté en
+`SWIFT_MIGRATION.md` §9.22.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a
@@ -1157,7 +1200,12 @@ qu'ils dépendaient d'un suivi de séance « non porté », alors que
 existaient déjà —, les **réglages** du programme et des connaissances
 (`SWIFT_MIGRATION.md` §9.18), et l'**écran d'apparence** — le thème, la couleur
 d'accent (§9.19) et les **cinq illustrations de thème** (§9.21), copiées à l'octet
-et vérifiées par empreinte contre la référence.*
+et vérifiées par empreinte contre la référence —, et la carte **« Affichage du
+Coran »** (§9.22), avec les quatre éditions de l'original, la décision à trois
+issues et les quatre fonds. Le **fond** et le **suivi audio** que cette carte
+porte sont, eux, stockés, affichés et vérifiés mais **pas encore appliqués** :
+leurs seuls consommateurs dans l'original vivent dans l'édition rendue en WebView,
+absente de ce portage.*
 
 **Côté Apple** (README §« Ce qu'il reste à faire côté Apple ») : compte de
 développeur, identifiant de paquet enregistré, profil de provisionnement et

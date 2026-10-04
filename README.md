@@ -328,6 +328,18 @@ pas le nom de leur fichier : `classic` lit `emerald.png`, `feminine` lit `rose.p
 Et les cinq images n'ont pas le même format — `white.png` est en 1613 × 975, les quatre
 autres en 1254 × 1254 — d'où un recadrage (`.fill`) et non un ajustement.
 
+Le **choix d'édition du Coran** n'est décidé qu'une fois. La liste des quatre
+éditions, leur ordre, la décision d'un appui et le texte du refus vivent dans
+`Core/QuranDisplayOptions.swift`, et `Features/Quran/QuranEditionChooser.swift` les
+rend pour l'onglet Coran **et** pour la carte « Affichage du Coran » des réglages.
+L'onglet Coran parcourait auparavant `QuranEdition.allCases` : il proposait cinq
+éditions, dans un autre ordre, dont « Moushaf Tajwid » — une clé que l'original ne
+laisse jamais choisir, `migrateReaderState` la réécrivant vers `coranTest` à chaque
+chargement. Les trois écritures de la carte ne posent pas non plus le même défaut sur
+`reader.mushaf` : celles du fond et du suivi audio écrivent `coranTest` quand il n'y a
+pas encore de lecteur. C'est surprenant, mais c'est le contrat que l'application React
+Native relit.
+
 ### Ce que les tests verrouillent
 
 | Fichier | Ce qu'il empêche de casser |
@@ -339,6 +351,7 @@ autres en 1254 × 1254 — d'où un recadrage (`.fill`) et non un ajustement.
 | `AudioRepeatPreferencesTests` | Les six réglages de répétition : le `Number()` de JavaScript sur le champ libre (soixante-dix textes figés), le nombre normalisé qui n'est pas le nombre validé (un « Autre » de 5000 compte 5000 **et** refuse de lancer), la relecture champ par champ en égalité stricte, et les deux affichages — la case qui se décoche et le `∞` — qui ne se déduisent pas du réglage. |
 | `PassageAudioEngineTests` | La boucle de répétition : on ne conclut que sur `nil`, le silence choisi ne s'applique qu'au redémarrage ou au verset répété, un verset qui suit dans la même piste se **reprend** au lieu d'être rechargé, et une pause pendant l'attente mémorise le temps restant. Chaque transition est comparée à la séquence d'effets que le banc **calcule** sur le vrai `src/core/audio.ts`. |
 | `JSONValueTests` | La conservation des clés JSON inconnues — la condition de la compatibilité. |
+| `QuranDisplayTests` | L'affichage du Coran : les quatre éditions de l'original (et l'écart avec `allCases`), la décision à trois issues — installer, sélectionner, refuser —, les quatre fonds et le repli sur le **premier**, et les trois règles d'écriture, dont le défaut `coranTest` que deux d'entre elles posent sur un lecteur absent. |
 | `DateKeysTests` | Les dates « AAAA-MM-JJ » à midi local (jamais de décalage de fuseau). |
 | `VerseBoundsTests` | L'ordre des colonnes de `bounds.json` et la projection des rectangles. |
 | `AppWiringTests` | Le relais des services observables, l'URL Supabase non tronquée par `//`, et l'absence de clé `service_role` embarquée. |

@@ -21,8 +21,8 @@
 //   L'application actuelle répartit ses réglages sur deux pages — « Profil »
 //   (prénom, compte, récitations, connaissances, objectif) et « Réglages »
 //   (apparence, affichage du Coran, notifications, remise à zéro, sources).
-//   Cet écran porte les connaissances, l'objectif et le rythme, l'apparence, et
-//   la remise à zéro de l'apprentissage. Restent l'affichage du Coran, les
+//   Cet écran porte les connaissances, l'objectif et le rythme, l'apparence,
+//   l'affichage du Coran, et la remise à zéro de l'apprentissage. Restent les
 //   notifications, les sources et le compte : ils viendront avec leurs écrans
 //   respectifs. Il n'y a pas de bouton mort ici — chaque ligne ouvre quelque
 //   chose qui existe.
@@ -38,6 +38,7 @@ struct SettingsView: View {
     @State private var showKnowledge = false
     @State private var showProgram = false
     @State private var showAppearance = false
+    @State private var showQuranDisplay = false
     @State private var confirmReset = false
 
     var body: some View {
@@ -70,6 +71,15 @@ struct SettingsView: View {
                     ) { showAppearance = true }
                 }
 
+                Section {
+                    settingsRow(
+                        title: QuranDisplayOptions.cardTitle,
+                        detail: QuranDisplayOptions.cardDetail,
+                        action: "Choisir l'affichage du Coran",
+                        symbol: "book"
+                    ) { showQuranDisplay = true }
+                }
+
                 Section("Tout remettre à 0") {
                     Text(Program.resetProgressDetail)
                         .font(.system(size: Theme.Typography.secondary))
@@ -92,6 +102,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showKnowledge) { KnowledgeEditorView() }
             .sheet(isPresented: $showProgram) { ProgramEditorView(state: model.state) }
             .sheet(isPresented: $showAppearance) { AppearanceView() }
+            .sheet(isPresented: $showQuranDisplay) { QuranDisplaySettingsView() }
             .confirmationDialog(
                 Program.resetProgressTitle,
                 isPresented: $confirmReset,
