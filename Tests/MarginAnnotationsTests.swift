@@ -26,6 +26,13 @@
 //
 //   Les dériver du code testé reviendrait à comparer le code à lui-même.
 //
+//   ET CELA N'A PAS SUFFI LA PREMIÈRE FOIS. Trois nombres de la première version
+//   venaient de la mémoire et non du banc : sept régions pour la page 1 au lieu
+//   de dix, un diamètre de 20 au lieu de 16,4 — transposé d'un cas du banc qui
+//   n'était pas le même —, et une assertion qui se comparait à elle-même. La CI
+//   les a montrés. Le banc mesure désormais les cas EXACTS de ce fichier, y
+//   compris les trois bornes du diamètre, au lieu de cas approchants.
+//
 // LA HAUTEUR DES PASTILLES, ET CE QUE CES TESTS EN DISENT
 //   La hauteur d'une pastille vaut au moins son diamètre, et grandit vers le bas
 //   quand son texte passe à la ligne. La mesure du texte demande UIKit, donc
@@ -129,7 +136,10 @@ final class MarginAnnotationsTests: XCTestCase {
     /// une page qui n'est pas la même.
     func testTheRegionsAreFractionsOfTheSourcePage() {
         let coran1441 = MarginAnnotations.regions(page: 1, source: .coran1441)
-        XCTAssertEqual(coran1441.count, 7)
+        // DIX rectangles pour SEPT versets : les versets 6 et 7 sont à cheval sur
+        // deux lignes, donc le fichier les décrit deux fois. Le nombre de
+        // pastilles, lui, est celui des GROUPES — cinq, pas dix.
+        XCTAssertEqual(coran1441.count, 10)
         // Mesuré : le verset 1 de la page 1 est sur la bande 5 (0-basée), à
         // x = 0.2445 et y = 0.321429, d'une hauteur de 0.1 — 232 / 2320.
         XCTAssertEqual(coran1441[0].id, 1)
@@ -140,7 +150,10 @@ final class MarginAnnotationsTests: XCTestCase {
         XCTAssertEqual(coran1441[0].height, 0.1, accuracy: 0.000001)
 
         let medine = MarginAnnotations.regions(page: 1, source: .medine)
-        XCTAssertEqual(medine.count, 7)
+        // Le même compte que pour le 1441 — dix rectangles, sept versets —, mais
+        // des valeurs entièrement différentes : les deux éditions ne partagent ni
+        // leur pagination ni leurs coordonnées.
+        XCTAssertEqual(medine.count, 10)
         // La convention de ligne n'est pas la même : 1-basée ici, 0-basée pour
         // le 1441. Le regroupement n'en dépend pas, mais une confusion des deux
         // fichiers, elle, se verrait.
@@ -439,9 +452,12 @@ final class MarginAnnotationsTests: XCTestCase {
         XCTAssertEqual(ceiling.markers[0].rect.width, 24, accuracy: 0.000001)
         XCTAssertEqual(ceiling.markers[0].rect.minX, 274.4, accuracy: 0.000001)
 
-        // Entre les deux : `edge = 20 + 4 = 24`, donc `24 - 4 = 20`.
+        // Entre les deux, donc non borné : autour d'une image carrée, une vue de
+        // 440 × 400 laisse 20 pt de marge de chaque côté, donc `box.minX = 20` et
+        // `edge = 20 + 0.001 × 400 = 20.4`, d'où `20.4 − 4 = 16.4`.
+        // Le `minX` de 2 le corrobore : `2 + 16.4 + 2 = 20.4`, et non 24.
         let middle = measure(CGRect(x: 0, y: 0, width: 440, height: 400))
-        XCTAssertEqual(middle.markers[0].rect.width, 20, accuracy: 0.000001)
+        XCTAssertEqual(middle.markers[0].rect.width, 16.4, accuracy: 0.000001)
         XCTAssertEqual(middle.markers[0].rect.minX, 2, accuracy: 0.000001)
     }
 
@@ -473,16 +489,40 @@ final class MarginAnnotationsTests: XCTestCase {
 
     /// Un libellé qui passe à la ligne grandit la pastille **vers le bas** :
     /// `minHeight` dans l'original, et non un centrage.
+    ///
+    /// La mesure ne se replie que pour le libellé « 3·4 ». Une mesure constante
+    /// pour TOUS les libellés ne prouverait rien : elle ferait grandir chaque
+    /// pastille, et l'assertion « les autres sont intactes » se comparerait à
+    /// elle-même — c'est exactement l'erreur que ce test a commise avant que la
+    /// CI ne la montre (`32.0` attendu égal à `17.45`).
     func testALabelThatWrapsGrowsTheMarkerDownwards() {
         let plain = self.layout(.coran1441)
-        let wrapped = self.layout(.coran1441, textHeight: { _, _, _ in 30 })
+        let wrapped = self.layout(.coran1441, textHeight: { label, _, _ in
+            return label == "3·4" ? 30 : 0
+        })
 
+        // L'ancrage : la pastille repliée est bien celle du libellé à deux versets.
+        XCTAssertEqual(plain.markers.map(\.label), ["1", "2", "3·4", "5·6", "7"])
         XCTAssertEqual(plain.markers[2].rect.height, plain.markers[2].rect.width, accuracy: 0.001)
+        // Mesure 30 + 2 d'interligne, au-dessus du diamètre de 17,45.
         XCTAssertEqual(wrapped.markers[2].rect.height, 32, accuracy: 0.001)
         // Le haut ne bouge pas : seul le bas descend.
         XCTAssertEqual(wrapped.markers[2].rect.minY, plain.markers[2].rect.minY, accuracy: 0.001)
-        // Et les autres pastilles ne sont pas touchées.
-        XCTAssertEqual(wrapped.markers[0].rect.height, plain.markers[0].rect.height, accuracy: 0.001)
+        // Et les pastilles dont le libellé tient sur une ligne sont intactes.
+        for index in [0, 1, 3, 4] {
+            XCTAssertEqual(
+                wrapped.markers[index].rect.height,
+                plain.markers[index].rect.height,
+                accuracy: 0.001,
+                "la pastille \(index) ne doit pas bouger"
+            )
+            XCTAssertEqual(
+                wrapped.markers[index].rect.height,
+                plain.markers[index].rect.width,
+                accuracy: 0.001,
+                "la pastille \(index) doit rester au diamètre"
+            )
+        }
     }
 
     // MARK: La séance dérivée de la demande
