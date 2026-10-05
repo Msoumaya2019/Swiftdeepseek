@@ -275,6 +275,34 @@ public final class AppViewModel: ObservableObject {
         }
     }
 
+    /// « Reprendre » une marque-page — `App.tsx:492`.
+    ///
+    /// Rend la page à ouvrir, ET date la marque-page : `Bookmark.use` écrit
+    /// `lastUsedAt`, ce qui fait vivre le badge « Dernière reprise » de la liste.
+    /// Sans lui, reprendre une marque-page ne laisserait aucune trace, et le
+    /// badge resterait sur l'entrée précédente.
+    ///
+    /// La règle vit ICI, et non dans les deux écrans qui l'appellent — le lecteur
+    /// et l'onglet Coran. C'est ce qui garantit que la page annoncée par la liste
+    /// et celle que la reprise ouvre sont la même : deux copies divergeraient.
+    ///
+    /// `nil` veut dire « page indéterminée » ; les deux appelants gardent alors
+    /// leur page courante au lieu d'en inventer une.
+    ///
+    /// L'original remet aussi à zéro le panneau de séance et sélectionne le
+    /// verset ; ni l'un ni l'autre n'existent dans ce portage.
+    @discardableResult
+    public func resumeBookmark(_ verseID: Int) -> Int? {
+        let stored = state.bookmarks?[String(verseID)]
+        let target = QuranSourceNavigation.versePage(
+            edition,
+            verseID: verseID,
+            current: stored?.sourcePages?[edition.rawValue]
+        )
+        update { Bookmark.use($0, verseID: verseID, page: target) }
+        return target
+    }
+
     /// Enregistre la page atteinte à la fermeture du lecteur.
     public func recordReading(page: Int) {
         let verseID = Quran.pageRange(page)?.start

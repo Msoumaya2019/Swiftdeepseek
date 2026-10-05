@@ -10,6 +10,19 @@ import Foundation
 
 public enum Bookmark {
 
+    /// `saveBookmark` — `src/core/bookmarks.ts:5`.
+    ///
+    /// **`lastUsedAt` est EFFACÉ, et c'est mesuré.** L'original construit un objet
+    /// NEUF à sept clés — `verseId, surah, ayah, page, sourcePages, createdAt,
+    /// updatedAt` — qui ne reprend **ni** `lastUsedAt` **ni** `deletedAt`. Le
+    /// ré-enregistrement ressuscite donc une marque-page supprimée, et remet la
+    /// date de dernier usage à zéro. Or `visible` trie par
+    /// `(lastUsedAt ?? updatedAt)` : conserver `lastUsedAt` ferait diverger
+    /// l'ORDRE de la liste entre les deux applications, sur un même document.
+    ///
+    /// L'original **lève** « Verset inexistant. » sur un identifiant hors bornes ;
+    /// une fonction pure n'a pas de quoi lever, elle rend donc l'état INCHANGÉ —
+    /// la seule divergence assumée de ce fichier, et elle ne touche aucune donnée.
     public static func save(_ state: AppState, verseID: Int, source: String, page: Int) -> AppState {
         guard verseID >= 1, verseID <= Quran.verses.count else { return state }
         let verse = Quran.verseAt(verseID)
@@ -31,7 +44,7 @@ public enum Bookmark {
             sourcePages: sourcePages,
             createdAt: previous?.createdAt ?? now,
             updatedAt: now,
-            lastUsedAt: previous?.lastUsedAt,
+            lastUsedAt: nil,
             deletedAt: nil
         )
         next.bookmarks = bookmarks
@@ -69,10 +82,37 @@ public enum Bookmark {
         return next
     }
 
+    /// Les marques-pages visibles, dans l'ordre de l'original — `visibleBookmarks`,
+    /// `src/core/bookmarks.ts:18`.
+    ///
+    /// L'ÉGALITÉ EST ÉPINGLÉE, ET CE N'EST PAS UN DÉTAIL.
+    ///   L'original trie sur `(lastUsedAt ?? updatedAt)` décroissant, sans
+    ///   départager les ex æquo — mais son entrée n'est pas arbitraire : les clés
+    ///   de `state.bookmarks` sont des indices de tableau (`"1"`, `"2"`, …), et
+    ///   `Object.values` rend ces clés en ordre NUMÉRIQUE CROISSANT. Comme
+    ///   `Array.prototype.sort` est stable, deux marques-pages de même horodatage
+    ///   restent dans l'ordre croissant des versets.
+    ///
+    ///   Swift ne donne aucune de ces deux garanties : un `Dictionary` n'a pas
+    ///   d'ordre, et `sorted(by:)` n'est pas stable. Sans le départage explicite
+    ///   ci-dessous, l'ordre de la liste divergerait donc de celui de
+    ///   l'application React Native — sur le même document, sans qu'aucun écran
+    ///   ne le signale. Les ex æquo ne sont pas théoriques : `save` écrit
+    ///   l'horodatage de l'appel, et deux enregistrements dans la même
+    ///   milliseconde partagent la même date.
+    ///
+    /// C'est aussi ce qui rend `BookmarksView.lastUsedID` correct : le badge est
+    /// le PREMIER maximum de cette liste, donc le plus petit verset à égalité —
+    /// comme le `sort` stable suivi de `[0]` de `BookmarksScreen.tsx:10`.
     public static func visible(_ state: AppState) -> [VerseBookmark] {
         (state.bookmarks ?? [:]).values
             .filter { $0.deletedAt == nil }
-            .sorted { ($0.lastUsedAt ?? $0.updatedAt) > ($1.lastUsedAt ?? $1.updatedAt) }
+            .sorted { first, second in
+                let left = first.lastUsedAt ?? first.updatedAt
+                let right = second.lastUsedAt ?? second.updatedAt
+                if left != right { return left > right }
+                return first.verseId < second.verseId
+            }
     }
 
     /// Fusion par date de modification — `mergeBookmarks`, `src/core/bookmarks.ts:20`.

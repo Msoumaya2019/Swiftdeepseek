@@ -295,15 +295,24 @@ public struct ReaderRequest: Identifiable {
 }
 
 /// Carte réutilisable — même rôle que `Card` de `src/ui/theme.tsx`.
+///
+/// `tint` existe pour un seul appelant, et il vient de l'original : la carte
+/// d'EXPLICATION de « Mes marques-pages » passe `backgroundColor: colors.soft`
+/// là où `Card` pose `paper` (`BookmarksScreen.tsx:11`). C'est le même procédé
+/// que le titre plus discret de `QuranSourcesCard` : l'original distingue une
+/// NOTE d'une ENTRÉE. Écrire cette variante en clair dans la vue aurait
+/// dupliqué la recette de la carte — bordure, rayon, remplissage —, et les deux
+/// copies auraient divergé au premier ajustement.
 struct Card<Content: View>: View {
     @EnvironmentObject private var model: AppViewModel
     @ViewBuilder var content: Content
+    var tint: Color? = nil
 
     var body: some View {
         content
             .padding(Theme.Spacing.lg)
             .frame(maxWidth: .infinity, alignment: .leading)
-            .background(model.palette.paper, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
+            .background(tint ?? model.palette.paper, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
             .overlay(
                 RoundedRectangle(cornerRadius: Theme.Radius.card)
                     .stroke(model.palette.line, lineWidth: 1)

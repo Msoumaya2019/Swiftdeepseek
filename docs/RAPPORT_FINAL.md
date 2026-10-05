@@ -65,7 +65,8 @@ Core/           AppState, OfflineMerge, JSONValue, DateKeys, Program, ProgramGoa
                 VerseBounds, VerseMarkers, MarginAnnotations, PassageAudio,
                 AudioRepeatPreferences, PassageAudioEngine, ChapterAudioCache,
                 AppearanceOptions
-Features/       Home, Quran (QuranScreenView, AudioRepeatSettingsView + Reader/),
+Features/       Home, Quran (QuranScreenView, BookmarksView,
+                AudioRepeatSettingsView + Reader/),
                 Program, Progress, Review, Friends, Navigation, Shared,
                 Settings (SettingsView, KnowledgeEditorView, ProgramEditorView,
                 AppearanceView)
@@ -1063,6 +1064,66 @@ ailleurs juste. L'ancre encodait ce qu'on attendait lire, pas ce que le fichier 
 détectés, aucun orphelin laissé sur le disque. Le portage est documenté en
 `SWIFT_MIGRATION.md` §9.22.
 
+### Les marque-pages : un écran, deux portes, et trois divergences que rien ne signalait
+
+L'écran « Mes marques-pages » (`src/BookmarksScreen.tsx`, douze lignes) est porté par
+`Core/BookmarkOptions.swift` — les onze textes — et `Features/Quran/BookmarksView.swift`.
+Il s'ouvre depuis **deux** portes : le lecteur (`ReaderView`, bouton de barre d'outils) et
+l'onglet Coran, qui n'affiche plus la liste en ligne mais une seule ligne-porte. Les deux
+présentent l'écran avec l'**édition affichée**, et la reprise passe par une règle unique,
+`AppViewModel.resumeBookmark`, qui écrit `lastUsedAt` — la source du badge « Dernière
+reprise ».
+
+Trois divergences silencieuses ont été trouvées en comparant au **modèle**, pas en
+relisant le code :
+
+**1. `Bookmark.save` gardait deux champs qu'il devait effacer.** `bookmarks.ts:8`
+construit un objet **neuf** à sept clés, qui ne porte ni `lastUsedAt` ni `deletedAt`. Le
+portage, lui, repartait de l'entrée existante. Conséquence mesurable : réenregistrer une
+marque-page déjà reprise la **déplaçait** dans la liste — puisque `visible` trie sur
+`lastUsedAt ?? updatedAt` — et réenregistrer une marque-page supprimée ne la
+ressuscitait pas. Le banc compare désormais les sept clés, une par une, à l'oracle
+(`bookmarks.ts` exécuté par `esbuild`).
+
+**2. La page de reprise pouvait ouvrir une page d'une autre pagination.** Le repli était
+`item.page`, c'est-à-dire un numéro venu du Coran de Médine. Or `sourceVersePage`
+(`sourceNavigation.ts:4`) valide la page connue : elle n'est retenue que si elle **porte**
+le verset dans l'édition affichée, sinon on rend la **première** page du verset. L'écart
+entre les deux paginations est mesuré : **56 versets sur 6 236** changent de première
+page, le premier étant le verset **746** (Al Mâ'idah 77 — la page 121 des rectangles
+s'ouvre bien sur `[5,77,…]`) : page **121** au Coran de Médine, **120** en Coran 1441. Le
+défaut était donc réel et atteignable, sur 56 versets. Il est fermé par
+`Core/QuranSourceNavigation.swift`, que les **deux** appelants — l'écran et la règle de
+reprise — partagent.
+
+**3. `visible` ne départageait pas les ex æquo comme JavaScript.** `Object.values` rend
+les clés entières en ordre **croissant**, et `Array.prototype.sort` est **stable** : à
+horodatage égal, l'ordre des versets est conservé. Swift n'offre ni l'un ni l'autre —
+`Dictionary` n'est pas ordonné, `sorted(by:)` n'est pas stable. Un départage explicite
+(`first.verseId < second.verseId`) rétablit la règle, et c'est lui qui décide quelle
+entrée porte le badge quand deux marque-pages partagent la même seconde.
+
+**Une ligne du tableau de migration mentait depuis le premier commit.** En écrivant cet
+écran, la mesure a montré que l'onglet Coran de l'original — `QuranScreen`,
+`MainScreens.tsx:28-33` — est une **liste de sourates** que ce portage n'a jamais
+construite, alors que §3 l'annonçait `✅` et pointait `QuranScreenView.swift`. Le fichier
+n'en a jamais porté trace, pas même en `54b2674`. Deux lignes sont corrigées, et l'écran
+manquant devient le prochain bloc (`SWIFT_MIGRATION.md` §9.28).
+
+**Un mutant a survécu, et c'est le banc qui avait tort.** Le contrôle du titre lisait le
+fichier **brut** (`read(optionsPath)`), et le commentaire d'en-tête de
+`BookmarkOptions.swift` cite « Mes marques-pages » : la chaîne restait donc trouvable
+alors que la **constante** avait dérivé. Le falsificateur l'a montré — M16 survivait — et
+le contrôle porte maintenant sur le code commentaires retirés, chaînes gardées
+(`codeSwift`). Un contrôle d'absence de littéral ne doit pas pouvoir être satisfait par un
+commentaire.
+
+`_banc/verifier-marques-pages.mjs` compte **106** vérifications — les dix bancs
+antérieurs rejoués — et `_banc/falsifier-marques-pages.mjs` éprouve **21** mutations :
+toutes tuées, arbre rendu intact. Tests : **422 → 454** (22 sur `Bookmark`, 10 sur
+`QuranSourceNavigation`). Le portage, raconté côté migration, est en `SWIFT_MIGRATION.md`
+§9.28.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a
@@ -1147,6 +1208,15 @@ détectés, aucun orphelin laissé sur le disque. Le portage est documenté en
    `/auth/v1/authorize` ne peut pas servir de contrôle — aucun fournisseur OAuth
    n'est actif sur ce projet, seul `email` l'est. La vérification se fera donc
    **sur appareil**, par un lien de confirmation réel.
+
+**Une découverte change l'ordre de cette liste : l'onglet Coran de l'original
+n'est pas celui que ce portage occupe.** `QuranScreen` (`MainScreens.tsx:28-33`) est
+une **liste de sourates** — recherche, filtre Mecquoise/Médinoise, sélecteur
+`Liste / Juz' / Hizb`, médaillon de numéro, carte « J'ai appris jusqu'à », carte de
+pied « Coran avec règles de Tajwid », bouton flottant « Dernière lecture ».
+`QuranScreenView.swift` porte autre chose. Les données sont prêtes ; l'écran manque,
+et c'est le plus gros manque fonctionnel de l'onglet le plus utilisé. Détail et
+preuve : `SWIFT_MIGRATION.md` §9.28.
 
 **Puis, par ordre d'importance fonctionnelle** (détaillé dans `SWIFT_MIGRATION.md` §9) :
 

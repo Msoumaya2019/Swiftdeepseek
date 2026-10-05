@@ -200,9 +200,10 @@ Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blo
 **328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
 tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
 au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
-déclare aujourd'hui **422**, répartis sur **vingt** fichiers : le bloc des trois
-cartes du profil en a ajouté **six** (416 → 422), dont quatre sur les trois décisions
-de `setReviewsEnabled`. Le prochain run les mesurera.
+déclare aujourd'hui **454**, répartis sur **vingt-deux** fichiers. Le bloc des trois
+cartes du profil en a ajouté **six** (416 → 422), mesurés au run n° 65 ; celui des
+marque-pages en a ajouté **trente-deux** (422 → 454) — vingt-deux sur le modèle et
+l'écran, dix sur la traduction d'un verset en page. Le prochain run les mesurera.
 
 Le run n° 52, lui, ne portait qu'un compte **déduit** : l'artefact publié est
 l'**IPA seul** — aucun résultat de tests — et `gh` n'était alors pas authentifié dans
@@ -304,6 +305,8 @@ Core/           Logique métier partagée — le contrat avec React Native
   Quran.swift         Sourates, juz’, hizb, pages, versets
   VerseBounds.swift   Rectangles des versets sur les pages (bounds.json)
   Bookmark.swift      Marque-pages
+  BookmarkOptions.swift  Les textes de « Mes marques-pages »
+  QuranSourceNavigation.swift  Un verset, en page de l'édition affichée
   DateKeys.swift      Dates « AAAA-MM-JJ » à midi local
   AppConfig.swift     Configuration publique
 Networking/     Client Supabase (REST, Foundation uniquement)
@@ -335,6 +338,18 @@ entreraient en collision avec toute autre ressource de même nom. Deux clés ne 
 pas le nom de leur fichier : `classic` lit `emerald.png`, `feminine` lit `rose.png`.
 Et les cinq images n'ont pas le même format — `white.png` est en 1613 × 975, les quatre
 autres en 1254 × 1254 — d'où un recadrage (`.fill`) et non un ajustement.
+
+**L'onglet Coran de l'original n'est pas celui que ce portage occupe, et le
+document l'annonçait à tort comme fait.** `QuranScreen` (`MainScreens.tsx:28-33`) est
+une **liste de sourates** — recherche, filtre Mecquoise/Médinoise, sélecteur
+`Liste / Juz' / Hizb`, médaillon de numéro, carte « J'ai appris jusqu'à », carte de
+pied « Coran avec règles de Tajwid », bouton flottant « Dernière lecture ».
+`QuranScreenView.swift` porte autre chose, et **aucune** des neuf chaînes de
+l'original n'existe dans le dépôt. Les données sont prêtes (`Surah.meaning`,
+`Surah.arabic`, `Surah.isMeccan`, `Quran.juzs`, `Quran.quarters`) ; l'écran manque.
+Les deux lignes du tableau de `SWIFT_MIGRATION.md` qui l'annonçaient « ✅ » sont
+corrigées — elles l'étaient depuis le premier commit. Voir `SWIFT_MIGRATION.md`
+§9.28.
 
 Le **choix d'édition du Coran** n'est décidé qu'une fois. La liste des quatre
 éditions, leur ordre, la décision d'un appui et le texte du refus vivent dans

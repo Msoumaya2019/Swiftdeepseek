@@ -17,6 +17,7 @@ public struct QuranScreenView: View {
 
     @EnvironmentObject private var model: AppViewModel
     @State private var readerRequest: ReaderRequest?
+    @State private var showBookmarks = false
 
     public init() {}
 
@@ -81,31 +82,27 @@ public struct QuranScreenView: View {
                     }
                 }
 
+                // Cette section n'est qu'une PORTE. La liste elle-même vit dans
+                // `BookmarksView`, le même écran que celui du lecteur : deux
+                // listes dans la même application auraient deux ordres, deux
+                // textes d'état vide, et une seule des deux serait corrigée au
+                // premier changement de règle.
                 Section("Marques-pages") {
-                    let items = Bookmark.visible(model.state)
-                    if items.isEmpty {
-                        Text("Aucune marque-page.")
-                            .font(.system(size: Theme.Typography.secondary))
-                            .foregroundStyle(model.palette.muted)
-                    } else {
-                        ForEach(items, id: \.verseId) { item in
-                            Button {
-                                readerRequest = ReaderRequest(
-                                    range: nil,
-                                    sessionID: nil,
-                                    page: item.sourcePages?[model.edition.rawValue] ?? item.page
-                                )
-                            } label: {
-                                VStack(alignment: .leading, spacing: 2) {
-                                    Text("\(Quran.surahAt(item.verseId).name) · verset \(item.ayah)")
-                                        .foregroundStyle(model.palette.text)
-                                    Text("Page \(item.page)")
-                                        .font(.system(size: Theme.Typography.metadata))
-                                        .foregroundStyle(model.palette.muted)
-                                }
-                            }
-                            .buttonStyle(.plain)
+                    Button {
+                        showBookmarks = true
+                    } label: {
+                        HStack {
+                            Text(BookmarkOptions.screenTitle)
+                            Spacer()
+                            Image(systemName: "bookmark")
                         }
+                    }
+                    .foregroundStyle(model.palette.green)
+
+                    if Bookmark.visible(model.state).isEmpty {
+                        Text(BookmarkOptions.emptyState)
+                            .font(.system(size: Theme.Typography.metadata))
+                            .foregroundStyle(model.palette.muted)
                     }
                 }
             }
@@ -114,6 +111,21 @@ public struct QuranScreenView: View {
             .fullScreenCover(item: $readerRequest) { request in
                 ReaderView(request: request, edition: model.edition, startPage: request.page)
                     .environmentObject(model)
+            }
+            // La MÊME règle de reprise que le lecteur — `resumeBookmark`. La seule
+            // différence est la destination : le lecteur n'est pas ouvert, on
+            // l'ouvre donc sur la page retrouvée.
+            .sheet(isPresented: $showBookmarks) {
+                BookmarksView(edition: model.edition, onResume: { verseID in
+                    let target = model.resumeBookmark(verseID)
+                    showBookmarks = false
+                    readerRequest = ReaderRequest(
+                        range: nil,
+                        sessionID: nil,
+                        page: target ?? model.resumePage
+                    )
+                })
+                .environmentObject(model)
             }
         }
     }

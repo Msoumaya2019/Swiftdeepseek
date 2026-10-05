@@ -33,6 +33,7 @@ public struct ReaderView: View {
     @State private var showAudio = false
     @State private var showAudioSettings = false
     @State private var showEditionPicker = false
+    @State private var showBookmarks = false
     @State private var chromeHeight: CGFloat = 0
 
     public init(request: ReaderRequest, edition: QuranEdition, startPage: Int) {
@@ -86,6 +87,13 @@ public struct ReaderView: View {
         .sheet(isPresented: $showAudioSettings) {
             AudioRepeatSettingsView(sessionRange: audioSessionRange, page: page)
         }
+        // L'original REMPLACE le lecteur par la liste (`App.tsx:492`) ; ici, un
+        // plein écran par-dessus — même effet visible, et le lecteur garde sa
+        // page courante, que `page` porte déjà.
+        .fullScreenCover(isPresented: $showBookmarks) {
+            BookmarksView(edition: edition, onResume: resumeFromBookmark)
+                .environmentObject(model)
+        }
     }
 
     /// La plage que l'écran de réglages appelle « Ma séance ».
@@ -136,6 +144,19 @@ public struct ReaderView: View {
                     .font(.system(size: 17))
             }
             .accessibilityLabel(isBookmarked ? "Retirer la marque-page" : "Marquer cette page")
+
+            // Deux gestes distincts, deux boutons. Celui du dessus POSE ou RETIRE
+            // une marque-page sur le verset courant ; celui-ci ouvre la LISTE,
+            // d'où l'on reprend une marque-page existante. Les confondre rendait
+            // la liste inatteignable depuis le lecteur — qui est pourtant
+            // l'endroit où l'on en a besoin.
+            Button {
+                showBookmarks = true
+            } label: {
+                Image(systemName: "list.bullet")
+                    .font(.system(size: 17))
+            }
+            .accessibilityLabel(BookmarkOptions.screenTitle)
         }
         .foregroundStyle(model.palette.green)
         .padding(.horizontal, Theme.Spacing.lg)
@@ -497,5 +518,19 @@ public struct ReaderView: View {
             }
             return Bookmark.save(state, verseID: id, source: edition.rawValue, page: page)
         }
+    }
+
+    /// « Reprendre » depuis la liste — `App.tsx:492`.
+    ///
+    /// Toute la règle vit dans `AppViewModel.resumeBookmark` : la page à ouvrir,
+    /// et la date de dernier usage (`Bookmark.use`, qui fait vivre le badge
+    /// « Dernière reprise »). Ici, il ne reste que l'effet propre au lecteur —
+    /// se déplacer, puis fermer la liste.
+    ///
+    /// La sélection du verset et la remise à zéro du panneau de séance, que
+    /// l'original fait aussi, n'ont pas d'équivalent dans ce portage.
+    private func resumeFromBookmark(_ verseID: Int) {
+        if let target = model.resumeBookmark(verseID) { page = target }
+        showBookmarks = false
     }
 }

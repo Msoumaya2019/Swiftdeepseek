@@ -49,15 +49,15 @@
 
 | Fonctionnalité | État RN | État Swift | Tables Supabase | Fichiers Swift | Problèmes |
 |---|---|---|---|---|---|
-| Liste des sourates (recherche, filtre) | ✅ | ✅ | — (données embarquées) | `Core/Quran.swift`, `Features/Quran/QuranScreenView.swift` | |
-| Liste des Juz’ et des Hizb | ✅ | 🟡 | — | `Core/Quran.swift` | Données prêtes (`juzs`, `hizbs`), l'interface liste seulement les sourates pour l'instant. |
+| Liste des sourates (recherche, filtre) | ✅ | ⬜ | — (données embarquées) | `Core/Quran.swift` | **L'écran n'est pas construit.** Cette ligne annonçait « ✅ » et pointait `QuranScreenView.swift`, qui ne l'a jamais porté — pas même au commit initial. Mesuré : aucune des neuf chaînes de `MainScreens.tsx:28-33` — « Rechercher une sourate », « Aucun résultat », « Mecquoise », « Dernière lecture »… — n'existe dans le dépôt. Les données sont prêtes. Voir §9.28. |
+| Liste des Juz' et des Hizb | ✅ | ⬜ | — | `Core/Quran.swift` | Données prêtes (`juzs`, `hizbs`, `quarters`), **aucune interface**. La justification précédente — « l'interface liste seulement les sourates pour l'instant » — était fausse : elle ne liste rien du tout. Voir §9.28. |
 | Lecteur « Coran de Médine » (604 pages) | ✅ | ✅ | — | `Features/Quran/Reader/ReaderView.swift`, `MushafPageViewController.swift`, `Resources/Mushaf` | 604 PNG embarquées. |
 | Lecteur « Coran 1441 » | ✅ | 🟡 | — | `Services/QuranSourceService.swift` | Lit les pages si elles sont présentes ; **le téléchargement et l'installation sont implémentés** — voir §9.4. |
 | Pagination native au doigt | ✅ | ✅ | — | `MushafPageViewController.swift` | `UIPageViewController`, comme prévu. |
 | Préchargement page précédente / courante / suivante | ✅ | ✅ | — | `MushafPageViewController.swift` | Trois pages, jamais 604. Cache LRU. |
 | Centrage vertical sans marge fixe | ✅ | ✅ | — | `ReaderView.swift`, `MushafPageViewController.swift` | Zone de page = tout l'espace restant, `scaleAspectFit`, contraintes centrées. Aucun `marginTop`. |
 | Reprise à la dernière page lue | ✅ | ✅ | `user_state.lastRead` | `Features/Home/HomeView.swift`, `ViewModels/AppViewModel.swift` | |
-| Marque-pages | ✅ | 🟡 | `user_state.bookmarks` | `Core/Bookmark.swift` | Poser/retirer dans le lecteur et lister dans l'onglet Coran : fait. Fusion : faite. |
+| Marque-pages | ✅ | ✅ | `user_state.bookmarks` | `Core/Bookmark.swift`, `Core/BookmarkOptions.swift`, `Core/QuranSourceNavigation.swift`, `Features/Quran/BookmarksView.swift` | Poser/retirer dans le lecteur, liste complète dans les deux écrans, reprise de lecture sur la page du **verset** dans l'édition affichée. La fusion (`mergeBookmarks`) est portée mais **jamais appelée** : l'original ne l'appelle que depuis `reconcileState`, non porté. Voir §9.28. |
 | Choix de l'édition | ✅ | ✅ | `user_state.reader.mushaf` | `Features/Quran/Reader/ReaderView.swift` | Les cinq éditions, et les trois non reprises : voir §9.3. |
 | Sources du Coran (attributions) | ✅ | ✅ | — | `Core/QuranSourcesCard.swift`, `Features/Settings/SettingsView.swift` | Les attributions de licence — Tanzil, QPC V4, cpfair, Rachid Maach, Quran Meta — et le lien vers tanzil.net, recopiés **au caractère près**, deux apostrophes typographiques distinctes comprises. Voir §9.24. |
 | Profil : prénom, compte, photo | ✅ | 🟡 | `auth.users`, `friend_profiles`, bucket `friend-avatars` | `Core/ProfileOptions.swift`, `Features/Profile/ProfileView.swift`, `Tests/ProfileTests.swift` | Les 47 textes, les quatre conditions d'activation et les deux bornes de photo sont portés et gelés, et l'**écran est monté** — le prénom, le compte, la déconnexion, plus l'**avis global** qui manquait à tout le monde. La photo et le formulaire de connexion restent délibérément hors de l'écran. Voir §9.25 et §9.26. |
@@ -2006,3 +2006,110 @@ Banc : `_banc/verifier-cartes-profil.mjs` — **85 vérifications**, 0 échec, l
 bancs antérieurs rejoués. Falsificateur : `_banc/falsifier-cartes-profil.mjs` —
 **21 mutations**, toutes tuées, arbre rendu intact. Tests : **416 → 422**.
 
+
+### 9.28 Les marques-pages : un écran, deux portes, et une liste de sourates qui n'existait pas
+
+#### Ce que le bloc a monté
+
+`BookmarksScreen.tsx` (12 lignes) est un écran à part entière dans l'original :
+`App.tsx:492` le rend **à la place** du lecteur quand `bookmarksOpen` est vrai. Il
+liste les marque-pages visibles, en supprime un après confirmation, et
+« Reprendre » ramène la lecture sur la page du verset.
+
+Le portage ajoute `Features/Quran/BookmarksView.swift` et
+`Core/BookmarkOptions.swift` (les onze textes), et l'ouvre depuis **deux**
+endroits : le lecteur (`ReaderView`, un `fullScreenCover`) et l'onglet Coran
+(`QuranScreenView`, une feuille). Les deux passent par la même règle de reprise,
+`AppViewModel.resumeBookmark` — c'est ce qui garantit que la page **annoncée** par
+la liste et celle que « Reprendre » **ouvre** sont la même.
+
+#### Trois règles que le portage ne tenait pas
+
+**1. `save` doit effacer `lastUsedAt` et `deletedAt`.**
+`bookmarks.ts:8` construit un objet NEUF à sept clés — `verseId, surah, ayah,
+page, sourcePages, createdAt, updatedAt` — qui ne reprend ni l'un ni l'autre. Le
+portage les conservait. La conséquence est invisible et réelle : `visible` trie sur
+`(lastUsedAt ?? updatedAt)`, donc ré-enregistrer une marque-page déjà reprise la
+**déplaçait** dans la liste au lieu de la remettre à sa date d'écriture ; et
+ré-enregistrer une marque-page supprimée ne la ressuscitait pas. L'oracle compare
+les deux objets clé par clé, `null` et « clé absente » étant tenus pour la même
+chose — `Codable` omet les optionnels nuls à l'encodage, la référence ne les écrit
+pas du tout.
+
+**2. La page d'une reprise n'est pas celle du moushaf.**
+`sourceVersePage` (`sourceNavigation.ts:4`) traduit un VERSET en page pour
+l'édition affichée. Le portage repliait sur `item.page`, c'est-à-dire la page du
+**Coran de Médine** — y compris quand on lisait le **Coran 1441**. Mesuré sur les
+fichiers livrés : les deux paginations diffèrent pour **56 versets sur 6236**, et le
+premier est le 746 (Al Mâ'idah 77) — page 121 côté Médine, page **120** côté 1441.
+Ouvrir la 121 dans le 1441 menait donc à un passage sans rapport, sans aucun
+symptôme : la page s'affiche. `Core/QuranSourceNavigation.swift` porte désormais les
+deux branches atteignables, et la règle vit **une seule fois** — la liste et la
+reprise l'appellent toutes les deux.
+
+**3. L'égalité de `visible` doit être départagée.**
+L'original trie sur l'horodatage seul, sans départager les ex æquo — mais son entrée
+n'est pas arbitraire : les clés de `state.bookmarks` sont des indices de tableau
+(`"1"`, `"2"`, …), `Object.values` les rend en ordre **numérique croissant**, et
+`Array.prototype.sort` est **stable**. Deux marques-pages de même horodatage restent
+donc dans l'ordre croissant des versets. Swift ne donne ni l'un ni l'autre : un
+`Dictionary` n'a pas d'ordre, `sorted(by:)` n'est pas stable. Sans le départage
+explicite ajouté à `Bookmark.visible`, l'ordre de la liste divergerait de celui de
+l'application React Native **sur le même document**. Le banc exécute le vrai
+`visibleBookmarks` sur un ex æquo et compare l'ordre obtenu.
+
+#### Une branche non portée, et pourquoi elle ne coûte rien
+
+`sourceVersePage` a trois branches ; celle de `coranTest` — le moushaf de Tajwid —
+n'est pas portée : `testVersePage` lit un index verset → pages construit depuis les
+607 polices `.woff2` de `coranTest/model.ts`, que cette application n'embarque pas.
+La branche est **inatteignable**, et c'est mesurable : `QuranEdition.isAvailable`
+n'est vrai que pour `.medine` et `.coran1441`, et `QuranEdition.displayed(stored:)`
+remplace toute autre préférence par `.medine` (§9.3). Un test le vérifie
+explicitement, plutôt que de laisser croire à un support complet.
+
+#### Une découverte : l'onglet Coran de l'original n'est pas celui qu'on croit
+
+En lisant `MainScreens.tsx:28-33` pour brancher l'écran, une divergence de fond est
+apparue. **`QuranScreen` — l'onglet « Coran » de l'original — est une liste de
+sourates** : recherche, filtre Mecquoise/Médinoise, sélecteur `Liste / Juz' / Hizb`,
+médaillon de numéro, carte « J'ai appris jusqu'à », carte de pied « Coran avec règles
+de Tajwid », et un bouton flottant « Dernière lecture ».
+
+Le portage n'en a **rien**. `QuranScreenView.swift` occupe la place mais porte autre
+chose : le choix d'édition, l'installation du Coran 1441, la reprise, les
+marque-pages. C'est une composition propre au portage — §9.22 le laissait entendre en
+discutant la liste d'éditions, sans jamais dire que **l'écran entier** diffère.
+
+Ce que le document en disait était faux, et l'était depuis le premier commit :
+
+| Ligne | Ce qui était écrit | Ce qui est mesuré |
+|---|---|---|
+| §3, « Liste des sourates » | `✅` porté, fichiers `Core/Quran.swift`, `Features/Quran/QuranScreenView.swift` | **jamais construit** — le fichier n'en a jamais porté trace, pas même en `54b2674` |
+| §3, « Liste des Juz' et des Hizb » | « l'interface liste seulement les sourates pour l'instant » | elle ne liste **rien** |
+
+Preuve : aucune des neuf chaînes de `MainScreens.tsx:28-33` — « Rechercher une
+sourate », « Aucun résultat », « Mecquoise », « Médinoise », « J'ai appris jusqu'à »,
+« Dernière lecture », « Mushaf de Médine », « Liste des Juz' », « Liste des Hizb » —
+n'existe dans le dépôt. Les **données** sont prêtes (`Surah.meaning`,
+`Surah.arabic`, `Surah.isMeccan`, `Quran.juzs`, `Quran.quarters`) ; seul l'écran
+manque. Les deux lignes du tableau sont corrigées, et l'écran est inscrit comme le
+prochain bloc.
+
+#### Deux points qui restent tels quels, et qu'il faut savoir
+
+- **`mergeBookmarks` est portée mais jamais appelée.** L'original ne l'appelle que
+  depuis `reconcileState` (`program.ts:68`), qui n'est pas porté, et
+  `offlineMerge.ts` — le chemin de fusion qui *est* porté — n'a **aucune** règle
+  propre aux marque-pages. Le portage est donc fidèle : la fusion générique à trois
+  voies traite `bookmarks` comme n'importe quelle carte d'objets.
+- **Le texte d'état vide décrit un geste que ce portage n'a pas.**
+  `BookmarksScreen.tsx:11` dit « Touche « Marque-page », puis un verset sur la
+  page » : l'original a un mode de pose où l'on touche le verset exact. Le portage
+  n'a pas ce mode — le bouton du lecteur marque le verset courant. La chaîne est
+  conservée telle quelle (elle vient de la référence, et le banc l'épingle), et la
+  divergence est bornée à une phrase.
+
+Banc : `_banc/verifier-marques-pages.mjs` — **106 vérifications**, 0 échec, les dix
+bancs antérieurs rejoués. Falsificateur : `_banc/falsifier-marques-pages.mjs` —
+**21 mutations**, toutes tuées, arbre rendu intact. Tests : **422 → 454**.
