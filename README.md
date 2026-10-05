@@ -356,6 +356,15 @@ huit clés, mais aucune des deux cartes de l'original n'en propose `revision` : 
 écrite par le service, et l'ajouter « par symétrie » afficherait un huitième
 interrupteur que l'application actuelle n'a pas.
 
+La **carte « Sources du Coran »** est le seul écran de réglages qui ne propose
+rien : cinq chaînes et un lien, portés par `Core/QuranSourcesCard.swift`. Deux
+détails y sont recopiés au caractère près, parce qu'un test les épingle : `juz’`
+porte une apostrophe courbe **fermante** (U+2019) et `rub‘` une **ouvrante**
+(U+2018) — probablement une coquille de l'original, mais la corriger ferait
+diverger les deux applications à l'écran. Le titre est volontairement plus discret
+que celui des autres cartes (14, `semibold`, `muted`) : c'est une note de bas de
+page. Et le lien emploie `green2`, qui diffère de `green` sur deux thèmes.
+
 ### Ce que les tests verrouillent
 
 | Fichier | Ce qu'il empêche de casser |
@@ -369,6 +378,7 @@ interrupteur que l'application actuelle n'a pas.
 | `JSONValueTests` | La conservation des clés JSON inconnues — la condition de la compatibilité. |
 | `QuranDisplayTests` | L'affichage du Coran : les quatre éditions de l'original (et l'écart avec `allCases`), la décision à trois issues — installer, sélectionner, refuser —, les quatre fonds et le repli sur le **premier**, et les trois règles d'écriture, dont le défaut `coranTest` que deux d'entre elles posent sur un lecteur absent. |
 | `NotificationTests` | Les sept interrupteurs et leurs replis, le défaut **matérialisé** qu'un appui écrit sur une installation neuve, la divergence des deux prédicats de permission sur EPHEMERAL, l'égalité **stricte** de `sameChat` — un `linkId` nul sans conversation ouverte supprime la notification —, le registre qui se vide **entier** au-delà de 200 entrées, les deux formules des drapeaux d'affichage, et l'ordre du programmateur : annuler d'abord, programmer ensuite. |
+| `QuranSourcesTests` | La carte des sources : les cinq chaînes au caractère près, les deux apostrophes typographiques distinctes (`juz’` U+2019, `rub‘` U+2018) et le tiret demi-cadratin du copyright, les six sources nommées, les deux licences citées, et la réserve sur les toumoun. |
 | `DateKeysTests` | Les dates « AAAA-MM-JJ » à midi local (jamais de décalage de fuseau). |
 | `VerseBoundsTests` | L'ordre des colonnes de `bounds.json` et la projection des rectangles. |
 | `AppWiringTests` | Le relais des services observables, l'URL Supabase non tronquée par `//`, et l'absence de clé `service_role` embarquée. |

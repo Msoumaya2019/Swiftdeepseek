@@ -1203,7 +1203,7 @@ existaient déjà —, les **réglages** du programme et des connaissances
 d'accent (§9.19) et les **cinq illustrations de thème** (§9.21), copiées à l'octet
 et vérifiées par empreinte contre la référence —, et la carte **« Affichage du
 Coran »** (§9.22), avec les quatre éditions de l'original, la décision à trois
-issues et les quatre fonds. Le **fond** et le **suivi audio** que cette carte
+issues et les quatre fonds, et la carte **« Sources du Coran »** (§9.24), avec ses cinq chaînes et son lien recopiés au caractère près. Le **fond** et le **suivi audio** que cette carte
 porte sont, eux, stockés, affichés et vérifiés mais **pas encore appliqués** :
 leurs seuls consommateurs dans l'original vivent dans l'édition rendue en WebView,
 absente de ce portage.*

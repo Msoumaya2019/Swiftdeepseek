@@ -22,10 +22,9 @@
 //   (prénom, compte, récitations, connaissances, objectif) et « Réglages »
 //   (apparence, affichage du Coran, notifications, remise à zéro, sources).
 //   Cet écran porte les connaissances, l'objectif et le rythme, l'apparence,
-//   l'affichage du Coran, les notifications, et la remise à zéro de
-//   l'apprentissage. Restent les sources et le compte : ils viendront avec
-//   leurs écrans respectifs. Il n'y a pas de bouton mort ici — chaque ligne ouvre quelque
-//   chose qui existe.
+//   l'affichage du Coran, les notifications, les sources, et la remise à zéro
+//   de l'apprentissage. Reste le compte : il viendra avec son écran. Il n'y a
+//   pas de bouton mort ici — chaque ligne ouvre quelque chose qui existe.
 
 import SwiftUI
 
@@ -101,6 +100,10 @@ struct SettingsView: View {
                     .font(.system(size: Theme.Typography.body))
                     .foregroundStyle(palette.red)
                 }
+
+                Section {
+                    sourcesCard
+                }
             }
             .navigationTitle("Réglages")
             .navigationBarTitleDisplayMode(.inline)
@@ -139,6 +142,51 @@ struct SettingsView: View {
     /// un libellé faux.
     private var paceLabel: String {
         Pace(rawValue: model.state.pace)?.label ?? model.state.pace
+    }
+
+    // MARK: - La carte des sources
+
+    /// La dernière carte de la page « Réglages » de l'original (`App.tsx:350`).
+    ///
+    /// Elle n'ouvre **aucun** écran : c'est un texte d'attribution, avec un seul
+    /// lien sortant. C'est pourquoi elle n'emprunte pas le gabarit
+    /// `settingsRow` ci-dessous — ce gabarit porte un bouton, et il n'y en a pas
+    /// ici. Elle est rendue en clair, dans l'ordre exact de l'original : le
+    /// titre, le premier paragraphe, le lien, le second paragraphe.
+    ///
+    /// Le titre est volontairement plus discret que celui des autres cartes
+    /// (`Theme.Typography.body` en `semibold`, couleur `muted`) : l'original
+    /// l'écrit `fontSize:14, fontWeight:'600'` et `muted`, là où les réglages
+    /// portent `fontWeight:'700'` et la couleur de texte. La carte est une note
+    /// de bas de page, et l'afficher comme un réglage serait une décision que
+    /// l'original n'a pas prise.
+    ///
+    /// Le lien prend `palette.green2` et non `palette.green` : c'est la couleur
+    /// `colors.green2` de l'original, qui diffère de `green` sur deux thèmes
+    /// (rose, violet) — voir `Theme.swift`. Les autres liens de ce dossier
+    /// emploient `green`, et ce n'est pas une incohérence : ils portent des
+    /// boutons, alors que celui-ci porte un lien.
+    private var sourcesCard: some View {
+        VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+            Text(QuranSourcesCard.title)
+                .font(.system(size: Theme.Typography.body, weight: .semibold))
+                .foregroundStyle(palette.muted)
+            Text(QuranSourcesCard.textAttribution)
+                .font(.system(size: Theme.Typography.secondary))
+                .foregroundStyle(palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+            Link(destination: QuranSourcesCard.linkURL) {
+                Text(QuranSourcesCard.linkTitle)
+                    .font(.system(size: Theme.Typography.secondary))
+                    .foregroundStyle(palette.green2)
+                    .underline()
+            }
+            Text(QuranSourcesCard.editionAttribution)
+                .font(.system(size: Theme.Typography.secondary))
+                .foregroundStyle(palette.muted)
+                .fixedSize(horizontal: false, vertical: true)
+        }
+        .padding(.vertical, Theme.Spacing.xs)
     }
 
     // MARK: - Gabarit d'une carte

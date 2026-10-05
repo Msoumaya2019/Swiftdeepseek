@@ -59,6 +59,7 @@
 | Reprise à la dernière page lue | ✅ | ✅ | `user_state.lastRead` | `Features/Home/HomeView.swift`, `ViewModels/AppViewModel.swift` | |
 | Marque-pages | ✅ | 🟡 | `user_state.bookmarks` | `Core/Bookmark.swift` | Poser/retirer dans le lecteur et lister dans l'onglet Coran : fait. Fusion : faite. |
 | Choix de l'édition | ✅ | ✅ | `user_state.reader.mushaf` | `Features/Quran/Reader/ReaderView.swift` | Les cinq éditions, et les trois non reprises : voir §9.3. |
+| Sources du Coran (attributions) | ✅ | ✅ | — | `Core/QuranSourcesCard.swift`, `Features/Settings/SettingsView.swift` | Les attributions de licence — Tanzil, QPC V4, cpfair, Rachid Maach, Quran Meta — et le lien vers tanzil.net, recopiés **au caractère près**, deux apostrophes typographiques distinctes comprises. Voir §9.24. |
 | Coran avec règles de Tajwid | ✅ | ⬜ | — | — | Ressources non copiées, voir §7. |
 | Mode lecture continue | ✅ | ⬜ | — | — | |
 
@@ -1701,3 +1702,63 @@ réglages. Le falsificateur vérifie d'abord que le banc **passe** sur l'arbre i
 exige que chaque détection nomme le contrôle attendu — un code 2 serait une
 détection pour la mauvaise raison —, restaure l'arbre dans un `finally`, et compare
 les empreintes SHA-256 avant de rendre son verdict.
+
+### 9.24 La carte « Sources du Coran » : cinq chaînes, deux apostrophes, et un banc qui compare au caractère près
+
+**Ce qui est porté.** La dernière carte de la page « Réglages » de l'original
+(`App.tsx:350`) : le titre, deux paragraphes d'attribution et un lien vers
+tanzil.net. Elle ne propose **aucun** choix, n'ouvre **aucun** écran et ne dépend
+d'aucun état — c'est un texte, et un lien. `Core/QuranSourcesCard.swift` porte
+les cinq chaînes, `Features/Settings/SettingsView.swift` les affiche dans l'ordre
+de l'original, `Tests/QuranSourcesTests.swift` les épingle.
+
+**Pourquoi `QuranSourcesCard` et non `QuranSources`.** Le dépôt de référence a
+déjà un module `src/core/quranSources.ts`, qui décrit les sources **d'images**
+des pages — et ce portage l'a traduit ailleurs (`Core/VerseBounds.swift:5`,
+`Services/QuranSourceService.swift`). Deux choses différentes, deux noms : ce
+fichier dit « la carte », pas « les sources ».
+
+**Deux apostrophes typographiques distinctes, et un tiret.** Le second paragraphe
+écrit `juz’` avec une apostrophe courbe **fermante** (U+2019) et `rub‘` avec une
+apostrophe courbe **ouvrante** (U+2018). La seconde est une singularité de
+l'original — probablement une coquille — mais la corriger ici ferait diverger les
+deux applications à l'écran pour une raison qui n'appartient à aucune des deux. Le
+premier paragraphe, lui, écrit « 2007–2021 » avec un tiret **demi-cadratin**
+(U+2013). Ces trois caractères sont épinglés par un test : une « normalisation
+bienveillante » ne peut pas passer en silence.
+
+**Deux décisions d'affichage qui ne sont pas des oublis.** Le titre est rendu
+`fontSize:14, fontWeight:'600'`, couleur `muted` — plus petit et plus clair que
+les titres des autres cartes, qui portent `fontWeight:'700'` et la couleur de
+texte : la carte est une note de bas de page, pas un réglage. Et le lien emploie
+`colors.green2` et non `colors.green` — deux couleurs qui **diffèrent** sur les
+thèmes rose et violet (`Theme.swift`). Les boutons du dossier emploient `green` ;
+ce lien-ci emploie `green2`, comme l'original.
+
+**Le banc compare, il ne cherche pas.** `_banc/verifier-sources.mjs` — **31
+contrôles**, 0 échec. Il ne cherche pas un motif dans le fichier Swift : il
+**extrait** les cinq chaînes de `App.tsx:350` et les compare, caractère par
+caractère, aux constantes du modèle. C'est la seule façon de voir une apostrophe
+redressée : un motif qui encoderait ce qu'on attendait lire ne la verrait pas.
+
+**Le falsificateur a fait voir deux contrôles faibles.** En le préparant — avant
+de l'écrire — deux contrôles du banc se sont révélés incapables de tuer leur
+mutation : celui du **montage** de la carte acceptait la simple présence du nom
+`sourcesCard` (retirer la `Section` ne l'aurait donc pas tué), et celui de
+l'**apostrophe** vérifiait que `\u{2019}` apparaissait *quelque part* dans les
+tests, y compris dans le test négatif qui la refuse. Les deux ont été resserrés
+sur la **forme montée** et sur l'**assertion exacte**, puis
+`_banc/falsifier-sources.mjs` a tué **14 mutations sur 14** — titre abrégé,
+apostrophes des deux sens, tiret redressé, adresse changée, flèche retirée,
+septième constante, lien colorié comme un bouton, titre recopié dans l'écran,
+lien construit dans l'écran, carte retirée de la liste, épingle retirée des tests,
+test renommé —, arbre restauré et empreintes SHA-256 comparées.
+
+**Et un garde-fou de plus qui avait tort.** La passe qui a posé la carte a d'abord
+**refusé d'écrire** : elle exigeait que *chaque* remplacement fasse grandir le
+fichier, or la correction de l'en-tête (« Restent les sources et le compte » →
+« Reste le compte ») le **raccourcit** légitimement. La garde de croissance est
+devenue **optionnelle par motif** — nulle pour une reformulation, exigée pour un
+ajout —, la croissance globale restant vérifiée une fois pour toutes. Même famille
+que le garde-fou du triple saut de ligne : un contrôle absolu appliqué à une
+grandeur qui peut légitimement varier refuse un fichier sain.
