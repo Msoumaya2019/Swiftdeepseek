@@ -61,6 +61,7 @@
 | Choix de l'édition | ✅ | ✅ | `user_state.reader.mushaf` | `Features/Quran/Reader/ReaderView.swift` | Les cinq éditions, et les trois non reprises : voir §9.3. |
 | Sources du Coran (attributions) | ✅ | ✅ | — | `Core/QuranSourcesCard.swift`, `Features/Settings/SettingsView.swift` | Les attributions de licence — Tanzil, QPC V4, cpfair, Rachid Maach, Quran Meta — et le lien vers tanzil.net, recopiés **au caractère près**, deux apostrophes typographiques distinctes comprises. Voir §9.24. |
 | Profil : prénom, compte, photo | ✅ | 🟡 | `auth.users`, `friend_profiles`, bucket `friend-avatars` | `Core/ProfileOptions.swift`, `Features/Profile/ProfileView.swift`, `Tests/ProfileTests.swift` | Les 47 textes, les quatre conditions d'activation et les deux bornes de photo sont portés et gelés, et l'**écran est monté** — le prénom, le compte, la déconnexion, plus l'**avis global** qui manquait à tout le monde. La photo et le formulaire de connexion restent délibérément hors de l'écran. Voir §9.25 et §9.26. |
+| Lecture simplifiée (Tajweed) | ✅ | 🟡 | — (données embarquées) | `Core/TajweedOptions.swift`, `Tests/TajweedTests.swift` | **Modèle porté, rendu à écrire.** Les trois fonctions de `readerData.ts` sont portées et épinglées par **25** tests : indexation en points de code (1 173 / 680 / 1 171 au verset 2:282), fusion par égalité de règle, garde de concordance, six branches de couleur, et la garde du vide des notes (`""` sur 4 906 lignes). L'édition **n'est pas encore proposée** — `isAvailable` reste faux tant que le rendu verset par verset n'existe pas. Voir §9.30. |
 | Coran avec règles de Tajwid | ✅ | ⬜ | — | — | Ressources non copiées, voir §7. |
 | Mode lecture continue | ✅ | ⬜ | — | — | |
 
@@ -2241,7 +2242,105 @@ mutations font désormais tomber ce défaut **en local**, en quelques secondes. 
 mutations M02 et M03, dont l'ancre citait la ligne remplacée, ont été repointées sur
 la nouvelle garde : c'est le pré-vol des ancres qui l'a dit, avant toute écriture.
 
-Banc : `_banc/verifier-liste-sourates.mjs` — **136 vérifications**, 0 échec, les
+Banc : `_banc/verifier-liste-sourates.mjs` — **135 vérifications**, 0 échec, les
 **onze** bancs antérieurs rejoués. Falsificateur : `_banc/falsifier-liste-sourates.mjs`
 — **30 mutations**, toutes tuées, arbre rendu intact. Tests : **454 → 502**, dont
 **48** pour `Tests/SurahListTests.swift`.
+
+### 9.30 Le Tajweed : une unité de comptage qui n'est pas celle de Swift, et deux pièges de vérité
+
+`src/core/readerData.ts` tient trois fonctions — `tajweedVerse`, `tajweedSpans`,
+`tajweedColor` — et `MushafPage.tsx:34-43` le rendu qui les emploie. L'édition
+`tajweed` (« Lecture simplifiée ») n'est pas une page : l'original la fait passer par
+le rendu **verset par verset**, celui des cartes de verset. Ses données étaient
+**déjà** dans ce dépôt — `tajweed-text.json` (1 531 274 octets), `tajweed-rules.json`
+(2 755 691), `translation-fr-rashid.json` (1 522 305) — et **aucun** code Swift ne les
+lisait. Ce bloc-ci porte le modèle et l'épingle ; le rendu reste à écrire.
+
+#### L'unité de comptage : le seul point où le portage pouvait planter
+
+Les `start` / `end` des annotations indexent le texte. En JavaScript, `[...text]`
+découpe en **points de code** ; en Swift, `Array(text)` découpe en **graphèmes** — une
+lettre arabe suivie de ses harakat est UN graphème pour plusieurs points de code.
+
+Mesuré sur les 6 236 versets : points de code et unités UTF-16 coïncident partout
+(0 écart), mais points de code et graphèmes diffèrent sur **6 236 versets sur 6 236**.
+Le verset 2:282 (identifiant 289) porte **1 173** points de code pour **680** graphèmes,
+et sa plus grande fin d'annotation vaut **1 171** :
+
+```
+1 171 > 680    →  indexer en `Character` sortirait du tableau, donc planterait
+1 171 ≤ 1 173  →  indexer en scalaires y reste
+```
+
+Le défaut aurait frappé sur le plus long verset du Coran — précisément celui qu'on
+ouvre pour vérifier. `TajweedOptions.spans` indexe donc en `Unicode.Scalar`, et un
+test épingle les trois nombres. Le nombre de 680 vient d'`Intl.Segmenter` (ICU,
+UAX #29), une implémentation **indépendante** de celle de Swift : c'est une
+contre-mesure, pas une reformulation.
+
+#### Trois règles silencieuses de plus
+
+- **La fusion se fait sur l'égalité de la RÈGLE**, pas sur l'identité de
+  l'annotation. Mesuré : 42:2 porte trois annotations `madd_6` voisines et rend **un**
+  fragment, pas trois.
+- **Un verset sans annotation rend UN fragment nu**, pas zéro — 63 versets sont dans
+  ce cas (`annotations: []`). Rendre `[]` laisserait la carte sans texte.
+- **Mais « un fragment » ne veut pas dire « sans règle »** : mesuré, **un seul** verset
+  (4274, 42:2) rend un fragment unique *coloré*. Le contre-exemple est épinglé à côté
+  du cas nu, pour qu'un raccourci — « `count == 1` donc nu » — casse au lieu de passer.
+
+L'ordre des six branches de `tajweedColor` est la règle, pas un goût : deux préfixes
+sont testés avant les égalités. Mesuré sur les 18 règles livrées : 5 par `madd`,
+3 par `ikhfa`/`iqlab`, 6 par `idghaam`/`ghunnah`, 1 par `qalqalah`, 1 par `silent`, et
+**2** dans le défaut — `hamzat_wasl` (13 252 annotations) et `lam_shamsiyyah`
+(2 733), les deux plus fréquentes du Moushaf. Une règle inconnue y tombe aussi, sans
+rien dire : c'est le comportement de l'original, et le figer vaut mieux que le
+découvrir.
+
+#### Le piège de vérité : `footnotes` vaut `""` sur 4 906 lignes
+
+`translation-fr-rashid.json` porte la clé `footnotes` sur les **6 236** lignes, et elle
+vaut `""` sur **4 906** d'entre elles. L'original écrit
+`translation?.footnotes ? <Label> : null` (`MushafPage.tsx:38`) : une chaîne **vide**
+est fausse en JavaScript, donc la note ne s'affiche pas.
+
+Un `String?` décodé, lui, rendrait `Optional("")` — non `nil` — et un `if let`
+l'aurait affichée : **4 906 notes vides**, et un blanc de plus sous chacune. C'est la
+même famille que `''.includes('')` de §9.29 — la **vérité** opposée à la **présence** —
+sauf qu'ici l'écart vit dans une donnée et non dans un appel. `Translation.footnote`
+rend donc `nil` sur `""`, et un test oppose explicitement les deux sur le même verset.
+
+#### L'édition reste NON PROPOSÉE, et c'est délibéré
+
+`QuranEdition.isAvailable` rend toujours `false` pour `.tajweed`, et `imageURLs` n'a
+toujours aucune branche pour elle. Le modèle est porté ; le **rendu** ne l'est pas.
+Proposer l'édition maintenant ouvrirait des cartes vides — exactement le défaut que
+§9.28 avait corrigé pour `coranTest`. Deux contrôles du banc interdisent ce dérapage :
+`isAvailable` doit rester faux, et **aucun écran** ne doit appeler `TajweedOptions`.
+Le jour où le rendu arrive, ces deux contrôles tomberont — et c'est alors qu'il faudra
+les retourner, comme §9.29 l'a fait pour la ligne du document qui annonçait la liste
+des sourates.
+
+#### Ce que ce banc ne peut pas prouver, et qui est écrit dans son en-tête
+
+Le banc rejoue `readerData.ts` **en JavaScript** : il prouve ce que fait l'original, pas
+ce que fait le portage. C'est la leçon de §9.29, et elle est répétée dans l'en-tête de
+`verifier-tajweed.mjs`. Ce que le banc vérifie est donc de deux ordres : la **forme** du
+Swift — indexation en scalaires, fusion par règle, garde de concordance, ordre des six
+branches, garde du vide — et la **concordance** des nombres entre les données et
+`Tests/TajweedTests.swift`. Ce qui reste à l'intégration continue est le comportement :
+25 tests, dont celui des 1 173 / 680 / 1 171.
+
+`QuranSourceNavigation` n'a **pas** été touché : `.tajweed` reste rangé avec les
+éditions paginées, et c'est **fidèle** — `isZipSource(source)` ne vaut que pour
+`coran_1441` (`quranSources.ts:6`), donc `sourceVersePage('tajweed', …)` retombe sur
+`pageOf(id)` dans l'original aussi. La page d'un verset en Tajweed est donc sa page du
+Coran de Médine, et c'est cette page qui choisit la plage de versets affichée
+(`MushafPage.tsx:31`). Un contrôle du banc compare les deux sources pour figer cet
+accord, plutôt que de « corriger » un portage qui était juste.
+
+Banc : `_banc/verifier-tajweed.mjs` — **117 vérifications**, 0 échec, les **douze**
+bancs antérieurs rejoués. Falsificateur : `_banc/falsifier-tajweed.mjs` — **28
+mutations**, toutes tuées, arbre rendu intact. Tests : **502 → 527**, dont **25** pour
+`Tests/TajweedTests.swift`.

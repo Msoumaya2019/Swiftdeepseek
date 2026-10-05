@@ -1205,10 +1205,59 @@ et rejoue les règles en JavaScript. Un banc qui rejoue l'original ne prouve rie
 portage ; ce qu'il fallait, c'était exécuter le langage, et c'est le rôle du flux. Deux
 contrôles et deux mutations le font désormais tomber **en local**, en quelques secondes.
 
-`_banc/verifier-liste-sourates.mjs` compte **136** vérifications — les onze bancs antérieurs
-rejoués — et `_banc/falsifier-liste-sourates.mjs` éprouve **30** mutations : toutes tuées,
-arbre rendu intact. Tests : **454 → 502**, dont **48** pour `Tests/SurahListTests.swift`. Le
-portage, raconté côté migration, est en `SWIFT_MIGRATION.md` §9.29.
+`_banc/verifier-liste-sourates.mjs` compte **135** vérifications — les onze bancs antérieurs
+rejoués, le compte global des tests ayant quitté ce banc pour le plus récent — et
+`_banc/falsifier-liste-sourates.mjs` éprouve **30** mutations : toutes tuées, arbre rendu
+intact. Tests : **454 → 502**, dont **48** pour `Tests/SurahListTests.swift`. Le portage,
+raconté côté migration, est en `SWIFT_MIGRATION.md` §9.29.
+
+### Le Tajweed : une unité de comptage qui n'est pas celle de Swift
+
+`src/core/readerData.ts` tient trois fonctions et `MushafPage.tsx:34-43` le rendu qui les
+emploie. L'édition `tajweed` — « Lecture simplifiée » — n'est pas une page : l'original la
+fait passer par le rendu **verset par verset**. Ses données étaient **déjà** dans le dépôt
+(1,46 Mo de texte, 2,63 Mo de règles, 1,45 Mo de traduction) et **aucun** code Swift ne les
+lisait. Ce bloc porte le **modèle** et l'épingle ; le rendu reste à écrire, et l'édition
+reste donc **non proposée** — la proposer maintenant ouvrirait des cartes vides, exactement
+le défaut que §9.28 avait corrigé pour `coranTest`.
+
+**Le seul point où le portage pouvait planter est l'unité de comptage.** Les `start`/`end`
+des annotations indexent le texte. En JavaScript, `[...text]` découpe en **points de code** ;
+en Swift, `Array(text)` découpe en **graphèmes**. Mesuré sur les 6 236 versets : les deux
+découpages diffèrent **6 236 fois sur 6 236**. Le verset 2:282 porte **1 173** points de code
+pour **680** graphèmes, et sa plus grande fin d'annotation vaut **1 171** — donc indexer en
+`Character` sortirait du tableau et **planterait**, sur le plus long verset du Coran,
+précisément celui qu'on ouvre pour vérifier. Un test épingle les trois nombres, et le 680
+vient d'`Intl.Segmenter` (ICU, UAX #29) : une implémentation **indépendante** de Swift, donc
+une contre-mesure et non une reformulation.
+
+**Un second piège, de la même famille que le run n° 67, mais dans une donnée.**
+`translation-fr-rashid.json` porte la clé `footnotes` sur les 6 236 lignes, et elle vaut
+`""` sur **4 906** d'entre elles. L'original teste la **vérité** — une chaîne vide est fausse
+— donc ces notes ne s'affichent pas ; un `String?` décodé rendrait `Optional("")`, et un
+`if let` aurait affiché 4 906 notes vides. La leçon du n° 67 — **vérité** contre **présence** —
+valait donc aussi pour les données, et elle est désormais écrite dans le modèle, éprouvée par
+un test et par une mutation.
+
+Trois règles silencieuses de plus sont figées : la fusion se fait sur l'**égalité de la
+règle** et non sur l'identité de l'annotation (42:2 : trois annotations `madd_6` → un
+fragment) ; un verset sans annotation rend **un** fragment nu, pas zéro (63 versets) ; et
+« un fragment » ne veut pas dire « sans règle » — **un seul** verset (4274) rend un fragment
+unique *coloré*, et ce contre-exemple est épinglé à côté du cas nu pour qu'un raccourci casse
+au lieu de passer. L'ordre des six branches de `tajweedColor` est vérifié **source à source**
+contre `readerData.ts`, préfixes compris.
+
+`QuranSourceNavigation` n'a **pas** été touché : `.tajweed` reste rangé avec les éditions
+paginées, et c'est **fidèle** — `isZipSource` ne vaut que pour `coran_1441`
+(`quranSources.ts:6`), donc l'original retombe aussi sur `pageOf(id)`. Un contrôle du banc
+compare les deux sources pour figer cet accord, plutôt que de « corriger » un portage juste.
+
+`_banc/verifier-tajweed.mjs` compte **117** vérifications — les douze bancs antérieurs
+rejoués — et `_banc/falsifier-tajweed.mjs` éprouve **28** mutations : toutes tuées, arbre
+rendu intact. Tests : **502 → 527**, dont **25** pour `Tests/TajweedTests.swift`. Ce banc
+**ne prouve pas** le comportement du portage — il rejoue l'original en JavaScript —, et son
+en-tête le dit : ce qui reste au flux, c'est l'exécution des 25 tests. Récit complet en
+`SWIFT_MIGRATION.md` §9.30.
 
 ## 13. Problèmes rencontrés
 
@@ -1333,14 +1382,19 @@ occupaient la place sont partis au lecteur. Détail et preuve : `SWIFT_MIGRATION
    | Édition | Ce qu'elle est | Ressources manquantes | Portable ici |
    | --- | --- | --- | --- |
    | `coranTest` — « Coran avec règles de Tajwid » | HTML dans un WebView (`coranTest/html.ts`) | 607 `.woff2` (48,88 Mo) + 606 JSON de page (4,25 Mo) | **non** : la chaîne de rendu est à écrire (`WKWebView`) |
-   | `tajweed` — « Lecture simplifiée » | texte arabe coloré par règle | **aucune** : ses deux fichiers sont **déjà dans ce dépôt**, lus par aucun code | oui, en natif |
+   | `tajweed` — « Lecture simplifiée » | texte arabe coloré par règle | **aucune** : ses deux fichiers sont **déjà dans ce dépôt** | **modèle porté** (§9.30) ; **rendu verset par verset à écrire** |
    | `tajweedPages` — « Moushaf Tajwid » | pages coloriées | 604 PNG (132,13 Mo) | **sans objet** : mode inatteignable |
 
    **`coranTest` est le cas qui compte** : c'est le défaut des deux applications,
    donc l'édition de tout utilisateur qui n'a jamais touché au choix d'affichage.
    **`tajweed` est le meilleur rapport effort/résultat** : ses données sont déjà
-   embarquées, et il reste à écrire le rendu du texte coloré. Ni l'une ni l'autre
-   ne demande de copier les 185 Mo que la version précédente annonçait.
+   embarquées. Son **modèle est porté et prouvé** (§9.30 — les règles, les six
+   couleurs, les gardes, et l'unité de comptage en points de code, qui aurait
+   planté sur le plus long verset du Coran). Ce qui reste est le **rendu** : la
+   liste de cartes de verset de `MushafPage.tsx:34-43`, et la décision de la
+   brancher dans le lecteur à la place de l'image de page. L'édition reste
+   **non proposée** tant que ce rendu n'existe pas. Ni l'une ni l'autre des deux
+   éditions ne demande de copier les 185 Mo que la version précédente annonçait.
 5. Assistant d'objectif hebdomadaire, messagerie, groupes, quiz,
    récitations, mini-lecteur — et l'**envoi** des notifications push, dont la carte
    des préférences est en revanche portée (`SWIFT_MIGRATION.md` §9.23).
