@@ -341,6 +341,147 @@ struct EmptyLabel: View {
     }
 }
 
+// MARK: - Bouton de carte
+
+/// Le bouton d'une carte — la traduction du `Button` **secondaire** de
+/// l'original (`src/ui/theme.tsx:29`, `secondary`).
+///
+/// Un seul endroit pour ce style : la recette vivait **trois fois** — dans le
+/// gabarit `settingsRow` de `SettingsView`, dans l'`actionButton` de
+/// `NotificationSettingsView`, et il en fallait une quatrième pour l'écran du
+/// profil. Trois copies divergent au premier ajustement. Les valeurs sont celles
+/// de ce gabarit — la traduction déjà retenue, déjà à l'écran — et non une
+/// seconde lecture de l'original : les changer ici change les trois pages d'un
+/// coup, ce qui est précisément le but.
+///
+/// L'opacité à l'arrêt est celle de l'original (`disabled && {opacity:0.45}`).
+/// Elle ne sert encore nulle part : le bouton de connexion désactivé de
+/// l'original n'est pas monté ici (voir `Features/Profile/ProfileView.swift`).
+struct CardButton: View {
+    @Environment(\.palette) private var palette
+
+    let title: String
+    var disabled: Bool = false
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: Theme.Typography.body, weight: .semibold))
+                .foregroundStyle(palette.green)
+                .frame(maxWidth: .infinity, minHeight: 42)
+                .background(
+                    palette.soft,
+                    in: RoundedRectangle(cornerRadius: Theme.Radius.small)
+                )
+        }
+        .buttonStyle(.plain)
+        .disabled(disabled)
+        .opacity(disabled ? 0.45 : 1)
+    }
+}
+
+// MARK: - Bouton de profil de la barre de titre
+
+/// `ProfileHeaderButton` — `src/ui/ProfileHeaderButton.tsx`.
+///
+/// Le rond vert cerclé d'or de la barre de titre, qui porte l'**initiale** du
+/// prénom — ou, faute de prénom, un petit bonhomme blanc.
+///
+/// L'initiale vient de `ProfileOptions.avatarInitial(_:)` : c'est une décision
+/// (quelle lettre, dans quelle casse) et non une mise en page, et l'original la
+/// prend en JavaScript avec `Array.from(...)[0]?.toLocaleUpperCase('fr-FR')`.
+/// La vue ne fait que la poser.
+///
+/// Le bonhomme de repli est **dessiné** dans l'original — une tête de 9 × 9 et
+/// deux épaules de 17 × 9 aux coins supérieurs arrondis — et non une icône.
+/// `person.fill` de SF Symbols a exactement ces proportions : une tête ronde et
+/// des épaules en dôme. Le redessiner à la main donnerait un tracé qui ne
+/// suivrait ni la taille de police ni le rendu des autres icônes de la barre.
+///
+/// Aucun libellé d'accessibilité ici : l'appelant le pose, comme il le pose pour
+/// l'engrenage des réglages.
+struct ProfileHeaderButton: View {
+    @Environment(\.palette) private var palette
+
+    let firstName: String?
+    var action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(palette.green)
+                    .overlay(Circle().stroke(palette.gold, lineWidth: 1))
+                    .frame(width: 36, height: 36)
+                if let initial = ProfileOptions.avatarInitial(firstName) {
+                    Text(initial)
+                        .font(.system(size: 17, weight: .bold))
+                        .foregroundStyle(.white)
+                } else {
+                    Image(systemName: "person.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(.white)
+                }
+            }
+            .frame(width: 44, height: 44)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+    }
+}
+
+// MARK: - Avis global
+
+/// L'avis posé en bas de l'écran — `App.tsx:256`.
+///
+/// L'application d'origine n'en a **qu'un**, à la racine de son interface : il
+/// recouvre tout, se ferme au toucher, et porte le même cadre doré quel que soit
+/// l'écran qui l'a demandé. Ce portage le monte de la même façon, dans
+/// `App/ContentView.swift`.
+///
+/// C'est ce qui rend le canal `notice` du modèle **visible** : jusqu'ici, cinq
+/// écrans posaient un avis que rien n'affichait — l'écran de connexion excepté,
+/// qui lit `model.notice` pour son propre message. Sans cette vue, la carte du
+/// profil enregistrerait le prénom et se synchroniserait en silence.
+///
+/// Le `×` de l'original est collé au texte dans un seul `Label`
+/// (`{notice}  ×`). Il est ici une seconde vue : c'est une **commande** — fermer
+/// — et non du texte, sans quoi la voix de synthèse lirait « fois » à la fin de
+/// chaque avis.
+struct NoticeToast: View {
+    @Environment(\.palette) private var palette
+
+    let text: String
+    let onDismiss: () -> Void
+
+    var body: some View {
+        Button(action: onDismiss) {
+            HStack(alignment: .top, spacing: Theme.Spacing.sm) {
+                Text(text)
+                    .font(.system(size: Theme.Typography.body, weight: .semibold))
+                    .foregroundStyle(palette.text)
+                    .multilineTextAlignment(.leading)
+                    .fixedSize(horizontal: false, vertical: true)
+                Spacer(minLength: 0)
+                Text("×")
+                    .font(.system(size: Theme.Typography.card, weight: .semibold))
+                    .foregroundStyle(palette.muted)
+            }
+            .padding(Theme.Spacing.md)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .background(palette.paper, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
+            .overlay(
+                RoundedRectangle(cornerRadius: Theme.Radius.small)
+                    .stroke(palette.gold, lineWidth: 1)
+            )
+            .shadow(color: .black.opacity(0.16), radius: 8, y: 4)
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel(text)
+    }
+}
+
 // MARK: - Illustration d'un thème
 
 /// `themeArt` — l'illustration d'un thème, lue dans `Resources/Themes`

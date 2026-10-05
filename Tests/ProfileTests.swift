@@ -337,4 +337,19 @@ final class ProfileTests: XCTestCase {
         XCTAssertEqual(ecrit.profile?.sex, ProfileOptions.defaultSex, "et pose le sexe par defaut")
         XCTAssertNil(ProfileOptions.savedFirstName("a"), "alors que la garde, elle, refuse")
     }
+
+    /// L'initiale du rond de la barre de titre — `ProfileHeaderButton.tsx:6`.
+    ///
+    /// Trois cas, et le troisieme est celui qui compte : un prenom vide rend
+    /// `nil`, et c'est ce `nil` qui fait afficher le bonhomme de repli. Un test
+    /// qui ne verifierait que la lettre laisserait passer un rond vide.
+    func testTheAvatarInitialComesFromTheTrimmedName() {
+        XCTAssertEqual(ProfileOptions.avatarInitial("Aicha"), "A")
+        XCTAssertEqual(ProfileOptions.avatarInitial("  Aicha  "), "A", "l'espace est retire avant")
+        XCTAssertEqual(ProfileOptions.avatarInitial("aicha"), "A", "la casse est celle de l'affichage")
+        XCTAssertEqual(ProfileOptions.avatarInitial("\u{00C9}mile"), "\u{00C9}", "l'accent suit la casse")
+        XCTAssertNil(ProfileOptions.avatarInitial(nil), "pas de prenom : le bonhomme")
+        XCTAssertNil(ProfileOptions.avatarInitial(""), "pas de prenom : le bonhomme")
+        XCTAssertNil(ProfileOptions.avatarInitial("   "), "que des espaces : le bonhomme")
+    }
 }

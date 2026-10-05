@@ -20,6 +20,19 @@ public struct ContentView: View {
         AuthGate(auth: model.auth)
             .environmentObject(model)
             .environment(\.palette, model.palette)
+            // L'avis est monté **au-dessus de la porte**, et non dans
+            // `MainTabView` : l'original le pose à la racine de son interface, et
+            // c'est ce qui lui permet de survivre au changement de compte. Ici,
+            // « Déconnecté. » s'affiche alors que `AuthGate` est déjà revenu à
+            // `SignInView` ; monté dans les onglets, il disparaîtrait avec eux.
+            .overlay(alignment: .bottom) {
+                if let notice = model.notice, !notice.isEmpty {
+                    NoticeToast(text: notice) { model.notice = nil }
+                        .padding(.horizontal, Theme.Spacing.lg)
+                        .padding(.bottom, Theme.Spacing.lg)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: model.notice)
     }
 }
 
@@ -163,7 +176,17 @@ private struct SignInView: View {
                         }
                         .buttonStyle(.borderedProminent)
                         .tint(model.palette.green)
-                        .disabled(isWorking || email.isEmpty || password.isEmpty)
+                        // La règle vient de `ProfileOptions.canSignIn`, comme
+                        // celle des trois autres boutons de la carte du profil :
+                        // « Se connecter » n'exige **pas** d'arobase, c'est le
+                        // contrat de l'original.
+                        .disabled(
+                            !ProfileOptions.canSignIn(
+                                busy: isWorking,
+                                email: email,
+                                password: password
+                            )
+                        )
 
                         if let message {
                             Text(message)
@@ -194,12 +217,15 @@ private struct SignInView: View {
         isWorking = true
         message = nil
         isError = false
-        await model.signIn(email: email, password: password)
+        let result = await model.authenticate(email: email, password: password, register: false)
         isWorking = false
-        if let notice = model.notice {
-            message = notice
+        // Un succès change d'écran : `AuthGate` passe à `MainTabView` et cette
+        // vue disparaît. Seul l'échec se dit ici — et il se dit **ici**, à côté
+        // des champs, plutôt que par l'avis global : c'est une porte, et le
+        // message doit rester sous les yeux au moment de corriger.
+        if result.outcome == .failed {
+            message = result.notice
             isError = true
-            model.notice = nil
         }
     }
 

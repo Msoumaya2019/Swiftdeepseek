@@ -201,22 +201,15 @@ struct NotificationSettingsView: View {
             .fixedSize(horizontal: false, vertical: true)
     }
 
-    /// `Button secondary` / `Button secondary small` de l'original, dans le
-    /// gabarit déjà employé par `SettingsView.settingsRow` : fond `soft`,
-    /// texte vert, hauteur minimale 42.
+    /// `Button secondary` de l'original — la recette vit désormais dans
+    /// `CardButton` (`Features/Shared/Components.swift`).
+    ///
+    /// Ce gabarit en était une **troisième** copie : `SettingsView.settingsRow`,
+    /// celui-ci, et — depuis l'écran du profil — `CardButton`. Trois copies
+    /// divergent au premier ajustement. Le nom et la signature sont conservés
+    /// pour ne pas toucher les appels qui l'emploient.
     private func actionButton(_ title: String, perform: @escaping () -> Void) -> some View {
-        Button(action: perform) {
-            Text(title)
-                .font(.system(size: Theme.Typography.body, weight: .semibold))
-                .foregroundStyle(palette.green)
-                .multilineTextAlignment(.center)
-                .frame(maxWidth: .infinity, minHeight: 42)
-                .background(
-                    palette.soft,
-                    in: RoundedRectangle(cornerRadius: Theme.Radius.small)
-                )
-        }
-        .buttonStyle(.plain)
+        CardButton(title: title, action: perform)
     }
 
     private func card<Content: View>(@ViewBuilder _ content: () -> Content) -> some View {

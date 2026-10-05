@@ -7,7 +7,7 @@
 //
 // POURQUOI CE FICHIER
 //   `Features/Settings/SettingsView.swift` énonce la règle du dossier : un écran
-//   ne calcule rien. Cette carte porte cinq décisions qui, si elles vivaient
+//   ne calcule rien. Cette carte porte six décisions qui, si elles vivaient
 //   dans une vue, divergeraient en silence — et deux d'entre elles sont des
 //   pièges :
 //
@@ -143,6 +143,30 @@ public enum ProfileOptions {
     public static let firstNameMaximumLength = 40
     /// `password.length < 6` — `App.tsx:322`, sur « Créer un compte ».
     public static let signUpMinimumPasswordLength = 6
+
+    // MARK: - L'initiale du bouton de profil
+
+    /// La lettre du rond de la barre de titre — `ProfileHeaderButton.tsx:6` :
+    ///
+    ///     Array.from(firstName?.trim() ?? '')[0]?.toLocaleUpperCase('fr-FR')
+    ///
+    /// `nil` quand il n'y a pas de prénom, ou quand il est vide : l'original
+    /// affiche alors un bonhomme, pas un rond vide.
+    ///
+    /// DIVERGENCE MESURÉE — `Array.from` itère par **point de code**, le `first`
+    /// de Swift par **graphème**. Sur une séquence ZWJ (un emoji composé, du type
+    /// famille), l'original rend le premier point de code — un caractère
+    /// invisible et sans sens — là où Swift rend la séquence entière. Un prénom
+    /// saisi au clavier commence par une lettre : le cas n'est pas atteignable, et
+    /// rendre le graphème entier est le plus juste. On garde `first`, et on
+    /// l'écrit.
+    ///
+    /// La casse, elle, ne diverge pas : `toLocaleUpperCase('fr-FR')` et
+    /// `uppercased()` rendent la même chose pour les lettres latines d'un prénom.
+    public static func avatarInitial(_ name: String?) -> String? {
+        guard let letter = name?.trimmingCharacters(in: .whitespacesAndNewlines).first else { return nil }
+        return String(letter).uppercased()
+    }
 
     // MARK: - Le prénom : la mesure, puis l'écriture
 

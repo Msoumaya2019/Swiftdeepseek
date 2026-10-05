@@ -213,17 +213,11 @@ struct SettingsView: View {
                 .font(.system(size: Theme.Typography.secondary))
                 .foregroundStyle(palette.muted)
                 .fixedSize(horizontal: false, vertical: true)
-            Button(action: onPress) {
-                Text(action)
-                    .font(.system(size: Theme.Typography.body, weight: .semibold))
-                    .foregroundStyle(palette.green)
-                    .frame(maxWidth: .infinity, minHeight: 42)
-                    .background(
-                        palette.soft,
-                        in: RoundedRectangle(cornerRadius: Theme.Radius.small)
-                    )
-            }
-            .buttonStyle(.plain)
+            // La recette du bouton vit désormais dans `CardButton`
+            // (`Features/Shared/Components.swift`) : elle était écrite ici, et
+            // l'écran du profil en avait besoin à l'identique. Deux copies
+            // auraient divergé au premier ajustement.
+            CardButton(title: action, action: onPress)
         }
         .padding(.vertical, Theme.Spacing.xs)
     }

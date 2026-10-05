@@ -60,7 +60,7 @@
 | Marque-pages | ✅ | 🟡 | `user_state.bookmarks` | `Core/Bookmark.swift` | Poser/retirer dans le lecteur et lister dans l'onglet Coran : fait. Fusion : faite. |
 | Choix de l'édition | ✅ | ✅ | `user_state.reader.mushaf` | `Features/Quran/Reader/ReaderView.swift` | Les cinq éditions, et les trois non reprises : voir §9.3. |
 | Sources du Coran (attributions) | ✅ | ✅ | — | `Core/QuranSourcesCard.swift`, `Features/Settings/SettingsView.swift` | Les attributions de licence — Tanzil, QPC V4, cpfair, Rachid Maach, Quran Meta — et le lien vers tanzil.net, recopiés **au caractère près**, deux apostrophes typographiques distinctes comprises. Voir §9.24. |
-| Profil : prénom, compte, photo (modèle et tests) | ✅ | 🟡 | `auth.users`, `friend_profiles`, bucket `friend-avatars` | `Core/ProfileOptions.swift`, `Tests/ProfileTests.swift` | Les 47 textes, les quatre conditions d'activation et les deux bornes de photo sont portés et gelés. **L'écran n'est pas encore monté** : `Features/Profile/ProfileView.swift` reste à écrire, et l'envoi comme le retrait de la photo attendent une vérification côté serveur. Voir §9.25. |
+| Profil : prénom, compte, photo | ✅ | 🟡 | `auth.users`, `friend_profiles`, bucket `friend-avatars` | `Core/ProfileOptions.swift`, `Features/Profile/ProfileView.swift`, `Tests/ProfileTests.swift` | Les 47 textes, les quatre conditions d'activation et les deux bornes de photo sont portés et gelés, et l'**écran est monté** — le prénom, le compte, la déconnexion, plus l'**avis global** qui manquait à tout le monde. La photo et le formulaire de connexion restent délibérément hors de l'écran. Voir §9.25 et §9.26. |
 | Coran avec règles de Tajwid | ✅ | ⬜ | — | — | Ressources non copiées, voir §7. |
 | Mode lecture continue | ✅ | ⬜ | — | — | |
 
@@ -1826,3 +1826,84 @@ devenue **optionnelle par motif** — nulle pour une reformulation, exigée pour
 ajout —, la croissance globale restant vérifiée une fois pour toutes. Même famille
 que le garde-fou du triple saut de ligne : un contrôle absolu appliqué à une
 grandeur qui peut légitimement varier refuse un fichier sain.
+
+### 9.26 L'écran du profil, et un canal d'avis qui ne disait rien
+
+Le bloc précédent avait gelé le **modèle** de la carte du profil sans écrire
+l'écran. Celui-ci monte l'écran — et il a fallu régler, au passage, une chose qui
+n'avait rien à voir avec le profil.
+
+**Un canal mort.** `AppViewModel.notice` est posé par six endroits : la carte du
+profil, celle des notifications, l'affichage du Coran, l'accueil, la connexion.
+Une seule vue le lisait — `SignInView`, qui le traite comme une erreur. Partout
+ailleurs, l'application enregistrait, synchronisait, se déconnectait **en
+silence**. La cause est simple : l'original affiche son avis dans un **toast
+global** (`App.tsx:256`), monté à la racine de son interface, et ce toast n'avait
+pas été porté. Il l'est — `Components.swift` gagne `NoticeToast`, et
+`App/ContentView.swift` le monte **au-dessus de la porte d'authentification**,
+jamais dans les onglets : monté dans les onglets, « Déconnecté. » disparaîtrait
+avec eux, puisque `AuthGate` revient alors à `SignInView`.
+
+Conséquence assumée : `SignInView` ne consomme plus `notice`. Il lit le texte
+**rendu** par le modèle (`authenticate`), l'affiche à côté de ses champs quand
+l'issue est un échec, et le laisse à l'avis global autrement. Poser `notice` dans
+`authenticate` aurait fait apparaître « Tes données de ce compte ont été
+retrouvées. » **en rouge** sur l'écran de connexion.
+
+**Un écran qui ne décide rien.** `ProfileView` ne porte ni borne, ni comparaison,
+ni unité : les sept textes de la carte viennent de `ProfileOptions`, et le bouton
+d'enregistrement passe la saisie **brute** au modèle, qui applique sa garde. La
+seule chose écrite dans le fichier est sa propre « chrome » — le titre de la
+feuille, sa ligne de sous-titre, le libellé d'accessibilité du bouton — comme
+`SettingsView` écrit la sienne.
+
+**Ce qui n'est pas monté, et pourquoi.** La rangée d'avatar et ses trois boutons
+de photo demandent le bucket `friend-avatars` et une écriture sur
+`friend_profiles.avatar_path` : une vérification serveur que cette version ne fait
+pas. Même discipline que le bouton « Vérifier le jeton push » (§9.23) : on ne
+monte pas un bouton qui ne peut rien faire. Le formulaire de connexion, lui, est
+déjà servi par `SignInView` — en monter un second donnerait **deux portes** pour
+un même contrat, et la seconde serait inatteignable, `AuthGate` montrant
+`SignInView` avant toute page.
+
+**Une recette de bouton qui vivait trois fois.** Le style du bouton de carte était
+recopié dans `SettingsView.settingsRow`, dans
+`NotificationSettingsView.actionButton`, et l'écran du profil en demandait une
+quatrième copie. Il vit désormais dans `CardButton`, et un contrôle **compte les
+occurrences dans tout le dépôt** : une quatrième copie le fait échouer.
+
+**Ce que ce bloc a appris**
+
+- **Une garde de délimiteurs doit comparer le DELTA, pas l'absolu.**
+  `ViewModels/AppViewModel.swift` porte **147** `(` pour **148** `)` — une
+  parenthèse vit dans une chaîne ou un commentaire, et le fichier était donc
+  déséquilibré **avant** toute retouche. Le banc `equilibre-delimiteurs.mjs` ne
+  s'y trompe pas : il retire chaînes et commentaires avant de compter. La passe
+  d'écriture, elle, exigeait l'équilibre absolu et refusait donc une édition
+  juste, en accusant le mauvais coupable.
+- **Une garde de croissance est fausse pour une dé-duplication.** La même passe
+  exigeait que chaque fichier **grandisse** ; la factorisation de `SettingsView`
+  le **raccourcit** de 144 octets. La garde est devenue « le fichier doit
+  **changer** », avec le delta signé. Même famille que le triple saut de ligne :
+  un contrôle absolu appliqué à une grandeur qui peut légitimement varier refuse
+  un fichier sain.
+- **Un contrôle de recopie doit lire le CODE, pas le fichier.** Trois échecs du
+  nouveau banc venaient de ses **propres commentaires** : `ProfileView.swift`
+  cite « Mon prénom » pour dire d'où vient le texte, et `canSignIn` pour dire
+  pourquoi la branche n'est pas montée. Le banc retire donc les commentaires — de
+  **tous** les fichiers Swift, car un contrôle « absent » qu'un commentaire suffit
+  à faire échouer et un contrôle « présent » qu'un commentaire suffit à satisfaire
+  sont faux tous les deux.
+- **Un contrôle qui vise un motif trop large accuse la mauvaise chose.** Le
+  contrôle « l'écran de connexion ne consomme plus `notice` » cherchait
+  `if let notice = model.notice` dans tout `ContentView.swift` — motif qui vit
+  **aussi** dans le garde du toast que ce bloc venait d'écrire. Il isole désormais
+  la structure `SignInView` avant de l'interroger.
+- **Un falsificateur attrape ses propres ancres fausses.** Une mutation visait
+  `Text("Terminé")`, qui n'existe pas — c'est `Button("Terminé")`. La garde
+  « MAL POSÉE » l'a refusée au lieu de la laisser passer pour un succès.
+- **Le compte global a déménagé, et c'est le mécanisme.** `verifier-profil.mjs`
+  affirmait « le dépôt porte 415 méthodes de test ». Il n'en porte plus le
+  compte : celui-ci appartient au banc le plus récent, et à lui seul — ici
+  `verifier-ecran-profil.mjs`, qui exige **416**.
+

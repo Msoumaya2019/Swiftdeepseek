@@ -174,13 +174,44 @@ public final class AppViewModel: ObservableObject {
         try? await auth.validAccessToken()
     }
 
-    public func signIn(email: String, password: String) async {
+    /// Une tentative de connexion ou d'inscription, et le texte à en dire.
+    ///
+    /// Rend le texte au lieu de le poser dans `notice`, parce que les deux
+    /// appelants ne le montrent pas de la même façon. `SignInView` est une
+    /// **porte** : il affiche l'échec à côté de ses champs, et un succès le fait
+    /// disparaître puisque la session change d'écran. La carte du profil, elle,
+    /// annonce aussi les succès, par l'avis global. Poser `notice` ici ferait
+    /// apparaître « Tes données de ce compte ont été retrouvées. » en rouge sur
+    /// l'écran de connexion, qui traite tout avis comme une erreur.
+    ///
+    /// La décision est celle de `ProfileOptions` : `outcome(register:hasSession:)`
+    /// puis `notice(for:)`, et `failedNotice(_:)` pour le repli de l'échec. Rien
+    /// n'est décidé ici — cette méthode appelle le service, puis traduit.
+    ///
+    /// `hasSession` est la valeur rendue par le service, et c'est elle qui
+    /// distingue les quatre issues : `signUp` rend `nil` quand la confirmation
+    /// par courriel est exigée (`mailer_autoconfirm` est faux sur ce projet), et
+    /// ce `nil` n'est pas une erreur.
+    public func authenticate(
+        email: String,
+        password: String,
+        register: Bool
+    ) async -> (outcome: ProfileOptions.AuthOutcome, notice: String) {
         do {
-            _ = try await auth.signIn(email: email, password: password)
-            await sync.syncOnSignIn()
-            audio.select(reciter: Reciter.find(repository.state.audioPreferences?.reciterId))
+            let session: SupabaseSession?
+            if register {
+                session = try await auth.signUp(email: email, password: password)
+            } else {
+                session = try await auth.signIn(email: email, password: password)
+            }
+            let outcome = ProfileOptions.outcome(register: register, hasSession: session != nil)
+            if session != nil {
+                await sync.syncOnSignIn()
+                audio.select(reciter: Reciter.find(repository.state.audioPreferences?.reciterId))
+            }
+            return (outcome, ProfileOptions.notice(for: outcome))
         } catch {
-            notice = error.localizedDescription
+            return (.failed, ProfileOptions.failedNotice(error.localizedDescription))
         }
     }
 
@@ -188,6 +219,48 @@ public final class AppViewModel: ObservableObject {
         await auth.signOut()
         await repository.load(userId: nil)
         selectedTab = .home
+        // L'avis survit au changement d'écran : il est monté au-dessus de la
+        // porte, dans `App/ContentView.swift`, et non dans les onglets.
+        notice = ProfileOptions.signedOutNotice
+    }
+
+    // MARK: Profil
+
+    /// Enregistre le prénom — `App.tsx:309`.
+    ///
+    /// La garde et l'écriture viennent de `ProfileOptions`, et les deux textes
+    /// aussi. Cette méthode ne décide rien : elle pose l'avis, ce que le modèle
+    /// ne peut pas faire.
+    ///
+    /// Les deux moitiés — `savedFirstName` puis `settingFirstName` — plutôt que
+    /// `savingFirstName`, qui les compose : `update` applique sa transformation à
+    /// l'état **courant**, au moment de l'écriture, et c'est cet état-là qui
+    /// décide quel sexe poser quand le profil est absent. Composer l'état ici
+    /// l'aurait figé à l'instant du clic. Les tests, eux, vérifient que la
+    /// composition `savingFirstName` rend bien la même décision que ces deux
+    /// appels.
+    public func saveFirstName(_ raw: String) {
+        guard let value = ProfileOptions.savedFirstName(raw) else {
+            notice = ProfileOptions.firstNameInvalidNotice
+            return
+        }
+        update { ProfileOptions.settingFirstName($0, value) }
+        notice = ProfileOptions.firstNameSavedNotice
+    }
+
+    /// « Synchroniser maintenant » — `App.tsx:322`.
+    ///
+    /// L'original appelle `pushState(state)` et montre le message de l'erreur tel
+    /// quel — pas le repli de la connexion. `pushCurrent` est son équivalent :
+    /// il écrit le document courant **sans fusion**, ce qui est le geste demandé
+    /// par ce bouton ; la fusion, elle, appartient à la file d'attente.
+    public func syncNow() async {
+        do {
+            try await sync.pushCurrent()
+            notice = ProfileOptions.syncedNotice
+        } catch {
+            notice = error.localizedDescription
+        }
     }
 
     // MARK: Mutations

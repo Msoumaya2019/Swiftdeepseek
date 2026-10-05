@@ -15,6 +15,7 @@ public struct HomeView: View {
 
     @EnvironmentObject private var model: AppViewModel
     @State private var readerRequest: ReaderRequest?
+    @State private var showProfile = false
     @State private var showSettings = false
 
     public init() {}
@@ -36,12 +37,24 @@ public struct HomeView: View {
             .background(model.palette.cream)
             .navigationTitle("Apprendre le Coran")
             .toolbar {
+                // Le bouton de profil vient en PREMIER, comme dans la barre de
+                // titre de l'original (`onProfile` puis `onSettings`,
+                // `App.tsx:236`). Il porte l'initiale du prénom, ou un bonhomme.
+                ToolbarItem(placement: .topBarTrailing) {
+                    ProfileHeaderButton(firstName: model.state.profile?.firstName) {
+                        showProfile = true
+                    }
+                    .accessibilityLabel("Ouvrir le profil")
+                }
                 ToolbarItem(placement: .topBarTrailing) {
                     Button { showSettings = true } label: {
                         Image(systemName: "gearshape")
                     }
                     .accessibilityLabel("Réglages")
                 }
+            }
+            .sheet(isPresented: $showProfile) {
+                ProfileView()
             }
             .sheet(isPresented: $showSettings) {
                 SettingsView()
