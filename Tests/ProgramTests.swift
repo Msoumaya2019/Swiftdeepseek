@@ -196,4 +196,24 @@ final class ProgramTests: XCTestCase {
         XCTAssertEqual(result.sessions.count, state.sessions.count)
         XCTAssertEqual(result.updatedAt, state.updatedAt)
     }
+
+    // MARK: Le libellé du rythme affiché
+
+    /// `Pace.displayed` — l'idiome était écrit **trois fois**
+    /// (`ProgramView.swift:82`, `ProgressScreenView.swift:362`,
+    /// `SettingsView.swift:144`) avant d'être extrait, et l'écran du profil en
+    /// demandait une quatrième.
+    func testTheDisplayedPaceIsTheKnownLabel() {
+        XCTAssertEqual(Pace.displayed("verse3"), "3 versets")
+        XCTAssertEqual(Pace.displayed("halfPage"), "\u{00BD} page")
+        XCTAssertEqual(Pace.displayed("toumoun"), "1 toumoun")
+    }
+
+    /// Le repli porte sur la chaîne **stockée** : une application plus ancienne
+    /// peut avoir écrit un rythme que cette version ne connaît pas. Afficher la
+    /// chaîne brute est plus honnête qu'inventer un libellé.
+    func testTheDisplayedPaceFallsBackToTheStoredString() {
+        XCTAssertEqual(Pace.displayed("quantum"), "quantum", "Un rythme inconnu s'affiche brut.")
+        XCTAssertEqual(Pace.displayed(""), "", "Une chaîne vide reste vide.")
+    }
 }

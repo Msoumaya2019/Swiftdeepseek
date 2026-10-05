@@ -359,7 +359,7 @@ struct GoalSummaryView: View {
                                 .foregroundStyle(model.palette.muted)
                             Text(model.state.goal.label)
                                 .font(.system(size: Theme.Typography.header, weight: .semibold))
-                            Text("Rythme : \(Pace(rawValue: model.state.pace)?.label ?? model.state.pace) / jour")
+                            Text("Rythme : \(Pace.displayed(model.state.pace)) / jour")
                                 .font(.system(size: Theme.Typography.secondary))
                                 .foregroundStyle(model.palette.muted)
                         }

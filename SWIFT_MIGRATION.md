@@ -1907,3 +1907,102 @@ occurrences dans tout le dépôt** : une quatrième copie le fait échouer.
   compte : celui-ci appartient au banc le plus récent, et à lui seul — ici
   `verifier-ecran-profil.mjs`, qui exige **416**.
 
+### 9.27 Les trois cartes du profil, et une répartition qui n'était pas la bonne
+
+Le bloc précédent a monté l'écran du profil. Il manquait, sous la carte du prénom,
+**trois cartes** que `App.tsx:325-327` place dans la branche `profile`. Ce bloc-ci
+les monte — et il a fallu, pour cela, défaire une répartition que §9.16 avait posée
+« en attendant ».
+
+**Une page pour deux modes.** `ProfileScreen` sert **deux** pages dans l'original :
+`App.tsx:294` la rend avec `mode: 'profile' | 'settings'`, et `utilityView` décide
+laquelle. La branche `settings` (lignes 329-350) porte les réglages ; la branche
+`profile` (lignes 321-328) porte la carte du prénom **et** les cinq cartes
+supplémentaires. Le portage avait rangé deux d'entre elles — « Connaissances » et
+« Objectif et rythme » — dans `SettingsView`, sous un en-tête qui l'annonçait :
+« tant que la page Profil n'existe pas ». La page existe. Un `grep` sur tout le
+dépôt ne trouve plus `Connaissances`, `Modifier mes connaissances` ni
+`Modifier mon programme` ailleurs qu'à `App.tsx:325-326` : les deux cartes sont
+retournées dans `ProfileView`, et l'en-tête de `SettingsView` dit désormais la
+répartition de l'original. Sans ce déplacement, la même carte aurait eu **deux
+chemins**, et le second aurait survécu à toute correction du premier.
+
+**Ce qui n'est pas monté, et pourquoi.** Sur les cinq cartes, deux restent
+absentes. « Mes récitations » (`openRecitations`) n'ouvre pas un écran mais un
+enregistreur, suivi d'un canal de corrections d'enseignant — rien de tout cela
+n'existe ici. « Amis et entraide » appelle `updateSocialProfile`, dont le `PATCH`
+n'est pas implémenté : `SupabaseRESTClient` n'a **pas** de méthode `update`. Même
+discipline qu'au §9.26 : on ne monte pas une carte qui ne peut rien faire.
+
+**`setReviewsEnabled` — trois décisions qui ne se voient pas.** L'interrupteur de
+la carte « Apprentissage » (`App.tsx:327`) appelle `setReviewsEnabled(state, value)`
+(`review.ts:53`). Trois choses s'y décident, et aucune n'est lisible à l'œil :
+
+1. **un retour anticipé** — `if (reviewsEnabled(state) === enabled) return state`.
+   Basculer vers la valeur **déjà en place** ne doit pas toucher le document, sans
+   quoi `updatedAt` avancerait pour rien, et une fusion arbitrerait sur un
+   horodatage qui ne correspond à aucun changement ;
+2. **`cycleDays` est ré-épinglé**, non remis à 7 : `reviewCycleDays(state)` (repli
+   7) conserve la durée choisie quand on éteint puis rallume ;
+3. **`resumedAt` n'est daté qu'à l'allumage** — éteindre n'efface pas la date de
+   reprise.
+
+`resumedAt` est d'ailleurs **écrit et jamais lu** : dans l'original il n'apparaît
+que dans le type `ReviewSettings` et dans cette fonction. Le portage l'écrit comme
+l'original — l'absence d'un champ qu'on ne lit pas est invisible, et le retirer
+aurait été une décision, non une fidélité.
+
+**Une quatrième copie, et c'est elle qui décide.** `Pace(rawValue: pace)?.label ?? pace`
+vivait à **trois** endroits (`ProgramView`, `ProgressScreenView`, `SettingsView`).
+La carte « Objectif et rythme » en demandait une quatrième. L'idiome est extrait
+dans `Core/Program.swift` (`Pace.displayed(_:)`), à côté de la définition de
+`Pace`, et un contrôle refuse désormais **toute** occurrence de la forme brute dans
+les vues. Les trois appelants passent par lui — dont `ProfileOptions.goalAndPace`,
+qui compose la ligne « objectif · rythme » : la vue ne choisit pas le libellé, elle
+passe le rythme **stocké**.
+
+**`CycleChoice`, né de deux rangées.** La rangée des durées de la carte
+« Apprentissage » (`{days} j`) et celle du tableau de bord (`ReviewDashboard.tsx:24`,
+`{days} jours`) sont la **même recette** de bouton (`theme.tsx:29`,
+`small secondary={!selected}`). Elle vivait en clair dans `ReviewDashboardView` —
+avec une **divergence** : texte non sélectionné en `text` au lieu de `green`, et un
+`minHeight: 40` que l'original n'a pas. Elle vit maintenant dans `CycleChoice`, que
+les deux rangées emploient.
+
+**Ce que ce bloc a appris**
+
+- **Un falsificateur attrape ce qu'un banc vert ne dit pas.** Trois mutants ont
+  **survécu** à la première passe, et chacun accusait un vrai défaut du banc :
+  `settings.cycleDays = reviewCycleDays(state)` apparaît **deux** fois dans
+  `Review.swift`, et `return Program.touch(next)` **sept** fois — les contrôles
+  portaient sur le fichier entier, donc casser `setReviewsEnabled` laissait un
+  autre exemplaire satisfaire le motif. Ils portent désormais sur le **corps** de
+  la fonction, et le banc dit où il s'arrête : ils prouvent que la fonction
+  **porte** ces quatre décisions ; qu'elle se comporte comme le TypeScript, c'est
+  l'oracle qui le dit, et lui porte sur la translittération.
+- **`includes('struct CycleChoice')` est vrai de `struct CycleChoiceGone`.** Une
+  sous-chaîne n'est pas un symbole. Le contrôle exige la forme de la déclaration
+  (`struct CycleChoice:`), et, pour les **appels**, la parenthèse (`CycleChoice(`).
+- **`includes('goalCard')` vérifiait une déclaration, pas un montage.**
+  `private var goalCard: some View` porte le même jeton que l'appel : retirer la
+  carte de la pile laissait le contrôle vert. Il exige maintenant les trois noms
+  **à la suite**, ce qui est aussi l'ordre de `App.tsx:325-327`.
+- **Un sujet qui déménage n'est pas un sujet perdu.** Deux contrôles de
+  `verifier-reglages.mjs` §9 portaient sur les cartes déplacées. Les supprimer
+  aurait retiré la couverture ; ils sont **re-établis** dans le nouveau banc, à
+  l'endroit où la carte vit — et le témoin du banc quitté est recalé de 86 à 84,
+  parce qu'un contrôle qui ne s'exécute pas ne prouve rien.
+- **Un témoin neutralisé ne garde rien.** Le brouillon du nouveau banc portait
+  `const EXPECTED = 0` **et** un garde `EXPECTED !== 0 &&` : le compte ne pouvait
+  pas échouer. Le compte est mesuré (85), puis la trappe est retirée — et le
+  falsificateur le prouve en retirant un contrôle, ce qui fait sortir le banc
+  en **2**.
+- **`codeSwift` garde les chaînes.** Une première version du banc les retirait
+  aussi : un contrôle d'**absence** ne pouvait plus échouer, et un contrôle de
+  **présence** devenait faux à l'envers — `Pace.displayed` est appelé **à
+  l'intérieur** d'une interpolation, invisible une fois les chaînes retirées.
+
+Banc : `_banc/verifier-cartes-profil.mjs` — **85 vérifications**, 0 échec, les neuf
+bancs antérieurs rejoués. Falsificateur : `_banc/falsifier-cartes-profil.mjs` —
+**21 mutations**, toutes tuées, arbre rendu intact. Tests : **416 → 422**.
+

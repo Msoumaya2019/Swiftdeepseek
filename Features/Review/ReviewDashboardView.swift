@@ -187,17 +187,13 @@ struct ReviewDashboardView: View {
                 if showCyclePicker {
                     HStack(spacing: Theme.Spacing.xs) {
                         ForEach(Review.cycleOptions, id: \.self) { days in
-                            Button("\(days) jours") {
+                            CycleChoice(
+                                title: "\(days) jours",
+                                selected: Review.reviewCycleDays(model.state) == days
+                            ) {
                                 model.update { Review.setReviewCycle($0, cycleDays: days) }
                                 showCyclePicker = false
                             }
-                            .font(.system(size: Theme.Typography.metadata, weight: .semibold))
-                            .frame(maxWidth: .infinity, minHeight: 40)
-                            .background(
-                                model.state.reviewSettings?.cycleDays == days ? model.palette.green : model.palette.soft,
-                                in: RoundedRectangle(cornerRadius: Theme.Radius.small)
-                            )
-                            .foregroundStyle(model.state.reviewSettings?.cycleDays == days ? model.palette.paper : model.palette.text)
                         }
                     }
 

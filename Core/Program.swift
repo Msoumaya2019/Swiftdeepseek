@@ -44,6 +44,29 @@ public enum Pace: String, Codable, CaseIterable, Sendable {
         default: return nil
         }
     }
+
+    /// Le libellé du rythme **stocké**, ou la chaîne brute quand cette version ne
+    /// connaît pas le rythme.
+    ///
+    /// `Pace(rawValue: state.pace)?.label ?? state.pace` — l'idiome était écrit
+    /// **trois fois** (`Features/Program/ProgramView.swift:82`,
+    /// `Features/Progress/ProgressScreenView.swift:362`,
+    /// `Features/Settings/SettingsView.swift:144`), et l'écran du profil en
+    /// demandait une quatrième. Il vit ici depuis, comme la recette du bouton
+    /// secondaire vit dans `CardButton`.
+    ///
+    /// Le repli sur la valeur stockée n'est pas un luxe : une application plus
+    /// ancienne peut avoir écrit un rythme que cette version ne connaît pas
+    /// (`toumoun`, par exemple, reste indisponible tant que ses limites ne sont
+    /// pas vérifiées). Afficher la chaîne brute est plus honnête que d'afficher
+    /// un libellé faux.
+    ///
+    /// `state.pace` est une chaîne, pas un `Pace` : un document restauré peut
+    /// porter une valeur inconnue, et c'est pourquoi le repli porte sur la
+    /// chaîne et non sur un cas par défaut.
+    public static func displayed(_ raw: String) -> String {
+        Pace(rawValue: raw)?.label ?? raw
+    }
 }
 
 public enum Program {

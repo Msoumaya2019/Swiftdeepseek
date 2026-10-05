@@ -36,9 +36,22 @@
 //      modèle (`ProfileOptions.canSignIn`). Monter un second formulaire
 //      donnerait deux portes pour un même contrat, et la seconde serait
 //      inatteignable.
-//   3. « Mes récitations », « Connaissances », « Objectif et rythme »,
-//      « Apprentissage », « Amis et entraide ». Les trois du milieu vivent déjà
-//      dans `SettingsView` ; les deux autres attendent leur fonctionnalité.
+//   3. « MES RÉCITATIONS » ET « AMIS ET ENTRAIDE ». La première attend son écran :
+//      `openRecitations` ouvre un enregistreur et des corrections de professeur,
+//      qui ne sont pas portés. La seconde attend une écriture serveur — ses trois
+//      préférences de partage passent par `updateSocialProfile`
+//      (`src/services/social.ts:24`), un `PATCH` sur `friend_profiles` que
+//      `SupabaseRESTClient` ne sait pas encore faire.
+//
+// LES TROIS CARTES QUI SONT LÀ
+//   « Connaissances » (`App.tsx:325`), « Objectif et rythme » (`App.tsx:326`) et
+//   « Apprentissage » (`App.tsx:327`) ont, elles, leur destination et leur
+//   modèle. Les deux premières n'existent **qu'ici** dans l'original : le relevé
+//   des occurrences de « Connaissances », « Modifier mes connaissances » et
+//   « Modifier mon programme » dans `src/` ne rend que ces deux lignes. Le
+//   portage les avait placées dans `SettingsView` à titre provisoire — son
+//   propre en-tête l'annonçait — et elles lui ont été retirées : deux chemins
+//   pour une même carte seraient une divergence que l'original ne connaît pas.
 
 import SwiftUI
 
@@ -56,6 +69,11 @@ struct ProfileView: View {
     /// saisie en fermant la feuille.
     @State private var firstName = ""
 
+    /// Les deux écrans qu'ouvrent les cartes — un état **local**, comme le
+    /// `showKnowledge` / `showProgram` que `SettingsView` portait pour elles.
+    @State private var showKnowledge = false
+    @State private var showProgram = false
+
     var body: some View {
         NavigationStack {
             ScrollView {
@@ -65,6 +83,9 @@ struct ProfileView: View {
                         .foregroundStyle(palette.muted)
                         .padding(.top, Theme.Spacing.sm)
                     profileCard
+                    knowledgeCard
+                    goalCard
+                    learningCard
                 }
                 .padding(.horizontal, Theme.Spacing.lg)
                 .padding(.bottom, Theme.Spacing.section)
@@ -81,6 +102,8 @@ struct ProfileView: View {
             .onChange(of: model.state.profile?.firstName) { value in
                 firstName = value ?? ""
             }
+            .sheet(isPresented: $showKnowledge) { KnowledgeEditorView() }
+            .sheet(isPresented: $showProgram) { ProgramEditorView(state: model.state) }
         }
     }
 
@@ -153,6 +176,102 @@ struct ProfileView: View {
                 Task { await model.signOut() }
             }
         }
+    }
+
+    /// « Connaissances » — `App.tsx:325`.
+    ///
+    /// La destination est `KnowledgeEditorView`, qui porte l'étape 0 de
+    /// l'assistant d'accueil (`src/App.tsx:399-402`) — exactement ce qu'ouvre
+    /// `openKnowledge`, qui vaut `setWizard(0)`.
+    private var knowledgeCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                Text(ProfileOptions.knowledgeTitle)
+                    .font(.system(size: Theme.Typography.card, weight: .semibold))
+                    .foregroundStyle(palette.text)
+                Text(ProfileOptions.knowledgeDetail)
+                    .font(.system(size: Theme.Typography.secondary))
+                    .foregroundStyle(palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                CardButton(title: ProfileOptions.knowledgeAction) { showKnowledge = true }
+            }
+        }
+    }
+
+    /// « Objectif et rythme » — `App.tsx:326`.
+    ///
+    /// La ligne du milieu n'est pas un texte fixe : elle porte l'objectif
+    /// **courant** et le rythme **courant**, composés par le modèle
+    /// (`ProfileOptions.goalAndPace`). La vue ne compose pas la chaîne, et ne
+    /// choisit pas le libellé du rythme — c'est le quatrième appelant de
+    /// `Pace.displayed`, celui qui a décidé de l'extraire.
+    private var goalCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                Text(ProfileOptions.goalTitle)
+                    .font(.system(size: Theme.Typography.card, weight: .semibold))
+                    .foregroundStyle(palette.text)
+                Text(ProfileOptions.goalAndPace(
+                    goalLabel: model.state.goal.label,
+                    pace: model.state.pace
+                ))
+                    .font(.system(size: Theme.Typography.secondary))
+                    .foregroundStyle(palette.muted)
+                    .fixedSize(horizontal: false, vertical: true)
+                CardButton(title: ProfileOptions.goalAction) { showProgram = true }
+            }
+        }
+    }
+
+    /// « Apprentissage » — `App.tsx:327`.
+    ///
+    /// Deux blocs dans **une** carte, et le second est conditionnel : l'original
+    /// n'affiche la rangée des durées que si `reviewsEnabled(state)`. Éteindre
+    /// l'espace Révisions fait donc disparaître la rangée, et la rallumer la
+    /// ramène sur la durée déjà choisie — `setReviewsEnabled` ré-épingle
+    /// `cycleDays`, il ne le remet pas à 7.
+    private var learningCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                Text(ProfileOptions.learningTitle)
+                    .font(.system(size: Theme.Typography.card, weight: .semibold))
+                    .foregroundStyle(palette.text)
+                Toggle(isOn: reviewsBinding) {
+                    Text(ProfileOptions.reviewsToggleLabel)
+                        .font(.system(size: Theme.Typography.body))
+                        .foregroundStyle(palette.text)
+                }
+                .tint(palette.green)
+                if Review.reviewsEnabled(model.state) {
+                    Text(ProfileOptions.reviewCycleHeading)
+                        .font(.system(size: Theme.Typography.secondary))
+                        .foregroundStyle(palette.muted)
+                        .padding(.top, Theme.Spacing.sm)
+                    HStack(spacing: Theme.Spacing.xs) {
+                        ForEach(Review.cycleOptions, id: \.self) { days in
+                            CycleChoice(
+                                title: ProfileOptions.cycleLabel(days),
+                                selected: Review.reviewCycleDays(model.state) == days
+                            ) {
+                                model.update { Review.setReviewCycle($0, cycleDays: days) }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// L'interrupteur, écrit par le modèle — `App.tsx:327` :
+    /// `onValueChange={value => update(setReviewsEnabled(state, value))}`.
+    ///
+    /// Le `set` passe par `model.update`, donc par `AppStateRepository.mutate`,
+    /// qui applique le `touch` — voir `ProfileOptions.settingFirstName`.
+    private var reviewsBinding: Binding<Bool> {
+        Binding(
+            get: { Review.reviewsEnabled(model.state) },
+            set: { value in model.update { Review.setReviewsEnabled($0, enabled: value) } }
+        )
     }
 
     // MARK: - Textes dérivés

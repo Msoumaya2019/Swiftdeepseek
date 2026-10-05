@@ -505,4 +505,64 @@ final class ReviewTests: XCTestCase {
         XCTAssertTrue(plan.recent.isEmpty)
         XCTAssertTrue(plan.priority.isEmpty)
     }
+
+    // MARK: L'activation de l'espace Révisions
+
+    /// `setReviewsEnabled` — `src/core/review.ts:53`.
+    ///
+    /// La durée choisie survit à l'extinction : l'original **ré-épingle**
+    /// `cycleDays` à `reviewCycleDays(state)`, il ne le remet pas à 7.
+    func testEnablingReviewsKeepsTheChosenCycleAndStampsTheResume() {
+        var state = Program.defaultState()
+        state.reviewSettings = ReviewSettings(enabled: false, cycleDays: 21)
+
+        let result = Review.setReviewsEnabled(state, enabled: true, at: "2026-10-05")
+
+        XCTAssertTrue(Review.reviewsEnabled(result))
+        XCTAssertEqual(result.reviewSettings?.cycleDays, 21, "Une durée de 21 jours ne redevient pas 7.")
+        XCTAssertEqual(result.reviewSettings?.resumedAt, "2026-10-05", "Le retour est horodaté.")
+    }
+
+    /// `resumedAt` n'est écrit qu'à l'**activation** : l'original écrit
+    /// `...(enabled ? {resumedAt: at} : {})`, donc désactiver ne l'efface pas.
+    ///
+    /// Aucune lecture n'en est faite — ni ici, ni dans l'application React
+    /// Native, où il n'apparaît que dans le type et dans cette ligne. C'est
+    /// pourquoi il faut le porter tel quel : un champ que personne ne lit ne se
+    /// voit pas manquer, et le jour où un client le lira, les deux documents
+    /// différeront en silence.
+    func testDisablingReviewsKeepsThePreviousResumeDate() {
+        var state = Program.defaultState()
+        state.reviewSettings = ReviewSettings(enabled: true, cycleDays: 7, resumedAt: "2026-09-01")
+
+        let result = Review.setReviewsEnabled(state, enabled: false, at: "2026-10-05")
+
+        XCTAssertFalse(Review.reviewsEnabled(result))
+        XCTAssertEqual(result.reviewSettings?.resumedAt, "2026-09-01", "Désactiver n'efface pas la date.")
+    }
+
+    /// Le retour anticipé de l'original : viser la valeur déjà en place ne
+    /// touche pas le document, donc n'avance pas `updatedAt` — et n'invente pas
+    /// d'horodatage de reprise.
+    func testSettingTheSameValueLeavesTheDocumentUntouched() {
+        let state = Program.defaultState()
+        XCTAssertTrue(Review.reviewsEnabled(state), "Le document initial a les révisions actives.")
+
+        let result = Review.setReviewsEnabled(state, enabled: true, at: "2026-10-05")
+
+        XCTAssertEqual(result.updatedAt, state.updatedAt, "Aucune écriture quand rien ne change.")
+        XCTAssertNil(result.reviewSettings?.resumedAt, "Et surtout : aucun horodatage inventé.")
+    }
+
+    /// Un état **sans** `reviewSettings` ressort avec `cycleDays` à 7 : c'est le
+    /// repli de `reviewCycleDays`, et non un champ absent.
+    func testDisablingReviewsOnAnEmptySettingsPinsTheCycleToSeven() {
+        var state = Program.defaultState()
+        state.reviewSettings = nil
+
+        let result = Review.setReviewsEnabled(state, enabled: false, at: "2026-10-05")
+
+        XCTAssertFalse(Review.reviewsEnabled(result))
+        XCTAssertEqual(result.reviewSettings?.cycleDays, 7)
+    }
 }

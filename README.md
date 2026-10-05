@@ -196,6 +196,14 @@ un fuseau sans heure d'été. Le groupe **`AppearanceTests`** en porte **20**, e
 **`ProgramGoalTests`** **34** à lui seul — les six objectifs préréglés, leurs bornes,
 le filtrage, la validation et la remise à zéro.
 
+Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blocs :
+**328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
+tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
+au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
+déclare aujourd'hui **422**, répartis sur **vingt** fichiers : le bloc des trois
+cartes du profil en a ajouté **six** (416 → 422), dont quatre sur les trois décisions
+de `setReviewsEnabled`. Le prochain run les mesurera.
+
 Le run n° 52, lui, ne portait qu'un compte **déduit** : l'artefact publié est
 l'**IPA seul** — aucun résultat de tests — et `gh` n'était alors pas authentifié dans
 la session de mesure. La déduction s'adossait à une **mesure** — le run n° 50 a mesuré
@@ -390,8 +398,8 @@ disparaîtrait avec eux.
 | Fichier | Ce qu'il empêche de casser |
 | --- | --- |
 | `OfflineMergeTests` | La fusion à trois voies : un client ne doit jamais écraser les données de l'autre. |
-| `ProgramTests` | Les cycles 7/14/21/30, les quantités 1 Nisf / 1 Hizb / 1 Juz / 2 Juz. |
-| `ReviewTests` | Les consolidations J+1 / J+3 / J+7, la notation des révisions, le marquage « difficile ». |
+| `ProgramTests` | Les cycles 7/14/21/30, les quantités 1 Nisf / 1 Hizb / 1 Juz / 2 Juz, et le rythme **affiché** — le libellé d'un rythme connu, la chaîne **stockée** pour un rythme inconnu. |
+| `ReviewTests` | Les consolidations J+1 / J+3 / J+7, la notation des révisions, le marquage « difficile », et les trois décisions de `setReviewsEnabled` — le retour anticipé qui ne touche pas le document, la durée **conservée** quand on éteint, la reprise datée à l'allumage **seul**. |
 | `PassageAudioTests` | Les trois règles silencieuses de la répétition d'un passage — la répétition conservée en mode « passage », `continuous` qui ne change jamais de verset, la normalisation du nombre — et l'attente avant de rejouer, dont la marge de 200 ms est un plancher. |
 | `AudioRepeatPreferencesTests` | Les six réglages de répétition : le `Number()` de JavaScript sur le champ libre (soixante-dix textes figés), le nombre normalisé qui n'est pas le nombre validé (un « Autre » de 5000 compte 5000 **et** refuse de lancer), la relecture champ par champ en égalité stricte, et les deux affichages — la case qui se décoche et le `∞` — qui ne se déduisent pas du réglage. |
 | `PassageAudioEngineTests` | La boucle de répétition : on ne conclut que sur `nil`, le silence choisi ne s'applique qu'au redémarrage ou au verset répété, un verset qui suit dans la même piste se **reprend** au lieu d'être rechargé, et une pause pendant l'attente mémorise le temps restant. Chaque transition est comparée à la séquence d'effets que le banc **calcule** sur le vrai `src/core/audio.ts`. |
@@ -399,7 +407,7 @@ disparaîtrait avec eux.
 | `QuranDisplayTests` | L'affichage du Coran : les quatre éditions de l'original (et l'écart avec `allCases`), la décision à trois issues — installer, sélectionner, refuser —, les quatre fonds et le repli sur le **premier**, et les trois règles d'écriture, dont le défaut `coranTest` que deux d'entre elles posent sur un lecteur absent. |
 | `NotificationTests` | Les sept interrupteurs et leurs replis, le défaut **matérialisé** qu'un appui écrit sur une installation neuve, la divergence des deux prédicats de permission sur EPHEMERAL, l'égalité **stricte** de `sameChat` — un `linkId` nul sans conversation ouverte supprime la notification —, le registre qui se vide **entier** au-delà de 200 entrées, les deux formules des drapeaux d'affichage, et l'ordre du programmateur : annuler d'abord, programmer ensuite. |
 | `QuranSourcesTests` | La carte des sources : les cinq chaînes au caractère près, les deux apostrophes typographiques distinctes (`juz’` U+2019, `rub‘` U+2018) et le tiret demi-cadratin du copyright, les six sources nommées, les deux licences citées, et la réserve sur les toumoun. |
-| `ProfileTests` | Le profil : les quarante-sept textes au caractère près, les quatre conditions d'activation — dont celle de « Se connecter », qui n'exige **pas** d'arobase —, le comptage du prénom et du mot de passe en unités **UTF-16** (un emoji vaut deux), les deux bornes de photo qui sont deux nombres différents pour un seul message, le chemin d'avatar toujours en `.jpg`, la frontière entre `settingFirstName` qui écrit et `savingFirstName` qui garde, et l'initiale du bouton de profil — `nil` sur un prénom vide, pour que le bonhomme de repli apparaisse au lieu d'un rond vide. |
+| `ProfileTests` | Le profil : les cinquante-cinq constantes publiques du modèle au caractère près, les quatre conditions d'activation — dont celle de « Se connecter », qui n'exige **pas** d'arobase —, le comptage du prénom et du mot de passe en unités **UTF-16** (un emoji vaut deux), les deux bornes de photo qui sont deux nombres différents pour un seul message, le chemin d'avatar toujours en `.jpg`, la frontière entre `settingFirstName` qui écrit et `savingFirstName` qui garde, et l'initiale du bouton de profil — `nil` sur un prénom vide, pour que le bonhomme de repli apparaisse au lieu d'un rond vide. |
 | `DateKeysTests` | Les dates « AAAA-MM-JJ » à midi local (jamais de décalage de fuseau). |
 | `VerseBoundsTests` | L'ordre des colonnes de `bounds.json` et la projection des rectangles. |
 | `AppWiringTests` | Le relais des services observables, l'URL Supabase non tronquée par `//`, et l'absence de clé `service_role` embarquée. |

@@ -758,6 +758,43 @@ public enum Review {
 
     // MARK: - Réglages du cycle
 
+    /// `setReviewsEnabled` — `src/core/review.ts:53`.
+    ///
+    ///     if (reviewsEnabled(state) === enabled) return state;
+    ///     return touch({...state, reviewSettings: {...state.reviewSettings,
+    ///         enabled, cycleDays: reviewCycleDays(state),
+    ///         ...(enabled ? {resumedAt: at} : {})}});
+    ///
+    /// Trois choses que la ligne de l'original porte, et qu'une réécriture
+    /// « naturelle » perdrait :
+    ///
+    ///   1. LE RETOUR ANTICIPÉ. Basculer vers la valeur déjà en place ne touche
+    ///      pas le document — donc n'avance pas `updatedAt`. Sans lui, chaque
+    ///      bascule ferait croire à une écriture.
+    ///
+    ///   2. `cycleDays` EST RÉ-ÉPINGLÉ à `reviewCycleDays(state)`, repli `7`
+    ///      compris. Un état **sans** `reviewSettings` ressort donc avec
+    ///      `cycleDays: 7`, et non avec le champ absent.
+    ///
+    ///   3. `resumedAt` N'EST POSÉ QU'À L'ACTIVATION. L'original écrit
+    ///      `...(enabled ? {resumedAt: at} : {})` : désactiver ne l'efface pas,
+    ///      la valeur précédente survit. **Aucune lecture n'en est faite** — ni
+    ///      ici, ni dans l'application React Native, où il n'apparaît que dans le
+    ///      type et dans cette ligne. C'est justement pourquoi il faut le porter
+    ///      tel quel : un champ que personne ne lit ne se voit pas manquer, et le
+    ///      jour où un client le lira, les deux documents différeront en silence.
+    public static func setReviewsEnabled(_ state: AppState, enabled: Bool, at: String = DateKeys.today()) -> AppState {
+        if reviewsEnabled(state) == enabled { return state }
+        var settings = state.reviewSettings
+            ?? ReviewSettings(enabled: enabled, cycleDays: reviewCycleDays(state))
+        settings.enabled = enabled
+        settings.cycleDays = reviewCycleDays(state)
+        if enabled { settings.resumedAt = at }
+        var next = state
+        next.reviewSettings = settings
+        return Program.touch(next)
+    }
+
     /// `setReviewCycle` — `src/core/review.ts:127`.
     /// L'historique des cycles est conservé : changer de durée n'efface rien.
     public static func setReviewCycle(_ state: AppState, cycleDays: Int, at: String = DateKeys.today()) -> AppState {

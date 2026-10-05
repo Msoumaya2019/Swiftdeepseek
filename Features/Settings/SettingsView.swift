@@ -17,14 +17,17 @@
 //   un écran qui ne décide rien n'a rien à se tromper, et les deux applications
 //   affichent la même chose à état égal.
 //
-// CE QUI N'EST PAS ENCORE LÀ
-//   L'application actuelle répartit ses réglages sur deux pages — « Profil »
-//   (prénom, compte, récitations, connaissances, objectif) et « Réglages »
+// LA RÉPARTITION EST DÉSORMAIS CELLE DE L'ORIGINAL
+//   L'application actuelle a deux pages — « Profil » (prénom, compte,
+//   récitations, connaissances, objectif, apprentissage, amis) et « Réglages »
 //   (apparence, affichage du Coran, notifications, remise à zéro, sources).
-//   Cet écran porte les connaissances, l'objectif et le rythme, l'apparence,
-//   l'affichage du Coran, les notifications, les sources, et la remise à zéro
-//   de l'apprentissage. Reste le compte : il viendra avec son écran. Il n'y a
-//   pas de bouton mort ici — chaque ligne ouvre quelque chose qui existe.
+//   Cet écran portait les connaissances et l'objectif à titre provisoire ;
+//   `Features/Profile/ProfileView.swift` existe maintenant et les a repris,
+//   parce que l'original ne les met **que** là : le relevé des occurrences de
+//   « Connaissances », « Modifier mes connaissances » et « Modifier mon
+//   programme » dans `src/` ne rend que `src/App.tsx:325-326`. Il ne reste ici
+//   que ce que la page « Réglages » de l'original porte, et il n'y a pas de
+//   bouton mort : chaque ligne ouvre quelque chose qui existe.
 
 import SwiftUI
 
@@ -34,8 +37,6 @@ struct SettingsView: View {
     @Environment(\.palette) private var palette
     @Environment(\.dismiss) private var dismiss
 
-    @State private var showKnowledge = false
-    @State private var showProgram = false
     @State private var showAppearance = false
     @State private var showQuranDisplay = false
     @State private var showNotifications = false
@@ -44,24 +45,6 @@ struct SettingsView: View {
     var body: some View {
         NavigationStack {
             List {
-                Section {
-                    settingsRow(
-                        title: "Connaissances",
-                        detail: "Modifier les sourates, juz’, hizb et passages déjà appris.",
-                        action: "Modifier mes connaissances",
-                        symbol: "checkmark.seal"
-                    ) { showKnowledge = true }
-                }
-
-                Section {
-                    settingsRow(
-                        title: "Objectif et rythme",
-                        detail: "\(model.state.goal.label) · \(paceLabel)",
-                        action: "Modifier mon programme",
-                        symbol: "target"
-                    ) { showProgram = true }
-                }
-
                 Section {
                     settingsRow(
                         title: "Apparence",
@@ -112,8 +95,6 @@ struct SettingsView: View {
                     Button("Terminé") { dismiss() }
                 }
             }
-            .sheet(isPresented: $showKnowledge) { KnowledgeEditorView() }
-            .sheet(isPresented: $showProgram) { ProgramEditorView(state: model.state) }
             .sheet(isPresented: $showAppearance) { AppearanceView() }
             .sheet(isPresented: $showQuranDisplay) { QuranDisplaySettingsView() }
             .sheet(isPresented: $showNotifications) { NotificationSettingsView() }
@@ -128,20 +109,6 @@ struct SettingsView: View {
                 Text(Program.resetProgressPrompt)
             }
         }
-    }
-
-    // MARK: - Textes dérivés
-
-    /// `Pace(rawValue:)?.label ?? state.pace` — l'idiome déjà employé par
-    /// `ProgramView.swift:82` et `ProgressScreenView.swift:362`.
-    ///
-    /// Le repli sur la valeur stockée n'est pas un luxe : une application plus
-    /// ancienne peut avoir écrit un rythme que cette version ne connaît pas
-    /// (`toumoun`, par exemple, reste indisponible tant que ses limites ne sont
-    /// pas vérifiées). Afficher la chaîne brute est plus honnête que d'afficher
-    /// un libellé faux.
-    private var paceLabel: String {
-        Pace(rawValue: model.state.pace)?.label ?? model.state.pace
     }
 
     // MARK: - La carte des sources

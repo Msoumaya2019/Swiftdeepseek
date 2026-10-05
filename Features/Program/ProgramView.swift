@@ -79,7 +79,7 @@ public struct ProgramView: View {
     }
 
     private var paceLabel: String {
-        Pace(rawValue: model.state.pace)?.label ?? model.state.pace
+        Pace.displayed(model.state.pace)
     }
 
     // MARK: Aujourd'hui

@@ -381,6 +381,50 @@ struct CardButton: View {
     }
 }
 
+/// Un bouton de durée de cycle — `src/ui/theme.tsx:29`, `Button small`.
+///
+/// L'original n'a qu'un composant `Button` et deux habillages : `secondary`
+/// (fond `soft`, bord `softBorder`, texte `green`) et primaire (fond `green`,
+/// texte blanc). Une rangée de durées emploie **les deux** — la durée courante
+/// est primaire, les trois autres secondaires (`secondary={notSelected}`).
+///
+/// POURQUOI CE TYPE EXISTE
+///   Le tableau de bord des révisions portait déjà cette rangée, avec un
+///   habillage écrit sur place : `minHeight: 40`, fond `soft` ou `green`, et un
+///   texte `text` pour la durée NON choisie — là où l'original écrit `green`.
+///   La carte « Apprentissage » du profil (`src/App.tsx:327`) demande la **même**
+///   recette. Deux copies auraient divergé au premier ajustement, comme les trois
+///   copies de la recette du bouton secondaire avant `CardButton`. Les deux
+///   rangées passent donc par ici.
+///
+/// CE QUE CE TYPE NE PORTE PAS
+///   Le libellé vient de l'appelant, et il **diffère** entre les deux rangées
+///   dans l'original : « 7 jours » dans le tableau de bord
+///   (`src/ReviewDashboard.tsx:24`) et « 7 j » dans la carte du profil
+///   (`src/App.tsx:327`). Ce n'est pas une incohérence à corriger : c'est ce que
+///   les deux écrans affichent.
+struct CycleChoice: View {
+    @Environment(\.palette) private var palette
+
+    let title: String
+    let selected: Bool
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) {
+            Text(title)
+                .font(.system(size: Theme.Typography.metadata, weight: .semibold))
+                .foregroundStyle(selected ? palette.paper : palette.green)
+                .frame(maxWidth: .infinity, minHeight: 40)
+                .background(
+                    selected ? palette.green : palette.soft,
+                    in: RoundedRectangle(cornerRadius: Theme.Radius.small)
+                )
+        }
+        .buttonStyle(.plain)
+    }
+}
+
 // MARK: - Bouton de profil de la barre de titre
 
 /// `ProfileHeaderButton` — `src/ui/ProfileHeaderButton.tsx`.

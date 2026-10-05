@@ -337,4 +337,52 @@ public enum ProfileOptions {
     public static func uploadAccepts(byteCount: Int) -> Bool {
         byteCount <= avatarMaximumBytes
     }
+
+    // MARK: - Les trois cartes de la page « Profil »
+
+    /// « Connaissances » — `App.tsx:325`.
+    ///
+    /// La carte n'existe **qu'ici** dans l'application React Native : le relevé
+    /// des occurrences de « Connaissances » et de « Modifier mes connaissances »
+    /// dans `src/` ne rend que cette ligne. `SettingsView` l'affichait à titre
+    /// provisoire, tant que la page « Profil » n'existait pas (son en-tête le
+    /// disait) ; elle est retournée à sa place.
+    public static let knowledgeTitle = "Connaissances"
+    public static let knowledgeDetail = "Modifier les sourates, juz’, hizb et passages déjà appris."
+    public static let knowledgeAction = "Modifier mes connaissances"
+
+    /// « Objectif et rythme » — `App.tsx:326`.
+    public static let goalTitle = "Objectif et rythme"
+    public static let goalAction = "Modifier mon programme"
+
+    /// La ligne de la carte « Objectif et rythme » — `App.tsx:326` :
+    ///
+    ///     {state.goal.label} · {paceLabels[state.pace]}
+    ///
+    /// Le séparateur est un point médian entouré d'espaces, exactement comme
+    /// l'original. Il est composé ici plutôt que dans la vue pour la même raison
+    /// que les autres textes : deux écrans qui le composent séparément peuvent
+    /// diverger d'une espace.
+    ///
+    /// Le libellé du rythme vient de `Pace.displayed(_:)`, jamais d'une table
+    /// locale — c'est le quatrième appelant de cet idiome, et c'est ce qui a
+    /// décidé de l'extraire.
+    public static func goalAndPace(goalLabel: String, pace: String) -> String {
+        "\(goalLabel) · \(Pace.displayed(pace))"
+    }
+
+    /// « Apprentissage » — `App.tsx:327`.
+    public static let learningTitle = "Apprentissage"
+    /// L'étiquette de l'interrupteur — `App.tsx:327`, `accessibilityLabel` inclus.
+    public static let reviewsToggleLabel = "Activer l’espace Révisions"
+    /// Le titre de la rangée de cycles — `App.tsx:327`.
+    public static let reviewCycleHeading = "Tout revoir sur un cycle de"
+    /// Le libellé d'un bouton de cycle — `App.tsx:327`, `` `${days} j` ``.
+    ///
+    /// L'unité est un « j » minuscule suivi d'une espace, et non « jours » : les
+    /// quatre boutons de l'original sont étroits, et « 30 j » tient là où
+    /// « 30 jours » ne tiendrait pas.
+    public static func cycleLabel(_ days: Int) -> String {
+        "\(days) j"
+    }
 }
