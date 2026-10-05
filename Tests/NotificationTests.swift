@@ -387,6 +387,28 @@ final class NotificationTests: XCTestCase {
         ))
     }
 
+    /// Les replis du contexte sont ceux des drapeaux d'un état vide : deux
+    /// endroits portent la même vérité, et ce test les tient d'accord.
+    ///
+    /// C'est le contrôle qui manquait quand `testOnlyFourKindsDependOnASetting`
+    /// s'appuyait sur le repli de `progressEnabled` : le repli est `false`, et le
+    /// test croyait `true`.
+    func testTheContextDefaultsAgreeWithTheFlagsOfAnEmptyState() {
+        var state = Program.defaultState()
+        state.notifications = nil
+        let flags = NotificationOptions.presentationFlags(state)
+        let context = NotificationOptions.PresentationContext()
+
+        XCTAssertNil(context.activeLinkId)
+        XCTAssertFalse(context.appIsActive)
+        XCTAssertFalse(context.recitationsVisible)
+        XCTAssertEqual(context.messagesEnabled, flags.messages)
+        XCTAssertEqual(context.progressEnabled, flags.progress)
+        XCTAssertEqual(context.correctionsEnabled, flags.corrections)
+        XCTAssertEqual(context.adminMessagesEnabled, flags.admin)
+        XCTAssertFalse(context.progressEnabled, "La progression partagée est éteinte par défaut.")
+    }
+
     // MARK: - Les sept portes
 
     /// Quatre genres sur douze dépendent d'un réglage ; les huit autres passent.
@@ -398,18 +420,26 @@ final class NotificationTests: XCTestCase {
             (.admin, \.adminMessagesEnabled)
         ]
 
+        // Le réglage est posé EXPLICITEMENT dans les deux cas, sur deux
+        // contextes neufs. S'appuyer sur le repli était une supposition :
+        // `progressEnabled` vaut `false` — c'est le repli de la progression
+        // partagée —, et « passe quand c'est ouvert » échouait sur
+        // `friend-progress` pour cette seule raison.
         for (kind, door) in doors {
             let presentation = NotificationOptions.Presentation(kind: kind)
-            var context = NotificationOptions.PresentationContext()
-            context.appIsActive = true
 
+            var open = NotificationOptions.PresentationContext()
+            open.appIsActive = true
+            open[keyPath: door] = true
             XCTAssertTrue(NotificationOptions.shouldPresent(
-                presentation, context: context, ledger: NotificationOptions.DisplayedLedger()
+                presentation, context: open, ledger: NotificationOptions.DisplayedLedger()
             ), "« \(kind.rawValue) » passe quand son réglage est ouvert.")
 
-            context[keyPath: door] = false
+            var closed = NotificationOptions.PresentationContext()
+            closed.appIsActive = true
+            closed[keyPath: door] = false
             XCTAssertFalse(NotificationOptions.shouldPresent(
-                presentation, context: context, ledger: NotificationOptions.DisplayedLedger()
+                presentation, context: closed, ledger: NotificationOptions.DisplayedLedger()
             ), "« \(kind.rawValue) » est retenu quand son réglage est fermé.")
         }
     }
@@ -662,8 +692,15 @@ final class NotificationTests: XCTestCase {
 
     /// La notification de test part cinq secondes plus tard, et elle DEMANDE la
     /// permission.
-    func testTheTestNotificationIsScheduledFiveSecondsLater() async {
-        let scheduler = FakeNotificationScheduler()
+    func testTheTestNotificationAsksAndIsScheduledFiveSecondsLater() async {
+        // Le faux part de `notDetermined` : c'est le seul état où une demande est
+        // utile. Partir d'un faux DÉJÀ autorisé faisait rendre `0` à
+        // `promptCount` alors que ce test attendait `1` — une supposition sur le
+        // repli du faux, et non sur le comportement du service.
+        let scheduler = FakeNotificationScheduler(
+            status: NotificationOptions.PermissionResult(granted: false, status: .notDetermined),
+            statusAfterPrompt: NotificationOptions.PermissionResult(granted: true, status: .authorized)
+        )
         let service = LocalNotificationService(scheduler: scheduler)
 
         let scheduled = await service.testLocalNotification()
@@ -672,7 +709,19 @@ final class NotificationTests: XCTestCase {
         let operations = await scheduler.recorded
         XCTAssertEqual(operations, [.schedule(.notificationTest)])
         let requests = await scheduler.promptCount
-        XCTAssertEqual(requests, 1)
+        XCTAssertEqual(requests, 1, "Un statut `notDetermined` déclenche la demande.")
+    }
+
+    /// Déjà autorisé : on ne redemande rien — `needsRequest` sort sur `granted`.
+    func testTheTestNotificationDoesNotAskWhenAlreadyAllowed() async {
+        let scheduler = FakeNotificationScheduler()
+        let service = LocalNotificationService(scheduler: scheduler)
+
+        let scheduled = await service.testLocalNotification()
+
+        XCTAssertTrue(scheduled)
+        let requests = await scheduler.promptCount
+        XCTAssertEqual(requests, 0)
     }
 
     /// La notification de test n'est pas programmée quand la permission manque —
@@ -740,6 +789,7 @@ private actor FakeNotificationScheduler: LocalNotificationScheduling {
     private var operations: [Operation] = []
     private var pending: [NotificationOptions.ScheduledReminder]
     private var status: NotificationOptions.PermissionResult
+    private var statusAfterPrompt: NotificationOptions.PermissionResult?
     private var prompts = 0
     private var requests: [LocalNotificationRequest] = []
 
@@ -748,10 +798,12 @@ private actor FakeNotificationScheduler: LocalNotificationScheduling {
         status: NotificationOptions.PermissionResult = NotificationOptions.PermissionResult(
             granted: true,
             status: .authorized
-        )
+        ),
+        statusAfterPrompt: NotificationOptions.PermissionResult? = nil
     ) {
         self.pending = pending
         self.status = status
+        self.statusAfterPrompt = statusAfterPrompt
     }
 
     var recorded: [Operation] { operations }
@@ -762,7 +814,7 @@ private actor FakeNotificationScheduler: LocalNotificationScheduling {
 
     func requestPermission() async -> NotificationOptions.PermissionResult {
         prompts += 1
-        return status
+        return statusAfterPrompt ?? status
     }
 
     func scheduled() async -> [NotificationOptions.ScheduledReminder] { pending }
