@@ -121,7 +121,8 @@
 | Modération (signalements, suspensions, blocage) | ✅ | ⬜ | `friend_message_reports`, `social_suspensions`, RPC `block_friend`… | — | `blockFriend`/`unblockFriend` existent dans `SocialService`, sans interface. |
 | Quiz : question du jour | ✅ | ⬜ | `quiz_*` (RPC) | — | |
 | Quiz entre amis | ✅ | ⬜ | `quiz_*` (RPC) | — | |
-| Notifications push | ✅ | ⬜ | `push_devices`, `notification_preferences`, RPC `register_push_device` | — | Jeton APNs propre, même `user_id` — voir §7 et `README.md`. |
+| Notifications : carte des préférences | ✅ | ✅ | `user_state.notifications` | `Core/NotificationOptions.swift`, `Features/Settings/NotificationSettingsView.swift` | Les **sept** interrupteurs dans l'ordre de l'original, la porte de permission, le pied de carte et les **deux** vérifications locales. Le rappel quotidien est réellement programmé sur l'appareil, à 19 h 00. Voir §9.23. |
+| Notifications push (jeton APNs) | ✅ | ⬜ | `push_devices`, `notification_preferences`, RPC `register_push_device` | — | Jeton APNs propre, même `user_id` — voir §7 et `README.md`. Ce qui manque est l'**envoi** : `registerPushDevice`, `updatePushPresence`, `unregisterPushDevice`, `pushDiagnostic` et le miroir `notification_preferences`. Demande un compte Apple Developer, un appareil physique, et une table serveur dont l'existence n'est pas vérifiée ici. |
 | Enregistrement de récitation | ✅ | ⬜ | `recitations`, bucket | — | |
 | Corrections de récitation | ✅ | ⬜ | `recitation_corrections`, RPC `finalize_recitation_correction` | — | |
 | Écrans d'administration | ✅ | ⬜ | `app_admins`, RPC `admin_*` | — | |
@@ -1588,3 +1589,115 @@ Et une leçon de forme, revécue : `grep -cF` sur un motif de **deux lignes** co
 les lignes qui satisfont l'un **ou** l'autre — il a rendu `253` pour un contrôle qui
 devait rendre `0`. Les vérifications de sous-chaîne se font sur le fichier entier,
 par égalité de présence, jamais par comptage de lignes.
+
+### 9.23 La carte des notifications : sept interrupteurs, trois prédicats, et un banc qui avait tort
+
+**Ce qui est porté.** La carte « Notifications » de `App.tsx:331-348` : la porte de
+permission, les **sept** interrupteurs dans l'ordre de l'original, le pied de carte
+et les **deux** vérifications locales. Le type `NotificationPreferences` en déclare
+**huit** — `revision` n'apparaît dans **aucune** des deux cartes : c'est le service
+qui l'écrit, et l'ajouter « par symétrie » afficherait un huitième interrupteur que
+l'original n'a pas.
+
+**Un appui matérialise le défaut.** `App.tsx:304,306` écrit
+`{...notificationPrefs, [key]:value}`, où `notificationPrefs` vaut
+`state.notifications ?? {messages:true, learning:false}`. Toucher un interrupteur
+sur une installation neuve écrit donc **aussi** `messages:true` et `learning:false`.
+Ce n'est pas un défaut à corriger : c'est le contrat que l'application React Native
+relit. Le défaut est une **donnée** (`NotificationOptions.materializedDefault`), et
+un test le tient d'accord avec `Program.defaultState().notifications` — deux
+endroits qui portent la même vérité sans pouvoir se lire.
+
+**Trois prédicats de permission, et deux divergent.** `App.tsx:305` — la carte —
+autorise sur `granted || PROVISIONAL`. `App.tsx:112` et `notifications.ts:61` — le
+service et l'effet automatique — autorisent en plus sur `EPHEMERAL`. Un statut
+EPHEMERAL (l'autorisation d'une journée qu'iOS accorde aux demandes provisoires)
+laisse donc le service **envoyer** pendant que la carte montre encore la porte
+d'autorisation. Les deux fonctions sont nommées (`cardAllows`, `serviceAllows`), et
+le banc exige qu'elles partagent leur **préfixe** : la divergence est un ajout,
+jamais une réécriture.
+
+**Deux écritures du drapeau, et elles ne laissent pas le même document.** L'effet
+automatique (`App.tsx:117-119`) force `messages` selon la préférence et
+**`learning` à faux** : poser le drapeau **éteint** donc le rappel quotidien, quel
+qu'il fût. L'écriture de la carte (`App.tsx:305`) ajoute seulement le drapeau au
+défaut matérialisé. Les deux se gardent par le même retour anticipé.
+
+**`null === null` est vrai — le piège de `sameChat`.** `notifications.ts:30`
+compare `data?.linkId === activeLinkId` en égalité **stricte**. Or
+`friend_messages.link_id` est **nullable** (message de groupe) et le SQL publie
+`'linkId', new.link_id` (`social-v2.sql:93`) : sans conversation ouverte, la
+notification d'un message de groupe est **supprimée** au premier plan. Un `String?`
+confondrait `null` et l'absence ; d'où `PayloadString` à **trois** états —
+`.missing`, `.null`, `.string`.
+
+**Le registre se vide ENTIER au-delà de 200 entrées** (`notifications.ts:37`), y
+compris celle qu'on vient d'ajouter. Ce n'est pas une erreur à corriger : c'est ce
+que l'original fait, et le reproduire est la seule façon d'afficher la même chose.
+Et l'enregistrement a lieu **même quand la notification n'est pas affichée** :
+`shouldPresent` est pure, `record` écrit.
+
+**Les drapeaux d'affichage sont dérivés par DEUX formules** (`App.tsx:169-172`) :
+`!== false` pour `messages`, `corrections` et `adminMessages`, `=== true` pour
+`sharedProgress`. Sur une clé absente, la première rend `true` et la seconde
+`false` : la progression partagée est la seule éteinte par défaut, ce qui est
+exactement le repli de son interrupteur.
+
+**La garde du rappel ne dépend PAS de la valeur** (`App.tsx:173`) : `account &&
+onboardingDone`, rien d'autre. C'est essentiel — éteindre l'interrupteur doit
+**annuler** un rappel déjà posé, donc appeler la synchronisation avec `false`. Un
+garde qui exigerait `enabled` laisserait le rappel en place. Conséquence à
+connaître : sans compte connecté, éteindre l'interrupteur n'annule rien.
+
+**Le miroir serveur est porté, pas écrit.** `App.tsx:177` écrit `revision: false`
+**en dur** dans `notification_preferences`, et n'y met ni `learning` ni
+`messagePreview`. Ce portage **n'écrit pas** cette table : elle demanderait une
+vérification côté serveur, et la charte interdit d'ajouter une migration sans le
+demander. La dérivation est portée et vérifiée pour qu'un futur écran ne
+l'invente pas.
+
+**`scheduleQueue` devient un acteur.** L'original sérialise ses programmations par
+une chaîne de promesses (`notifications.ts:23,71,142`) ; un acteur donne la même
+garantie par isolation. L'ordre est celui de l'original : **annuler d'abord**,
+programmer ensuite — et l'annulation ne vise que le genre d'apprentissage, pas les
+deux genres automatiques de `cancelAutomaticReminders`.
+
+**Le troisième bouton de l'original n'est pas là.** `App.tsx:347` ajoute
+« Vérifier le jeton push » dès qu'un compte est ouvert. Un bouton qui ne peut rien
+vérifier serait un bouton mort : il est absent, et la dérivation
+(`shouldRegisterPushDevice`) est portée pour qu'un futur écran ne puisse pas
+l'inventer.
+
+**Le banc, et ses vingt-quatre premiers échecs — tous du banc.** Le premier passage
+de `_banc/verifier-notifications.mjs` a exécuté 161 contrôles et en a refusé 24.
+Les vingt-quatre venaient du **contrôle**, pas du fichier :
+
+- une seule discipline de comparaison manquait. Le banc mélangeait `flat()` et des
+  motifs contenant des espaces : `status == .provisional` ne peut pas correspondre à
+  un texte aplati, qui écrit `status==.provisional`. Cinq échecs pour cette seule
+  raison ;
+- `notifications.ts:146` a été cherché dans `App.tsx` — le texte du `throw` du test
+  n'est pas dans la carte. Un échec pour un texte pourtant présent ;
+- un seul fichier SQL était lu, `social-v2.sql`, alors que les trois `kind` du quiz
+  vivent dans `quiz-notifications.sql` et `quiz-install.sql` : « douze `kind` »
+  mesurait `huit` ;
+- l'ancre de l'effet automatique était `Notifications.getPermissionsAsync()`, qui
+  apparaît **deux** fois dans `App.tsx` (lignes 111 et 305). La fenêtre partait de
+  la mauvaise, et le contrôle demandait à la ligne 111 ce que dit la ligne 119 ;
+- `sameChat` et `destination` sont écrits en `switch` côté Swift, et le banc
+  attendait la forme en quatre termes `&&` de l'original. Le contrôle encodait la
+  **forme**, pas la **décision** ;
+- `indexOf('schedule')` trouvait `scheduler.scheduled()` avant `scheduler.cancel(`
+  — un préfixe qui contient le mot cherché ;
+- `normalizeInterpolation` transformait `\(x)` en `${x)` sans fermer l'accolade.
+
+Après correction : **179 contrôles**, 0 échec. Et `_banc/falsifier-notifications.mjs`
+tue **15 mutations sur 15** — deux interrupteurs permutés, un repli inversé,
+`cardAllows` rendu permissif, le drapeau qui n'éteint plus le rappel, le registre
+plafonné à 100, `null` confondu avec `missing`, deux routes permutées, le rappel
+déplacé à 18 h, une porte ouverte en grand, la garde `||` au lieu de `&&`, le miroir
+`revision: true`, un `kind` renommé, deux textes, et la ligne d'accès retirée des
+réglages. Le falsificateur vérifie d'abord que le banc **passe** sur l'arbre intact,
+exige que chaque détection nomme le contrôle attendu — un code 2 serait une
+détection pour la mauvaise raison —, restaure l'arbre dans un `finally`, et compare
+les empreintes SHA-256 avant de rendre son verdict.

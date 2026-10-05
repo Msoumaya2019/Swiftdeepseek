@@ -33,6 +33,10 @@ public final class AppViewModel: ObservableObject {
     public let sources: QuranSourceService
     public let social: SocialService
     public let coran1441: Coran1441DownloadService
+    /// Les rappels **locaux** — la seule partie des notifications qui
+    /// touche l'appareil. Le jeton APNs et la table `push_devices` ne sont
+    /// pas portés ; voir `Services/LocalNotificationScheduler.swift`.
+    public let notifications: LocalNotificationService
 
     private let store: LocalStore
     private let client: SupabaseRESTClient
@@ -59,6 +63,7 @@ public final class AppViewModel: ObservableObject {
         self.sources = QuranSourceService()
         self.social = SocialService(client: client)
         self.coran1441 = Coran1441DownloadService()
+        self.notifications = LocalNotificationService(scheduler: UserNotificationsScheduler())
         self.state = repository.state
         // `LocalStore` est un **acteur** : sa lecture ne peut pas se faire ici,
         // dans un `init` synchrone — le compilateur répond « call to
@@ -245,6 +250,73 @@ public final class AppViewModel: ObservableObject {
     /// stockée pour que les deux applications s'accordent.
     public func setFollowAudio(_ value: Bool) {
         update { QuranDisplayOptions.settingFollowAudio($0, value) }
+    }
+
+    // MARK: Notifications
+
+    /// Écrit une préférence de notification — `App.tsx:306`.
+    ///
+    /// La règle vit dans `NotificationOptions.setting` : elle **matérialise** le
+    /// défaut quand `notifications` est absent, exactement comme la carte de
+    /// l'affichage du Coran. La recopier ici en ferait une seconde copie d'un
+    /// contrat que l'application React Native relit.
+    ///
+    /// Le rappel quotidien est ensuite synchronisé — et **seulement** si un compte
+    /// est connecté et le questionnaire terminé (`App.tsx:173`). Le garde est dans
+    /// le modèle ; ce n'est pas un oubli, et l'annulation d'un rappel déjà
+    /// programmé en dépend.
+    public func setNotification(_ key: String, to value: Bool) {
+        update { NotificationOptions.setting($0, key, to: value) }
+        guard key == "learning" else { return }
+        let current = state
+        guard NotificationOptions.canSyncLearningReminder(
+            account: current.userId != nil,
+            onboardingDone: current.onboardingDone
+        ) else { return }
+        Task { await notifications.syncLearningReminder(enabled: value) }
+    }
+
+    /// `App.tsx:305` — l'effet de montage de la carte.
+    ///
+    /// Prédicat de la **carte** — `cardAllows`, qui ne retient pas `EPHEMERAL` —
+    /// puis écriture du drapeau si la permission est acquise. La demande système
+    /// n'est **pas** envoyée ici : l'original lit seulement.
+    public func syncDeviceNotificationPermission() async -> Bool {
+        let result = await notifications.ensurePermission(prompt: false)
+        let allowed = NotificationOptions.cardAllows(result)
+        if allowed { markPermissionExplainedFromCard() }
+        return allowed
+    }
+
+    /// `App.tsx:335` — le bouton « Autoriser les notifications sur ce téléphone ».
+    ///
+    /// Prédicat du **service** — `serviceAllows`, qui retient `EPHEMERAL` — donc
+    /// pas le même que l'effet de montage, et c'est **mesuré** : les deux
+    /// prédicats de l'original diffèrent, et les confondre ferait diverger la
+    /// porte d'autorisation de l'application React Native.
+    public func requestDeviceNotificationPermission() async -> Bool {
+        let result = await notifications.ensurePermission(prompt: true)
+        let allowed = NotificationOptions.serviceAllows(result)
+        if allowed { markPermissionExplainedFromCard() }
+        return allowed
+    }
+
+    /// `App.tsx:305,335` — l'écriture de la carte, avec son retour anticipé : le
+    /// drapeau déjà posé rend l'état **inchangé**.
+    public func markPermissionExplainedFromCard() {
+        update { NotificationOptions.markingPermissionExplainedFromCard($0) }
+    }
+
+    /// `App.tsx:345` — la notification de test, programmée cinq secondes plus
+    /// tard. Rend `true` si elle est programmée, `false` si la permission manque.
+    public func testLocalNotification() async -> Bool {
+        await notifications.testLocalNotification()
+    }
+
+    /// `App.tsx:346` — le texte de l'avis des rappels programmés. Le composer dans
+    /// la vue ferait une seconde copie des accords entre parenthèses.
+    public func scheduledReminderNotice() async -> String {
+        await notifications.countsNotice()
     }
 
     // MARK: Apparence (thème et couleur d'accent)

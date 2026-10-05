@@ -22,9 +22,9 @@
 //   (prénom, compte, récitations, connaissances, objectif) et « Réglages »
 //   (apparence, affichage du Coran, notifications, remise à zéro, sources).
 //   Cet écran porte les connaissances, l'objectif et le rythme, l'apparence,
-//   l'affichage du Coran, et la remise à zéro de l'apprentissage. Restent les
-//   notifications, les sources et le compte : ils viendront avec leurs écrans
-//   respectifs. Il n'y a pas de bouton mort ici — chaque ligne ouvre quelque
+//   l'affichage du Coran, les notifications, et la remise à zéro de
+//   l'apprentissage. Restent les sources et le compte : ils viendront avec
+//   leurs écrans respectifs. Il n'y a pas de bouton mort ici — chaque ligne ouvre quelque
 //   chose qui existe.
 
 import SwiftUI
@@ -39,6 +39,7 @@ struct SettingsView: View {
     @State private var showProgram = false
     @State private var showAppearance = false
     @State private var showQuranDisplay = false
+    @State private var showNotifications = false
     @State private var confirmReset = false
 
     var body: some View {
@@ -80,6 +81,15 @@ struct SettingsView: View {
                     ) { showQuranDisplay = true }
                 }
 
+                Section {
+                    settingsRow(
+                        title: NotificationOptions.cardTitle,
+                        detail: NotificationOptions.cardDetail(model.state),
+                        action: "Choisir mes notifications",
+                        symbol: "bell"
+                    ) { showNotifications = true }
+                }
+
                 Section("Tout remettre à 0") {
                     Text(Program.resetProgressDetail)
                         .font(.system(size: Theme.Typography.secondary))
@@ -103,6 +113,7 @@ struct SettingsView: View {
             .sheet(isPresented: $showProgram) { ProgramEditorView(state: model.state) }
             .sheet(isPresented: $showAppearance) { AppearanceView() }
             .sheet(isPresented: $showQuranDisplay) { QuranDisplaySettingsView() }
+            .sheet(isPresented: $showNotifications) { NotificationSettingsView() }
             .confirmationDialog(
                 Program.resetProgressTitle,
                 isPresented: $confirmReset,
