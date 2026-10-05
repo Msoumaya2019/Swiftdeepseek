@@ -1185,8 +1185,9 @@ détectés, aucun orphelin laissé sur le disque. Le portage est documenté en
    **`tajweed` est le meilleur rapport effort/résultat** : ses données sont déjà
    embarquées, et il reste à écrire le rendu du texte coloré. Ni l'une ni l'autre
    ne demande de copier les 185 Mo que la version précédente annonçait.
-5. Assistant d'objectif hebdomadaire, messagerie, groupes,
-   quiz, notifications, récitations, mini-lecteur.
+5. Assistant d'objectif hebdomadaire, messagerie, groupes, quiz,
+   récitations, mini-lecteur — et l'**envoi** des notifications push, dont la carte
+   des préférences est en revanche portée (`SWIFT_MIGRATION.md` §9.23).
 
 *Déjà faites depuis la rédaction de la première version de ce rapport, et donc
 retirées de cette liste : la notation des révisions dans l'interface (§10, barre

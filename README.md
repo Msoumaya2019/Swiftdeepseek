@@ -340,6 +340,22 @@ chargement. Les trois écritures de la carte ne posent pas non plus le même dé
 pas encore de lecteur. C'est surprenant, mais c'est le contrat que l'application React
 Native relit.
 
+La **carte des notifications** ne décide pas non plus de ses textes. Les sept
+interrupteurs et leur ordre, leur valeur de repli, la porte de permission, le pied de
+carte et les deux vérifications locales vivent dans `Core/NotificationOptions.swift`.
+Trois choses y sont plus subtiles qu'elles n'en ont l'air. Un appui écrit le défaut
+**matérialisé** : sur une installation neuve, toucher un interrupteur écrit aussi
+`messages:true` et `learning:false` — c'est le contrat que l'application React Native
+relit. Les deux prédicats de permission **divergent** : la carte autorise sur
+`granted || PROVISIONAL`, le service et l'effet automatique en plus sur `EPHEMERAL`,
+si bien qu'un statut EPHEMERAL laisse le service envoyer pendant que la carte montre
+encore la porte. Et `sameChat` compare en égalité **stricte** : un message de groupe
+porte `linkId: null`, donc sans conversation ouverte `null === null` est vrai et la
+notification est supprimée au premier plan. Le type `NotificationPreferences` déclare
+huit clés, mais aucune des deux cartes de l'original n'en propose `revision` : elle est
+écrite par le service, et l'ajouter « par symétrie » afficherait un huitième
+interrupteur que l'application actuelle n'a pas.
+
 ### Ce que les tests verrouillent
 
 | Fichier | Ce qu'il empêche de casser |
@@ -352,6 +368,7 @@ Native relit.
 | `PassageAudioEngineTests` | La boucle de répétition : on ne conclut que sur `nil`, le silence choisi ne s'applique qu'au redémarrage ou au verset répété, un verset qui suit dans la même piste se **reprend** au lieu d'être rechargé, et une pause pendant l'attente mémorise le temps restant. Chaque transition est comparée à la séquence d'effets que le banc **calcule** sur le vrai `src/core/audio.ts`. |
 | `JSONValueTests` | La conservation des clés JSON inconnues — la condition de la compatibilité. |
 | `QuranDisplayTests` | L'affichage du Coran : les quatre éditions de l'original (et l'écart avec `allCases`), la décision à trois issues — installer, sélectionner, refuser —, les quatre fonds et le repli sur le **premier**, et les trois règles d'écriture, dont le défaut `coranTest` que deux d'entre elles posent sur un lecteur absent. |
+| `NotificationTests` | Les sept interrupteurs et leurs replis, le défaut **matérialisé** qu'un appui écrit sur une installation neuve, la divergence des deux prédicats de permission sur EPHEMERAL, l'égalité **stricte** de `sameChat` — un `linkId` nul sans conversation ouverte supprime la notification —, le registre qui se vide **entier** au-delà de 200 entrées, les deux formules des drapeaux d'affichage, et l'ordre du programmateur : annuler d'abord, programmer ensuite. |
 | `DateKeysTests` | Les dates « AAAA-MM-JJ » à midi local (jamais de décalage de fuseau). |
 | `VerseBoundsTests` | L'ordre des colonnes de `bounds.json` et la projection des rectangles. |
 | `AppWiringTests` | Le relais des services observables, l'URL Supabase non tronquée par `//`, et l'absence de clé `service_role` embarquée. |
