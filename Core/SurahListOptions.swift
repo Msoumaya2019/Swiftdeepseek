@@ -134,7 +134,13 @@ public enum SurahListOptions {
     /// l'original, où les deux sont joints par `&&`.
     static func matches(_ surah: Surah, query: String, filter: Filter) -> Bool {
         let haystack = "\(surah.number) \(surah.name) \(surah.meaning ?? "") \(surah.arabic ?? "")"
-        guard haystack.lowercased().contains(query.lowercased()) else { return false }
+        // Une recherche VIDE ramène tout : `''.includes('')` vaut `true` en
+        // JavaScript, alors que `"abc".contains("")` vaut **false** en Swift. Sans
+        // ce garde, l'écran s'ouvrait sur une liste vide — la recherche part
+        // toujours vide, donc c'était le cas NORMAL, pas un cas limite. Trouvé
+        // par l'intégration continue, pas par le banc : un banc qui relit le
+        // source ne voit pas ce que le langage fait de ce qu'il lit.
+        guard query.isEmpty || haystack.lowercased().contains(query.lowercased()) else { return false }
         switch filter {
         case .all: return true
         case .meccan: return surah.isMeccan ?? false
@@ -154,7 +160,9 @@ public enum SurahListOptions {
     static func matches(_ division: Division, mode: Mode, query: String) -> Bool {
         let surahName = Quran.surahs[Quran.verseAt(division.start).surah - 1].name
         let haystack = "\(division.number) \(mode.label) \(surahName)"
-        return haystack.lowercased().contains(query.lowercased())
+        // Même garde que pour une sourate, et pour la même raison : sans elle, la
+        // vue « Juz’ » s'ouvre vide, `contains("")` étant faux en Swift.
+        return query.isEmpty || haystack.lowercased().contains(query.lowercased())
     }
 
     static func row(_ surah: Surah, mode: Mode) -> Row {

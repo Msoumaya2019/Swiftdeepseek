@@ -1197,9 +1197,17 @@ dit. Et un contrôle des points de code comparait deux littéraux **du banc lui-
 passait quoi qu'écrive le modèle. Il lit maintenant le corps de la propriété. Le falsificateur
 éprouve les deux, par deux mutations distinctes.
 
-`_banc/verifier-liste-sourates.mjs` compte **134** vérifications — les onze bancs antérieurs
-rejoués — et `_banc/falsifier-liste-sourates.mjs` éprouve **28** mutations : toutes tuées,
-arbre rendu intact. Tests : **454 → 501**, dont **47** pour `Tests/SurahListTests.swift`. Le
+**Le premier passage du flux a échoué, et il avait raison.** Le run n° 67 est tombé sur
+treize tests : en JavaScript `''.includes('')` vaut `true`, en Swift
+`"abc".contains("")` vaut **false** — et la recherche part toujours vide, donc l'onglet
+Coran s'ouvrait sur une liste **vide**. Le banc ne pouvait pas le voir : il relit le source
+et rejoue les règles en JavaScript. Un banc qui rejoue l'original ne prouve rien du
+portage ; ce qu'il fallait, c'était exécuter le langage, et c'est le rôle du flux. Deux
+contrôles et deux mutations le font désormais tomber **en local**, en quelques secondes.
+
+`_banc/verifier-liste-sourates.mjs` compte **136** vérifications — les onze bancs antérieurs
+rejoués — et `_banc/falsifier-liste-sourates.mjs` éprouve **30** mutations : toutes tuées,
+arbre rendu intact. Tests : **454 → 502**, dont **48** pour `Tests/SurahListTests.swift`. Le
 portage, raconté côté migration, est en `SWIFT_MIGRATION.md` §9.29.
 
 ## 13. Problèmes rencontrés

@@ -200,11 +200,12 @@ Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blo
 **328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
 tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
 au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
-déclare aujourd'hui **501**, répartis sur **vingt-trois** fichiers. Le bloc des trois
+déclare aujourd'hui **502**, répartis sur **vingt-trois** fichiers. Le bloc des trois
 cartes du profil en a ajouté **six** (416 → 422), mesurés au run n° 65 ; celui des
 marque-pages **trente-deux** (422 → 454) — vingt-deux sur le modèle et l'écran, dix sur
-la traduction d'un verset en page ; celui de la **liste des sourates** **quarante-sept**
-(454 → 501) — les deux règles de recherche, le filtre qui ne s'applique qu'à une vue,
+la traduction d'un verset en page ; celui de la **liste des sourates** **quarante-huit**
+(454 → 502) — les deux règles de recherche, le filtre qui ne s'applique qu'à une vue,
+la garde de la requête vide — trouvée par l'intégration continue, pas par le banc —
 la pagination d'une division, la progression et les libellés. Le prochain run les
 mesurera.
 

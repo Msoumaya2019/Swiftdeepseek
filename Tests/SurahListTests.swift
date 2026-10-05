@@ -264,6 +264,26 @@ final class SurahListTests: XCTestCase {
         XCTAssertEqual(rows(.juz, query: "fâtiha").map(\.number), [1])
     }
 
+    /// Une recherche **vide** ramène tout — et c'est le cas NORMAL, pas un cas
+    /// limite : le champ part vide, donc c'est la requête sur laquelle l'écran
+    /// s'ouvre.
+    ///
+    /// La règle est celle de JavaScript — `''.includes('')` vaut `true` — alors
+    /// que `"abc".contains("")` vaut **false** en Swift. Ce test est né d'un échec
+    /// d'intégration continue : les treize tests qui lisaient `rows(…)` sans
+    /// requête rendaient une liste **vide**, donc l'onglet Coran s'ouvrait vide.
+    /// Le banc ne pouvait pas le voir — il relit le source, il n'exécute pas le
+    /// langage — et c'est la limite qu'il déclare lui-même.
+    func testAnEmptyQueryMatchesEverythingAsJavaScriptDoes() {
+        XCTAssertFalse("abc".contains(""), "en Swift, un `contains` vide est faux : c'est la divergence qui a causé le défaut")
+        XCTAssertEqual(rows(.liste).count, 114)
+        XCTAssertEqual(rows(.juz).count, 30)
+        XCTAssertEqual(rows(.hizb).count, 60)
+        XCTAssertEqual(rows(.liste, query: "").count, 114)
+        XCTAssertEqual(rows(.juz, query: "").count, 30)
+        XCTAssertEqual(rows(.hizb, query: "").count, 60)
+    }
+
     // MARK: - Une ligne de sourate
 
     /// Les champs d'une sourate traversent tels quels, sauf que `meaning` et

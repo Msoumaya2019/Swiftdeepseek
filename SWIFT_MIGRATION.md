@@ -2220,7 +2220,28 @@ règle est **`Math.max`**, pas la date de validation : `memorizedIds` retient
 verset validé **plus récemment** ne gagne pas — et c'est bien `memorizedIDs.last`
 d'une liste **triée** qui le porte, puisque `Dictionary` n'est pas ordonné en Swift.
 
-Banc : `_banc/verifier-liste-sourates.mjs` — **134 vérifications**, 0 échec, les
+#### Le défaut que seul le flux pouvait voir
+
+Le run n° 67 a **échoué**, sur treize tests — et il a trouvé un défaut réel, pas une
+faute de test. En JavaScript, `''.includes('')` vaut `true` ; en Swift,
+`"abc".contains("")` vaut **false**. Les deux recherches portaient donc
+`haystack.lowercased().contains(query.lowercased())` : une requête vide ne trouvait
+**rien**. Or la recherche part toujours vide — c'est la requête sur laquelle l'écran
+s'ouvre. L'onglet Coran s'affichait donc **vide**, et c'était le cas normal, pas un
+cas limite.
+
+Le banc ne pouvait pas le voir, et il le disait : il relit le source et rejoue les
+règles **en JavaScript**. C'est l'exécution du langage qui manquait, et c'est
+exactement ce que l'intégration continue apporte. Le corollaire est plus utile que le
+défaut : **un banc qui rejoue l'original ne prouve rien du portage** — il faut, pour
+chaque règle, un contrôle qui regarde ce que le langage en fait.
+
+Deux contrôles (un par recherche, lisant le **corps** de la fonction) et deux
+mutations font désormais tomber ce défaut **en local**, en quelques secondes. Les
+mutations M02 et M03, dont l'ancre citait la ligne remplacée, ont été repointées sur
+la nouvelle garde : c'est le pré-vol des ancres qui l'a dit, avant toute écriture.
+
+Banc : `_banc/verifier-liste-sourates.mjs` — **136 vérifications**, 0 échec, les
 **onze** bancs antérieurs rejoués. Falsificateur : `_banc/falsifier-liste-sourates.mjs`
-— **28 mutations**, toutes tuées, arbre rendu intact. Tests : **454 → 501**, dont
-**47** pour `Tests/SurahListTests.swift`.
+— **30 mutations**, toutes tuées, arbre rendu intact. Tests : **454 → 502**, dont
+**48** pour `Tests/SurahListTests.swift`.
