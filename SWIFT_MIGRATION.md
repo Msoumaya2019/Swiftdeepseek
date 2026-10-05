@@ -49,8 +49,8 @@
 
 | Fonctionnalité | État RN | État Swift | Tables Supabase | Fichiers Swift | Problèmes |
 |---|---|---|---|---|---|
-| Liste des sourates (recherche, filtre) | ✅ | ⬜ | — (données embarquées) | `Core/Quran.swift` | **L'écran n'est pas construit.** Cette ligne annonçait « ✅ » et pointait `QuranScreenView.swift`, qui ne l'a jamais porté — pas même au commit initial. Mesuré : aucune des neuf chaînes de `MainScreens.tsx:28-33` — « Rechercher une sourate », « Aucun résultat », « Mecquoise », « Dernière lecture »… — n'existe dans le dépôt. Les données sont prêtes. Voir §9.28. |
-| Liste des Juz' et des Hizb | ✅ | ⬜ | — | `Core/Quran.swift` | Données prêtes (`juzs`, `hizbs`, `quarters`), **aucune interface**. La justification précédente — « l'interface liste seulement les sourates pour l'instant » — était fausse : elle ne liste rien du tout. Voir §9.28. |
+| Liste des sourates (recherche, filtre) | ✅ | ✅ | — (données embarquées) | `Core/Quran.swift`, `Core/SurahListOptions.swift`, `Features/Quran/SurahListView.swift` | Portée. La recherche d'une **sourate** porte sur quatre champs — numéro, nom, signification, arabe — et le filtre Mecquoise/Médinoise s'y applique ; la recherche d'une **division** en porte trois autres, et le filtre n'y est pas testé. Deux règles, pas une. Voir §9.29. |
+| Liste des Juz' et des Hizb | ✅ | ✅ | — | `Core/Quran.swift`, `Core/SurahListOptions.swift` | Portée : **30** Juz', **60** Hizb, chacun avec sa plage de pages calculée par `QuranSourceNavigation.versePage` — la même fonction que la reprise d'une marque-page. Mesuré : **aucune** division ne change de plage entre les deux éditions. Voir §9.29. |
 | Lecteur « Coran de Médine » (604 pages) | ✅ | ✅ | — | `Features/Quran/Reader/ReaderView.swift`, `MushafPageViewController.swift`, `Resources/Mushaf` | 604 PNG embarquées. |
 | Lecteur « Coran 1441 » | ✅ | 🟡 | — | `Services/QuranSourceService.swift` | Lit les pages si elles sont présentes ; **le téléchargement et l'installation sont implémentés** — voir §9.4. |
 | Pagination native au doigt | ✅ | ✅ | — | `MushafPageViewController.swift` | `UIPageViewController`, comme prévu. |
@@ -2113,3 +2113,114 @@ prochain bloc.
 Banc : `_banc/verifier-marques-pages.mjs` — **106 vérifications**, 0 échec, les dix
 bancs antérieurs rejoués. Falsificateur : `_banc/falsifier-marques-pages.mjs` —
 **21 mutations**, toutes tuées, arbre rendu intact. Tests : **422 → 454**.
+
+
+### 9.29 La liste des sourates : deux règles de recherche, un filtre à moitié appliqué, et une porte que le portage avait inventée
+
+`QuranScreen` (`src/ui/MainScreens.tsx:28-34`) est l'onglet « Coran » de l'original :
+**114 sourates**, ou **30 Juz'**, ou **60 Hizb**, une recherche, un filtre de lieu de
+révélation, une carte de progression, une carte de pied vers le Coran de Tajwid, et un
+bouton flottant « Dernière lecture ». §9.28 avait montré que le portage occupait cette
+place avec autre chose. Ce bloc-ci construit l'écran, et déplace ce qui l'occupait.
+
+#### Ce que le bloc a monté
+
+`Core/SurahListOptions.swift` porte tout ce qu'un écran ne doit pas décider : les trois
+vues, le filtre, la dérivation des lignes, la pagination d'une division, la progression,
+et les textes. `Features/Quran/SurahListView.swift` ne fait que rendre et déclencher des
+effets — il ne porte **aucun** libellé : mesuré, ses sept chaînes littérales sont des
+noms de symboles SF et un nom d'illustration.
+
+Les blocs qui occupaient la place sont partis là où l'original les met :
+
+| Ce qui était dans l'onglet Coran | Où c'est allé |
+|---|---|
+| le choix d'édition (`QuranEditionChooser`) | le lecteur et les réglages (§9.22) |
+| l'installation du Coran 1441 | `Features/Quran/Coran1441InstallView.swift`, monté par le lecteur |
+| la reprise de lecture en ligne | le bouton flottant « Dernière lecture » |
+| la porte vers les marque-pages | **nulle part** — voir plus bas |
+
+#### Les deux règles de recherche, et pourquoi elles ne se confondent pas
+
+`MainScreens.tsx:31` porte **deux** recherches, dans deux branches d'un même ternaire :
+
+- une **sourate** se cherche sur quatre champs concaténés —
+  `` `${s.number} ${s.name} ${s.meaning} ${s.arabic}` `` ;
+- une **division** se cherche sur trois autres —
+  `` `${d.number} ${view} ${surahs[verseAt(d.start).surah-1].name}` `` — où le nom est
+  celui de la sourate où la division **commence**, jamais de sa fin.
+
+Le portage les tient séparées (`matches(_:query:filter:)` et
+`matches(_:mode:query:)`), et c'est mesurable plutôt que cosmétique. Trois
+conséquences, recomptées sur les fichiers livrés :
+
+| Recherche | Ce qu'elle trouve |
+|---|---|
+| `"114"` sur les sourates | **1** — le numéro se cherche en `contains`, pas en égalité |
+| `"1"` sur les sourates | **34** — 1, 10 à 19, 21, 31, … 114 |
+| `"ouverture"` sur les sourates | **2** — la sourate 1 (« L'ouverture ») et la 94 |
+| `"yâsîn"` sur les sourates | **0** — le nom s'écrit « Yâ Sîn », en **deux mots** |
+| `"juz"` sur les Juz' | **30** — c'est un préfixe de « Juz’ » |
+| `"juz'"` (apostrophe droite) | **0** — le libellé porte U+2019 |
+| `"baqarah"` sur les Juz' | **2** — Al Baqarah ouvre les Juz' 2 **et** 3 |
+| `"pages"` sur les Juz' | **0** — la signification n'est pas cherchée |
+
+Une version « propre » qui unifierait les deux recherches compilerait, et
+afficherait une liste plausible : simplement, ces huit nombres changeraient.
+
+#### Le filtre ne s'applique qu'à une vue sur trois
+
+Le filtre de lieu de révélation est testé **après** la recherche, et **seulement**
+dans la branche des sourates — `filter==='all'||(filter==='meccan'?s.isMeccan:!s.isMeccan)`.
+La branche des divisions ne le regarde pas du tout, et le bouton qui l'ouvre n'est
+d'ailleurs rendu que dans la vue « Liste » (`view==='Liste'&&<IconButton name="filter-outline"`).
+
+Le portage le tient par construction : `rows(mode:query:filter:edition:)` ne
+**transmet** `filter` qu'à la branche des sourates. Un test le vérifie des deux
+façons — par la forme du code, et par un compte : **30** Juz' et **60** Hizb quel
+que soit le filtre.
+
+#### La page d'une division n'est pas une arithmétique locale
+
+« Pages X – Y » vient de `studyPage` (`studyProgress.ts:8`), qui est exactement
+`QuranSourceNavigation.versePage` **sans** page connue — la fonction que la reprise
+d'une marque-page emploie déjà (§9.28). Le portage **délègue** au lieu d'en écrire
+une seconde : deux copies d'une même règle divergent en silence, et c'est le défaut
+que ce portage venait de fermer ailleurs.
+
+Le séparateur est un **cadratin** (U+2013) entouré de deux espaces, et non un trait
+d'union : un œil ne fait pas la différence dans un écran, un `grep` la fait.
+
+L'original résout cette page sur `state.reader?.mushaf` **brut**, y compris
+`coranTest` — dont la pagination n'est pas portée. Le portage lui passe l'édition
+**affichée** (`QuranEdition.displayed(stored:)`) : pour `traditional` et
+`coran_1441`, les deux donnent la même page ; pour les trois éditions non rendues,
+le repli est le Coran de Médine. Divergence bornée, la même que celle du lecteur
+(§9.3).
+
+#### Une porte en trop, que le portage avait inventée
+
+En recalibrant les bancs, une découverte : l'onglet Coran du portage portait une
+**seconde porte** vers « Mes marques-pages ». L'original n'en a qu'**une** —
+`App.tsx:512`, `sessionPanel === 'bookmarks'`, un panneau du lecteur. `QuranScreen`
+lui-même n'ouvre jamais `BookmarksScreen`.
+
+C'était donc une entrée que l'application React Native ne connaît pas, et une
+seconde liste à tenir d'accord. Elle a disparu avec l'écran qui la portait, et le
+banc l'épingle désormais par un contrôle **négatif** : l'onglet Coran n'a aucune
+porte, et le lecteur est la seule. Trois contrôles et trois mutations ont été
+repointés en conséquence dans `verifier-marques-pages.mjs` et son falsificateur.
+
+#### « J'ai appris jusqu'à » prend le plus grand verset, pas le plus récent
+
+`const known=memorizedIds(state),last=known.length?Math.max(...known):null`. La
+règle est **`Math.max`**, pas la date de validation : `memorizedIds` retient
+`perfect` et `review` (`program.ts:138`), jamais `learning`, et le libellé nomme le
+**plus grand identifiant** mémorisé. Un test le vérifie par la négative — un petit
+verset validé **plus récemment** ne gagne pas — et c'est bien `memorizedIDs.last`
+d'une liste **triée** qui le porte, puisque `Dictionary` n'est pas ordonné en Swift.
+
+Banc : `_banc/verifier-liste-sourates.mjs` — **134 vérifications**, 0 échec, les
+**onze** bancs antérieurs rejoués. Falsificateur : `_banc/falsifier-liste-sourates.mjs`
+— **28 mutations**, toutes tuées, arbre rendu intact. Tests : **454 → 501**, dont
+**47** pour `Tests/SurahListTests.swift`.

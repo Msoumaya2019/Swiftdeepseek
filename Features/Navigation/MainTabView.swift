@@ -50,7 +50,12 @@ public struct MainTabView: View {
     private func content(for tab: MainTab) -> some View {
         switch tab {
         case .home: HomeView()
-        case .quran: QuranScreenView()
+        // `SurahListView` et non `QuranScreenView` : l'onglet Coran de l'original
+        // est la LISTE des sourates (`QuranScreen`, `src/ui/MainScreens.tsx:28-33`).
+        // `QuranScreenView` occupait la place avec le choix d'édition, l'installation
+        // du Coran 1441 et la reprise — trois choses que l'original place ailleurs
+        // (le lecteur, `App.tsx:515`, et la carte de réglages, `App.tsx:330`).
+        case .quran: SurahListView()
         case .program: ProgramView()
         // `ProgressScreenView` et non `ProgressView` : ce dernier nom est déjà
         // celui du type de SwiftUI, utilisé dans HomeView.

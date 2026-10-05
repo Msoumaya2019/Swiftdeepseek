@@ -54,7 +54,8 @@ final class QuranDisplayTests: XCTestCase {
 
     /// La liste proposée n'est PAS `allCases`, et `tajweedPages` n'y figure pas.
     ///
-    /// C'est la divergence qui a été corrigée : `QuranScreenView` parcourait
+    /// C'est la divergence qui a été corrigée : l'ancien `QuranScreenView` — la
+    /// vue qui occupait l'onglet Coran avant `SurahListView` — parcourait
     /// `QuranEdition.allCases` et affichait donc « Moushaf Tajwid », une édition
     /// que `migrateReaderState` réécrit vers `coranTest` à chaque chargement
     /// (`src/core/program.ts:60`) — c'est-à-dire un choix que l'original ne
@@ -140,8 +141,8 @@ final class QuranDisplayTests: XCTestCase {
         }
     }
 
-    /// Le refus nomme l'édition refusée — `QuranScreenView` disait la même chose
-    /// avec sa propre chaîne ; elle est désormais dans le modèle.
+    /// Le refus nomme l'édition refusée — l'ancien `QuranScreenView` disait la
+    /// même chose avec sa propre chaîne ; elle est désormais dans le modèle.
     func testTheRefusalNamesTheEdition() {
         for edition in [QuranEdition.tajweed, .coranTest, .tajweedPages] {
             let notice = QuranDisplayOptions.unavailableNotice(for: edition)

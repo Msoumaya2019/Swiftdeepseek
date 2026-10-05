@@ -182,6 +182,37 @@ public enum Theme {
         public static let arabic: CGFloat = 22
     }
 
+    // MARK: Les couleurs qui ne suivent PAS le thème
+
+    /// `colors.review` — `#246B48`, `src/ui/theme.tsx:15`.
+    ///
+    /// POURQUOI CES DEUX COULEURS NE SONT PAS DANS `Palette`
+    ///   L'original construit `colors` en étalant la palette **blanche**, puis en
+    ///   ajoutant `review` et `reviewSoft` (`export const colors={...palettes.white,
+    ///   …, review:'#246B48', reviewSoft:'#EBF5EF'}`). `applyTheme` écrase ensuite
+    ///   `colors` par la palette active — qui ne définit ni l'une ni l'autre. Les
+    ///   deux valeurs sont donc **fixes dans les cinq thèmes**.
+    ///
+    ///   Les mettre dans `Palette` demanderait de répéter la même valeur cinq
+    ///   fois, et la première palette qu'on oublierait ferait changer un signal
+    ///   de couleur avec le thème. Même raison que le vert de séance de
+    ///   `VerseMarginStyle` (`Features/Quran/Reader/VerseMarginView.swift:44`).
+    ///
+    ///   Le badge « Médinoise » de la liste des sourates est le premier appelant :
+    ///   `color: colors.review`, `backgroundColor: colors.reviewSoft`.
+    public static let review = Color(
+        red: 0x24 / 255,
+        green: 0x6B / 255,
+        blue: 0x48 / 255
+    )
+
+    /// `colors.reviewSoft` — `#EBF5EF`, `src/ui/theme.tsx:15`.
+    public static let reviewSoft = Color(
+        red: 0xEB / 255,
+        green: 0xF5 / 255,
+        blue: 0xEF / 255
+    )
+
     // MARK: Thèmes proposés (src/ui/theme.tsx:19-25)
 
     public struct ThemeOption: Identifiable, Sendable {

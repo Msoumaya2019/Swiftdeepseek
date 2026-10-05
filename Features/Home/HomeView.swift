@@ -303,14 +303,23 @@ public struct ReaderRequest: Identifiable {
 /// NOTE d'une ENTRÉE. Écrire cette variante en clair dans la vue aurait
 /// dupliqué la recette de la carte — bordure, rayon, remplissage —, et les deux
 /// copies auraient divergé au premier ajustement.
+///
+/// `padding` existe pour la même raison, et pour un appelant de plus : une LIGNE
+/// de la liste des sourates passe `padding: 10` là où la carte de progression
+/// garde `spacing.lg` (16). L'original RESSERRE la carte d'une ligne pour que
+/// les 114 tiennent à l'écran (`MainScreens.tsx:33`,
+/// `<Card style={{padding:10,marginBottom:5}}>`). Le paramètre est donc placé
+/// AVANT `content` : une fermeture terminale se lie au **dernier** paramètre, et
+/// `Card { … }` doit continuer de désigner le contenu.
 struct Card<Content: View>: View {
     @EnvironmentObject private var model: AppViewModel
-    @ViewBuilder var content: Content
     var tint: Color? = nil
+    var padding: CGFloat = Theme.Spacing.lg
+    @ViewBuilder var content: Content
 
     var body: some View {
         content
-            .padding(Theme.Spacing.lg)
+            .padding(padding)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(tint ?? model.palette.paper, in: RoundedRectangle(cornerRadius: Theme.Radius.card))
             .overlay(

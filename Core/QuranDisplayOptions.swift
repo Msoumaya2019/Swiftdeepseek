@@ -107,7 +107,11 @@ public enum QuranDisplayOptions {
 
     /// Ce qu'un appui déclenche.
     ///
-    /// Trois cas, et non deux : c'est le point de `QuranScreenView.choose()`.
+    /// Trois cas, et non deux : un appui sur une édition ne se réduit pas à
+    /// « changer la préférence ». Il peut aussi falloir l'**installer** — ses
+    /// pages ne sont pas sur le téléphone —, ou la **refuser**, parce que cette
+    /// version ne sait pas la rendre. `QuranEditionChooser` route les trois, et
+    /// chaque écran les traduit en effets.
     public enum EditionChoice: Equatable, Sendable {
         /// Cette version ne sait pas rendre l'édition — on refuse, en le disant.
         case unavailable

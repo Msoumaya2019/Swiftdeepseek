@@ -83,6 +83,13 @@ targets:
       # quelle autre ressource de même nom.
       - path: Resources/Themes
         type: folder
+      # L'illustration de la carte de pied « Coran avec règles de Tajwid »
+      # (`reading.png`, `src/ui/DesignSystem.tsx:8`). Elle est copiée à la RACINE
+      # du paquet — pas de `type: folder` — parce que `SurahListView` la charge
+      # par son nom, comme les cinq illustrations de thème le sont par
+      # sous-dossier. Fichier unique, identique à l'octet à celui de la référence
+      # (2 371 675 octets, 1374 × 1145).
+      - path: Resources/Illustrations
     configFiles:
       Debug: Config/Debug.xcconfig
       Release: Config/Release.xcconfig

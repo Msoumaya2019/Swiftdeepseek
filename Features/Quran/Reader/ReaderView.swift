@@ -39,7 +39,26 @@ public struct ReaderView: View {
     public init(request: ReaderRequest, edition: QuranEdition, startPage: Int) {
         self.request = request
         self.edition = edition
-        self._page = State(initialValue: request.range.flatMap { Quran.pageOf($0.start) } ?? startPage)
+        // LA PAGE D'UN VERSET DÉPEND DE L'ÉDITION AFFICHÉE
+        //   C'est `sourceVersePage` de l'original (`src/App.tsx:211`) : la page
+        //   connue si elle porte le verset dans cette édition, sinon la première
+        //   page du verset. `Quran.pageOf` rendait toujours une page du **Coran de
+        //   Médine** : ouvrir « Al Mâ'idah » depuis la liste en affichant le Coran
+        //   1441 rendait donc un numéro de page de l'AUTRE pagination. Le défaut
+        //   est réel et mesuré — **56 versets sur 6 236** changent de première page
+        //   entre les deux éditions, le premier étant le verset 746 (Al Mâ'idah
+        //   77 : page 121 au Médine, 120 en 1441).
+        //
+        //   La page connue de l'original — `lastRead.page`, quand
+        //   `lastRead.verseId == range.start` — n'est pas transmise, et c'est
+        //   mesuré aussi : **aucun verset n'est à cheval sur deux pages** dans
+        //   l'un ni l'autre des deux jeux de rectangles, donc `pages.first` est
+        //   toujours la seule page du verset et la valeur connue ne peut pas en
+        //   désigner une autre. La transmettre ne changerait rien ; l'ignorer est
+        //   une simplification prouvée, pas un raccourci.
+        self._page = State(initialValue: request.range.flatMap {
+            QuranSourceNavigation.versePage(edition, verseID: $0.start)
+        } ?? startPage)
     }
 
     public var body: some View {
@@ -443,37 +462,64 @@ public struct ReaderView: View {
 
     // MARK: Choix de l'édition
 
+    /// « Affichage du Coran » — le sélecteur modal de l'original (`App.tsx:515`).
+    ///
+    /// POURQUOI IL PASSE PAR `QuranEditionChooser`
+    ///   Ce sélecteur avait sa propre liste : `QuranEdition.available`, soit les
+    ///   **deux** éditions rendues ici, plus une note annonçant que « Tawjeed
+    ///   test 2 » et « Medine Test » viendraient plus tard. Or ces deux noms ne
+    ///   sont pas des éditions : ce sont d'anciennes clés, que
+    ///   `migrateReaderState` réécrit vers `coran_1441` (`program.ts:60`). Et
+    ///   l'original propose **quatre** entrées ici comme dans la carte de
+    ///   réglages — les deux listes s'accordent.
+    ///
+    ///   Passer par le composant partagé, c'est garantir que les trois portes
+    ///   (celle-ci, la carte de réglages, et l'onglet Coran tant qu'il l'a
+    ///   portée) proposent la même liste dans le même ordre. C'est aussi lui qui
+    ///   route l'appui : choisir le Coran 1441 quand il n'est pas installé
+    ///   déclenche l'installation au lieu d'ouvrir un lecteur vide.
+    ///
+    /// CE QU'IL NE FAIT PAS ENCORE
+    ///   Changer d'édition ici **n'échange pas** celle du lecteur ouvert :
+    ///   `ReaderView.edition` est figée à la construction, et la page courante
+    ///   est un numéro de la pagination précédente. La recalculer dans la
+    ///   nouvelle pagination est un bloc à part — la faire à moitié montrerait
+    ///   une page **fausse** dans le Coran 1441, ce qui est pire que de laisser
+    ///   l'ancienne édition à l'écran. La préférence est bien écrite, et
+    ///   l'application React Native la relit.
     private var editionPicker: some View {
         NavigationStack {
             List {
-                Section("Éditions disponibles") {
-                    ForEach(QuranEdition.available, id: \.rawValue) { item in
-                        Button {
+                Section {
+                    QuranEditionChooser(
+                        stored: model.state.reader?.mushaf,
+                        coran1441Installed: model.coran1441.isInstalled,
+                        // Le sélecteur modal de l'original rend les entrées en
+                        // `Button` nus (`App.tsx:515`) ; la carte de réglages,
+                        // elle, montre les sous-titres.
+                        showsSubtitles: false,
+                        onSelect: { item in
                             model.setEdition(item)
                             showEditionPicker = false
-                        } label: {
-                            HStack {
-                                Text(item.label)
-                                Spacer()
-                                if item == edition {
-                                    Image(systemName: "checkmark")
-                                        .foregroundStyle(model.palette.green)
-                                }
-                            }
+                        },
+                        onInstall: { _ in model.coran1441.start() },
+                        onUnavailable: { item in
+                            model.notice = QuranDisplayOptions.unavailableNotice(for: item)
                         }
-                        .foregroundStyle(model.palette.text)
+                    )
+                }
+
+                // La progression de l'installation, quand il y en a une. Une fois
+                // le Coran 1441 installé, la section disparaît et le sélecteur
+                // redevient une simple liste d'éditions.
+                if !model.coran1441.isInstalled {
+                    Section("Coran 1441") {
+                        Coran1441InstallView()
                     }
                 }
-                Section {
-                    Text("""
-                        Les éditions « Tawjeed test 2 » et « Medine Test » seront ajoutées \
-                        dès que leurs ressources seront fournies.
-                        """)
-                        .font(.system(size: Theme.Typography.secondary))
-                        .foregroundStyle(model.palette.muted)
-                }
             }
-            .navigationTitle("Édition")
+            .navigationTitle(QuranDisplayOptions.cardTitle)
+            .onAppear { model.coran1441.refresh() }
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Fermer") { showEditionPicker = false }

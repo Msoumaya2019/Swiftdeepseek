@@ -6,25 +6,27 @@
 // `DownloadSourceChoice` (`src/ui/QuranDownload.tsx:8`).
 //
 // POURQUOI CE COMPOSANT EXISTE
-//   L'original propose les mêmes quatre éditions à DEUX endroits — la carte de
-//   réglages et le sélecteur modal de l'onglet Coran —, et il les écrit deux
-//   fois. Cette application avait fait pire : `QuranScreenView` parcourait
-//   `QuranEdition.allCases`, donc affichait **cinq** éditions dans un **autre**
-//   ordre, dont `tajweedPages` (« Moushaf Tajwid ») que l'original ne propose
-//   nulle part.
+//   L'original propose les mêmes quatre éditions à DEUX endroits — la carte
+//   « Affichage du Coran » des réglages (`src/App.tsx:330`) et le sélecteur
+//   modal du **lecteur** (`src/App.tsx:515`) —, et il les écrit deux fois.
+//   Cette application en a compté jusqu'à trois : `QuranScreenView`, qui
+//   occupait l'onglet Coran avant que celui-ci ne devienne la liste des sourates
+//   (`SurahListView`), parcourait `QuranEdition.allCases` et affichait donc
+//   **cinq** éditions dans un **autre** ordre, dont `tajweedPages`
+//   (« Moushaf Tajwid ») que l'original ne propose nulle part.
 //
 //   Ici la liste vient de `QuranDisplayOptions.editionOptions`, la décision de
 //   `QuranDisplayOptions.choice`, et l'état d'installation de
 //   `QuranDisplayOptions.installationStatus`. Ce fichier ne décide donc **rien** :
 //   il rend une liste et dispatche sur une décision déjà prise. Les deux écrans
-//   partagent le même composant, donc la même liste et le même ordre.
+//   restants partagent le même composant, donc la même liste et le même ordre.
 //
 // CE QUE CE COMPOSANT NE FAIT PAS
 //   Il ne démarre aucune installation, n'écrit aucune préférence et n'ouvre
 //   aucun lecteur : il appelle celui de ses trois rappels qui correspond à la
 //   décision. Les effets restent dans les écrans, qui seuls connaissent le
-//   modèle — c'est ce qui permet à l'onglet Coran d'ouvrir le lecteur après un
-//   choix, et à l'écran de réglages de simplement refermer sa feuille.
+//   modèle — c'est ce qui permet au sélecteur du lecteur de refermer sa feuille
+//   après un choix, et à l'écran de réglages d'en faire autant.
 
 import SwiftUI
 

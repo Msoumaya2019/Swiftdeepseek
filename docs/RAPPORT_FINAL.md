@@ -64,9 +64,9 @@ Core/           AppState, OfflineMerge, JSONValue, DateKeys, Program, ProgramGoa
                 Review, Quran, WeeklyProgress, Bookmark, AppConfig,
                 VerseBounds, VerseMarkers, MarginAnnotations, PassageAudio,
                 AudioRepeatPreferences, PassageAudioEngine, ChapterAudioCache,
-                AppearanceOptions
-Features/       Home, Quran (QuranScreenView, BookmarksView,
-                AudioRepeatSettingsView + Reader/),
+                AppearanceOptions, SurahListOptions
+Features/       Home, Quran (SurahListView, BookmarksView,
+                Coran1441InstallView, AudioRepeatSettingsView + Reader/),
                 Program, Progress, Review, Friends, Navigation, Shared,
                 Settings (SettingsView, KnowledgeEditorView, ProgramEditorView,
                 AppearanceView)
@@ -1068,9 +1068,11 @@ détectés, aucun orphelin laissé sur le disque. Le portage est documenté en
 
 L'écran « Mes marques-pages » (`src/BookmarksScreen.tsx`, douze lignes) est porté par
 `Core/BookmarkOptions.swift` — les onze textes — et `Features/Quran/BookmarksView.swift`.
-Il s'ouvre depuis **deux** portes : le lecteur (`ReaderView`, bouton de barre d'outils) et
-l'onglet Coran, qui n'affiche plus la liste en ligne mais une seule ligne-porte. Les deux
-présentent l'écran avec l'**édition affichée**, et la reprise passe par une règle unique,
+Il s'ouvre depuis **une seule** porte : le lecteur (`ReaderView`, bouton de barre
+d'outils) — comme l'original, qui ne l'ouvre que depuis `sessionPanel === 'bookmarks'`
+(`App.tsx:512`). Le portage en avait ajouté une seconde dans l'onglet Coran ; elle a
+disparu avec l'écran qui la portait (voir la section suivante). La porte présente
+l'écran avec l'**édition affichée**, et la reprise passe par une règle unique,
 `AppViewModel.resumeBookmark`, qui écrit `lastUsedAt` — la source du badge « Dernière
 reprise ».
 
@@ -1105,10 +1107,11 @@ entrée porte le badge quand deux marque-pages partagent la même seconde.
 
 **Une ligne du tableau de migration mentait depuis le premier commit.** En écrivant cet
 écran, la mesure a montré que l'onglet Coran de l'original — `QuranScreen`,
-`MainScreens.tsx:28-33` — est une **liste de sourates** que ce portage n'a jamais
+`MainScreens.tsx:28-33` — est une **liste de sourates** que ce portage n'avait jamais
 construite, alors que §3 l'annonçait `✅` et pointait `QuranScreenView.swift`. Le fichier
-n'en a jamais porté trace, pas même en `54b2674`. Deux lignes sont corrigées, et l'écran
-manquant devient le prochain bloc (`SWIFT_MIGRATION.md` §9.28).
+n'en a jamais porté trace, pas même en `54b2674`. Deux lignes ont été corrigées, et
+l'écran manquant est devenu le bloc suivant : il est construit, et raconté plus bas
+(`SWIFT_MIGRATION.md` §9.28 et §9.29).
 
 **Un mutant a survécu, et c'est le banc qui avait tort.** Le contrôle du titre lisait le
 fichier **brut** (`read(optionsPath)`), et le commentaire d'en-tête de
@@ -1123,6 +1126,81 @@ antérieurs rejoués — et `_banc/falsifier-marques-pages.mjs` éprouve **21** 
 toutes tuées, arbre rendu intact. Tests : **422 → 454** (22 sur `Bookmark`, 10 sur
 `QuranSourceNavigation`). Le portage, raconté côté migration, est en `SWIFT_MIGRATION.md`
 §9.28.
+
+### La liste des sourates : deux recherches, un filtre à moitié appliqué, et une porte en trop
+
+`QuranScreen` (`src/ui/MainScreens.tsx:28-34`) — l'onglet « Coran » de l'original — est une
+**liste** : 114 sourates, ou 30 Juz', ou 60 Hizb, avec une recherche, un filtre de lieu de
+révélation, une carte de progression, une carte de pied vers le Coran de Tajwid et un bouton
+flottant « Dernière lecture ». La section précédente a montré que le portage occupait cette
+place avec autre chose. Elle est construite.
+
+`Core/SurahListOptions.swift` porte tout ce qu'un écran ne doit pas décider : les trois vues,
+le filtre, la dérivation des lignes, la pagination d'une division, la progression et les
+textes. `Features/Quran/SurahListView.swift` ne décide de rien — mesuré, ses **sept** chaînes
+littérales sont des noms de symboles SF et un nom d'illustration, donc **aucun** libellé n'y
+est recopié.
+
+**Il y a deux règles de recherche, et elles ne portent pas sur les mêmes champs.**
+`MainScreens.tsx:31` cherche une **sourate** sur `` `${s.number} ${s.name} ${s.meaning}
+${s.arabic}` `` et une **division** sur `` `${d.number} ${view} ${surahs[verseAt(d.start).surah-1].name}` ``.
+Les unifier — le réflexe « propre » — compilerait, et afficherait une liste plausible :
+simplement, huit nombres changeraient. Tous recomptés sur les fichiers livrés :
+
+| Recherche | Ce qu'elle trouve, et pourquoi |
+|---|---|
+| `"1"` sur les sourates | **34** — le numéro se cherche en `contains` : 1, 10 à 19, 21, 31, … 114 |
+| `"ouverture"` sur les sourates | **2** — la sourate 1 et la 94 partagent la signification « L'ouverture » |
+| `"yâsîn"` sur les sourates | **0** — le nom s'écrit « Yâ Sîn », en **deux mots** ; `"yâ sîn"` en trouve une |
+| `"juz"` sur les Juz' | **30** — c'est un **préfixe** de « Juz’ », donc l'ASCII suffit |
+| `"juz'"` (apostrophe droite) | **0** — le libellé porte U+2019, et `contains` ne l'ignore pas |
+| `"baqarah"` sur les Juz' | **2** — Al Baqarah ouvre les Juz' 2 **et** 3 |
+| `"pages"` sur les Juz' | **0** — la signification n'est pas cherchée |
+| `"naba"` sur les Juz' | **1** — le Juz' 30 ouvre sur An Naba', pas sur An Nâs |
+
+**Le filtre ne s'applique qu'à une vue sur trois.** Il est testé après la recherche, et
+seulement dans la branche des sourates. La branche des divisions ne le regarde pas du tout, et
+le bouton qui l'ouvre n'est rendu que dans la vue « Liste ». Le portage le tient par
+construction : `rows(mode:query:filter:edition:)` ne **transmet** `filter` qu'à la branche des
+sourates. Un test le vérifie des deux façons — par la forme du code, et par un compte : 30 Juz'
+et 60 Hizb quel que soit le filtre.
+
+**La page d'une division n'est pas une arithmétique locale.** « Pages X – Y » vient de
+`studyPage` (`studyProgress.ts:8`), qui est exactement `QuranSourceNavigation.versePage`
+**sans** page connue — la fonction que la reprise d'une marque-page emploie déjà. Le portage
+**délègue** au lieu d'en écrire une seconde, parce que deux copies d'une même règle divergent
+en silence : c'est précisément le défaut que la section précédente venait de fermer. Le
+séparateur est un cadratin (U+2013), pas un trait d'union — un œil ne fait pas la différence
+dans un écran, un `grep` la fait. Et les **56** versets dont la première page diffère selon
+l'édition sont tous à l'intérieur d'un Juz' ou d'un Hizb : **aucune** division ne change de
+plage, ce qui est mesuré plutôt que supposé.
+
+**Une porte en trop, que le portage avait inventée.** En recalibrant les bancs, une mesure a
+montré que l'onglet Coran du portage portait une **seconde** porte vers « Mes marques-pages ».
+L'original n'en a qu'**une** — `App.tsx:512`, un panneau du lecteur — et `QuranScreen`
+n'ouvre jamais `BookmarksScreen`. C'était donc une entrée que l'application React Native ne
+connaît pas, et une seconde liste à tenir d'accord. Elle a disparu, et le banc l'épingle
+désormais par un contrôle **négatif**. Trois contrôles et trois mutations ont été repointés en
+conséquence dans `verifier-marques-pages.mjs` et son falsificateur ; `verifier-coran-affichage.mjs`
+a vu trois de ses contrôles suivre le sélecteur d'édition jusqu'au lecteur.
+
+**« J'ai appris jusqu'à » prend le plus grand verset, pas le plus récent.**
+`const known=memorizedIds(state),last=known.length?Math.max(...known):null`. `memorizedIds`
+retient `perfect` et `review` (`program.ts:138`), jamais `learning`, et c'est le **plus grand
+identifiant** qui est nommé — pas la date de validation. Un test le vérifie par la négative :
+un petit verset validé plus récemment ne gagne pas.
+
+**Deux pièges d'ancre, trouvés en écrivant le banc.** Trois contrôles exigeaient un `return`
+devant le corps d'une fonction dont le Swift rend la valeur **implicitement** (`"\\(count)
+versets"` en dernière ligne) : l'ancre encodait ce qu'on attendait lire, pas ce que le fichier
+dit. Et un contrôle des points de code comparait deux littéraux **du banc lui-même** — il
+passait quoi qu'écrive le modèle. Il lit maintenant le corps de la propriété. Le falsificateur
+éprouve les deux, par deux mutations distinctes.
+
+`_banc/verifier-liste-sourates.mjs` compte **134** vérifications — les onze bancs antérieurs
+rejoués — et `_banc/falsifier-liste-sourates.mjs` éprouve **28** mutations : toutes tuées,
+arbre rendu intact. Tests : **454 → 501**, dont **47** pour `Tests/SurahListTests.swift`. Le
+portage, raconté côté migration, est en `SWIFT_MIGRATION.md` §9.29.
 
 ## 13. Problèmes rencontrés
 
@@ -1209,14 +1287,14 @@ toutes tuées, arbre rendu intact. Tests : **422 → 454** (22 sur `Bookmark`, 1
    n'est actif sur ce projet, seul `email` l'est. La vérification se fera donc
    **sur appareil**, par un lien de confirmation réel.
 
-**Une découverte change l'ordre de cette liste : l'onglet Coran de l'original
-n'est pas celui que ce portage occupe.** `QuranScreen` (`MainScreens.tsx:28-33`) est
-une **liste de sourates** — recherche, filtre Mecquoise/Médinoise, sélecteur
-`Liste / Juz' / Hizb`, médaillon de numéro, carte « J'ai appris jusqu'à », carte de
-pied « Coran avec règles de Tajwid », bouton flottant « Dernière lecture ».
-`QuranScreenView.swift` porte autre chose. Les données sont prêtes ; l'écran manque,
-et c'est le plus gros manque fonctionnel de l'onglet le plus utilisé. Détail et
-preuve : `SWIFT_MIGRATION.md` §9.28.
+**Le plus gros manque de l'onglet le plus utilisé est comblé.** `QuranScreen`
+(`MainScreens.tsx:28-33`) — la **liste des sourates**, avec sa recherche sur quatre
+champs, son filtre Mecquoise/Médinoise, son sélecteur `Liste / Juz' / Hizb`, sa carte
+« J'ai appris jusqu'à », sa carte de pied vers le Coran de Tajwid et son bouton
+flottant « Dernière lecture » — n'existait pas ; il existe. `Core/SurahListOptions.swift`
+porte les décisions, `Features/Quran/SurahListView.swift` les rend, et les blocs qui
+occupaient la place sont partis au lecteur. Détail et preuve : `SWIFT_MIGRATION.md`
+§9.29.
 
 **Puis, par ordre d'importance fonctionnelle** (détaillé dans `SWIFT_MIGRATION.md` §9) :
 
