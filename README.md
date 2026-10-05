@@ -365,6 +365,15 @@ diverger les deux applications à l'écran. Le titre est volontairement plus dis
 que celui des autres cartes (14, `semibold`, `muted`) : c'est une note de bas de
 page. Et le lien emploie `green2`, qui diffère de `green` sur deux thèmes.
 
+La **carte du profil** — `App.tsx:322`, la plus longue de l'application — a son
+modèle dans `Core/ProfileOptions.swift`, et rien de plus pour l'instant : l'écran
+reste à écrire. Quarante-sept textes y sont portés, dont quatre conditions
+d'activation qui **ne sont pas les mêmes** : « Se connecter » n'exige qu'un champ
+non vide, là où les trois autres boutons exigent une arobase ou six caractères.
+Et le prénom se mesure en **unités UTF-16** (`value.length`), pas en graphèmes :
+un prénom d'un seul emoji est accepté ici comme dans l'original, alors qu'un
+`count` de Swift l'aurait refusé.
+
 ### Ce que les tests verrouillent
 
 | Fichier | Ce qu'il empêche de casser |
@@ -379,6 +388,7 @@ page. Et le lien emploie `green2`, qui diffère de `green` sur deux thèmes.
 | `QuranDisplayTests` | L'affichage du Coran : les quatre éditions de l'original (et l'écart avec `allCases`), la décision à trois issues — installer, sélectionner, refuser —, les quatre fonds et le repli sur le **premier**, et les trois règles d'écriture, dont le défaut `coranTest` que deux d'entre elles posent sur un lecteur absent. |
 | `NotificationTests` | Les sept interrupteurs et leurs replis, le défaut **matérialisé** qu'un appui écrit sur une installation neuve, la divergence des deux prédicats de permission sur EPHEMERAL, l'égalité **stricte** de `sameChat` — un `linkId` nul sans conversation ouverte supprime la notification —, le registre qui se vide **entier** au-delà de 200 entrées, les deux formules des drapeaux d'affichage, et l'ordre du programmateur : annuler d'abord, programmer ensuite. |
 | `QuranSourcesTests` | La carte des sources : les cinq chaînes au caractère près, les deux apostrophes typographiques distinctes (`juz’` U+2019, `rub‘` U+2018) et le tiret demi-cadratin du copyright, les six sources nommées, les deux licences citées, et la réserve sur les toumoun. |
+| `ProfileTests` | Le profil : les quarante-sept textes au caractère près, les quatre conditions d'activation — dont celle de « Se connecter », qui n'exige **pas** d'arobase —, le comptage du prénom et du mot de passe en unités **UTF-16** (un emoji vaut deux), les deux bornes de photo qui sont deux nombres différents pour un seul message, le chemin d'avatar toujours en `.jpg`, et la frontière entre `settingFirstName` qui écrit et `savingFirstName` qui garde. |
 | `DateKeysTests` | Les dates « AAAA-MM-JJ » à midi local (jamais de décalage de fuseau). |
 | `VerseBoundsTests` | L'ordre des colonnes de `bounds.json` et la projection des rectangles. |
 | `AppWiringTests` | Le relais des services observables, l'URL Supabase non tronquée par `//`, et l'absence de clé `service_role` embarquée. |

@@ -60,6 +60,7 @@
 | Marque-pages | ✅ | 🟡 | `user_state.bookmarks` | `Core/Bookmark.swift` | Poser/retirer dans le lecteur et lister dans l'onglet Coran : fait. Fusion : faite. |
 | Choix de l'édition | ✅ | ✅ | `user_state.reader.mushaf` | `Features/Quran/Reader/ReaderView.swift` | Les cinq éditions, et les trois non reprises : voir §9.3. |
 | Sources du Coran (attributions) | ✅ | ✅ | — | `Core/QuranSourcesCard.swift`, `Features/Settings/SettingsView.swift` | Les attributions de licence — Tanzil, QPC V4, cpfair, Rachid Maach, Quran Meta — et le lien vers tanzil.net, recopiés **au caractère près**, deux apostrophes typographiques distinctes comprises. Voir §9.24. |
+| Profil : prénom, compte, photo (modèle et tests) | ✅ | 🟡 | `auth.users`, `friend_profiles`, bucket `friend-avatars` | `Core/ProfileOptions.swift`, `Tests/ProfileTests.swift` | Les 47 textes, les quatre conditions d'activation et les deux bornes de photo sont portés et gelés. **L'écran n'est pas encore monté** : `Features/Profile/ProfileView.swift` reste à écrire, et l'envoi comme le retrait de la photo attendent une vérification côté serveur. Voir §9.25. |
 | Coran avec règles de Tajwid | ✅ | ⬜ | — | — | Ressources non copiées, voir §7. |
 | Mode lecture continue | ✅ | ⬜ | — | — | |
 
@@ -1751,6 +1752,69 @@ sur la **forme montée** et sur l'**assertion exacte**, puis
 `_banc/falsifier-sources.mjs` a tué **14 mutations sur 14** — titre abrégé,
 apostrophes des deux sens, tiret redressé, adresse changée, flèche retirée,
 septième constante, lien colorié comme un bouton, titre recopié dans l'écran,
+### 9.25 Le profil : le prénom, le compte, et trois décisions qui ne se voient pas
+
+`App.tsx:322` — la carte « Mon prénom » — est la plus longue de l'application :
+quarante-sept textes, quatre boutons dont les conditions d'activation **ne sont
+pas les mêmes**, deux bornes de photo qui **ne sont pas le même nombre**, et un
+comptage de longueur qui **ne compte pas ce qu'on croit**. Le modèle est
+`Core/ProfileOptions.swift`, les tests `Tests/ProfileTests.swift`.
+
+**« Se connecter » n'exige pas d'arobase.** Les quatre conditions, extraites de
+la référence :
+
+| Bouton | `disabled` | Activé quand |
+|---|---|---|
+| Se connecter | `busy\|\|!email\|\|!password` | les deux champs sont non vides |
+| Créer un compte | `busy\|\|!email\|\|password.length<6` | + six caractères de mot de passe |
+| Renvoyer le courriel | `busy\|\|!email.includes('@')` | une arobase |
+| Recevoir un lien | `busy\|\|!email.includes('@')` | une arobase |
+
+Un portage « cohérent » alignerait les quatre. Ce serait une faute : `a@` active
+les deux envois de courriel, et l'original laisse le serveur refuser l'adresse.
+Le banc **évalue les expressions JavaScript extraites** et compare la décision
+rendue à chaque assertion du fichier de tests Swift — douze décisions, douze
+concordances.
+
+**Le prénom se compte en unités UTF-16, pas en graphèmes.** `App.tsx:309` mesure
+`value.length`, donc `'🙂'.length === 2` : un prénom d'un seul emoji est accepté
+d'un côté, et un `count` de Swift l'aurait refusé. Quarante emoji font quatre-vingts
+unités et sont refusés. `firstNameLength` et `passwordLength` comptent tous deux
+`utf16.count`, et deux tests épinglent l'écart.
+
+**La photo a deux bornes et un seul message.** `avatars.ts:16` refuse au-delà de
+`2_800_000` caractères base64 — à la sélection —, `avatars.ts:34` au-delà de
+`2_097_152` octets — à l'envoi —, soit exactement 2 Mio. Le message est le même :
+« Choisis une photo de moins de 2 Mo. », un arrondi qui parle à l'utilisateur
+pendant que la garde compte des octets. Deux autres messages se ressemblent et
+**ne sont pas les mêmes** : `uploadAvatar` dit « Connecte-toi pour enregistrer ta
+photo. », `removeAvatar` dit « Connexion requise. ».
+
+**Et un test que j'avais écrit faux.** `testTwoTextsCarryATypographicApostrophe`
+affirmait **deux** textes portant U+2019 ; compté, il y en a **trois** —
+`confirmationResentNotice` porte « l'application » avec la même apostrophe courbe.
+Le test est renommé, le commentaire corrigé, et le troisième texte épinglé.
+
+Le banc `verifier-profil.mjs` porte **51 contrôles**, le falsificateur
+`falsifier-profil.mjs` **25 mutations, 25 tuées**. Trois leçons en sont sorties,
+toutes du même genre — un contrôle qui ne voit pas ce qu'il prétend :
+
+- **Un banc ne lit que ce qu'on lui fait lire.** Le premier jet comparait les
+  décisions *épinglées par les tests* aux expressions de la référence, mais ne
+  lisait jamais les **corps** de décision du modèle : une mutation ajoutant un
+  test d'arobase dans `canSignIn` aurait survécu. Deux contrôles ont été ajoutés.
+- **Une mutation mal posée est un contrôle qui n'existe pas.** La mutation
+  « le prénom se compte en graphèmes » visait `value.utf16.count`, présent
+  **deux** fois dans le modèle — `firstNameLength` et `passwordLength` ont le
+  même corps. Le falsificateur a refusé de la poser, et ce refus a révélé que le
+  banc ne contrôlait que le premier des deux. Signature ajoutée à la mutation,
+  second contrôle ajouté au banc.
+- **Un compte global se périme du travail des autres.** `verifier-sources.mjs`
+  affirmait « le dépôt porte 384 méthodes de test ». Vrai le jour où il a été
+  écrit, faux dès que ce fichier-ci a apporté les siennes — et l'échec n'accusait
+  pas ce que ce banc surveille. Le compte global appartient désormais au banc le
+  plus récent, et à lui seul.
+
 lien construit dans l'écran, carte retirée de la liste, épingle retirée des tests,
 test renommé —, arbre restauré et empreintes SHA-256 comparées.
 
