@@ -2725,3 +2725,80 @@ Le compte **global** a changé de banc à cette occasion — il n'appartient qu'
 sinon deux bancs l'affirmeraient et divergeraient au bloc suivant. `_banc/verifier-tajweed
 .mjs` est donc passé de **142** à **141** vérifications : le contrôle qui **nommait** le
 total appartient désormais au nouveau banc, et l'ancien affirme son **absence**.
+
+### 9.33 La navigation du `coranTest` : une justification fausse, une pagination partagée, et la pastille qui lisait la mauvaise édition
+
+Le fichier `Core/QuranSourceNavigation.swift` justifiait l'omission de la branche `coranTest`
+par « **607 polices `.woff2`** ». Ce nombre est vrai — et il ne dit rien de ce fichier.
+
+**Ce que la branche de navigation lit vraiment.** `src/coranTest/data/verse-index.json` fait
+**380 782 octets** et ne contient que des **nombres** : `{"surah:ayah": {id, pages, lines}}`
+pour **6 236 versets** — aucune police, aucune vue. Les 607 `.woff2` appartiennent à la chaîne
+de **rendu** (`src/coranTest/html.ts`, un `WKWebView`), qui n'a pas été portée et qui reste le
+seul report assumé. La raison écrite était donc **fausse pour ce qu'elle justifiait**.
+
+**Une mesure, deux branches repliées.** `coran_1441-bounds.json` et `verse-index.json`
+rendent la même page pour les **6 236 versets** — **0 divergence** ; `testPageRange` et
+`zipPageRange` la même plage pour les **604 pages** — **0 divergence**. `VerseBounds.rows`
+ne lit qu'une ressource du `Bundle`, pas `VerseBounds.Source` : l'index du 1441 **est**
+l'index du `coranTest`. La branche est portée, rangée avec le Coran 1441, et **dormante** —
+`displayed(stored:)` ne rend jamais `.coranTest` (`isAvailable == false` → repli `.medine`).
+
+**Le défaut latent, lui, était vivant.** `AudioRepeatSettingsView` construisait sa pastille
+« Toute la page » avec `Quran.pageRange(page)` — la pagination du **Coran de Médine** —, là où
+l'original reçoit `pageRangeOverride={sourcePageRange}` (`App.tsx:437`, consommé en
+`PassageAudioPlayer.tsx:36` sous `pageRangeOverride ?? pageRange(page)`). Mesure : les deux
+paginations s'écartent sur **36 pages sur 604**, et **33** d'entre elles ont une **longueur**
+différente (page 597 : `6 099…6 125` contre `6 093…6 118`, sept versets d'écart). La plage est
+désormais portée par `QuranSourceNavigation.pageRange(_:page:)`, sa table **dérivée** de
+l'index du 1441 — pour qu'elle ne puisse pas dévier de `versePage` —, et l'écran reçoit la
+plage **au lieu** de la page.
+
+**Deux pièges de banc, mesurés en réparant ce bloc.**
+
+1. **Un contrôle qui nomme une règle doit lire la règle, pas une de ses copies.** La ligne
+   `case .coran1441, .coranTest:` apparaît **deux fois** dans le fichier — `versePage` et la
+   nouvelle `pageRange`. Le contrôle de `verifier-marques-pages.mjs` cherchait la chaîne
+   **n'importe où** : la mutation qui retirait `coranTest` du premier groupe laissait le
+   second satisfaire le contrôle, et le banc restait **vert** (M07 survivante). De même, le
+   contrôle « le fichier dit POURQUOI » était satisfait par la copie de `displayed(stored:)`
+   que porte le commentaire de la branche de Tajwid, 200 lignes plus bas (M08 survivante).
+   Les deux contrôles épingle désormais les **textes exacts** — le groupe **suivi de la ligne
+   qui le distingue**.
+2. **Une mutation voyage avec son contrôle.** Le contrôle « l'écran lit le libellé de
+   l'objectif » a quitté `verifier-reglages.mjs` pour `verifier-cartes-profil.mjs` quand la
+   carte a rejoint la page Profil (§9.24). La mutation, elle, était restée sur
+   `Features/Settings/SettingsView.swift`, où la chaîne n'existe plus : le harnais a **refusé**
+   de la jouer — « la chaîne à muter est ABSENTE — la mutation ne prouve rien ». Le contrôle
+   déplacé se retrouvait donc **sans falsificateur**. Déplacer un contrôle sans déplacer sa
+   mutation ouvre un trou silencieux : la mutation a suivi, dans
+   `falsifier-cartes-profil.mjs` (**M22**), où elle meurt.
+
+**Un témoin de compte qui comptait à moitié.** `verifier-marques-pages.mjs` comptait les
+`verdict` du haut du fichier, pas les **dix** contrôles « le banc précédent passe encore »
+émis par une boucle. Pire, si l'un de ces dix bancs meurt avant sa dernière ligne,
+`execFileSync` lève et le module s'arrête **là** : le témoin n'est jamais écrit. La boucle se
+compte maintenant elle-même, et sa ligne de synthèse est écrite avant tout arrêt possible.
+
+#### Les nombres
+
+Banc : `_banc/verifier-source-navigation.mjs` — **43 vérifications**, 0 échec, plus
+`_banc/oracle-source-navigation.mjs` (**18 vérifications**) qui **exécute** l'original
+compilé par `esbuild` au lieu de le translittérer. Falsificateur :
+`_banc/falsifier-source-navigation.mjs` — **19 mutations**, toutes tuées, arbre rendu intact.
+Tests : **585 → 594**, dont **10 → 19** pour `Tests/QuranSourceNavigationTests.swift`.
+
+Le compte **global** a encore changé de banc : il vit maintenant dans
+`verifier-source-navigation.mjs` (43 vérifications). `verifier-reconcile.mjs` est passé de
+**158** à **157** — le contrôle qui nommait le total a déménagé, et l'ancien dit qu'il l'a
+perdu. `verifier-tajweed.mjs` (**141**) et `verifier-marques-pages.mjs` (**106**) reposent
+tous deux ce fait.
+
+#### La limite connue, et pourquoi elle n'est pas un défaut
+
+`SurahListOptions.pageSpan` construit « Pages X – Y » avec `studyPage(id, **edition**)`, là où
+`MainScreens.tsx` emploie `state.reader?.mushaf ?? 'coranTest'` — la préférence **stockée**,
+sans passer par `displayed()`. Inobservable aujourd'hui (`.coranTest` n'est jamais affiché, et
+`SurahListView` passe bien `model.edition`), mais le jour où la chaîne `.woff2` arrive, le
+portage divergerait de l'original. **Divergence délibérée, consignée** — pas un oubli.
+

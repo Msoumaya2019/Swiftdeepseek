@@ -125,7 +125,10 @@ public struct ReaderView: View {
         .onDisappear { model.recordReading(page: page) }
         .sheet(isPresented: $showEditionPicker) { editionPicker }
         .sheet(isPresented: $showAudioSettings) {
-            AudioRepeatSettingsView(sessionRange: audioSessionRange, page: page)
+            AudioRepeatSettingsView(
+                sessionRange: audioSessionRange,
+                pageRangeOverride: sourcePageRange
+            )
         }
         // L'original REMPLACE le lecteur par la liste (`App.tsx:492`) ; ici, un
         // plein écran par-dessus — même effet visible, et le lecteur garde sa
@@ -136,13 +139,50 @@ public struct ReaderView: View {
         }
     }
 
+    /// La plage de la page lue **dans la pagination de l'édition affichée**, ou
+    /// `nil` si la page n'en a pas.
+    ///
+    /// C'est `sourcePageRange(mushaf, page)` de l'original (`App.tsx:437`), que
+    /// `App.tsx:505` passe au panneau audio sous le nom `pageRangeOverride`, et
+    /// qui y sert la pastille « Toute la page » (`PassageAudioPlayer.tsx:36`).
+    ///
+    /// POURQUOI LA PLAGE DÉPEND DE L'ÉDITION, ET PAS SEULEMENT DE LA PAGE
+    ///   Les deux paginations ne coïncident pas : **36 pages sur 604** portent
+    ///   une plage différente, et sur 33 d'entre elles la LONGUEUR diffère aussi
+    ///   (page 597 : 6 099…6 125 au Médine contre 6 093…6 118 en 1441). Lire la
+    ///   page 121 du Coran 1441 et se voir proposer 746…751 — la plage du Coran
+    ///   de Médine — annonce un passage qui n'est pas celui qu'on lit. C'est le
+    ///   défaut que ce calcul remplace, et il était servi à toutes les pages de
+    ///   toutes les éditions.
+    private var displayedPageRange: VerseRange? {
+        QuranSourceNavigation.pageRange(edition, page: page)
+    }
+
     /// La plage que l'écran de réglages appelle « Ma séance ».
     ///
     /// C'est celle de la demande quand elle existe — une séance du programme ou
     /// une tâche de révision —, sinon la page affichée. Jamais une plage vide :
     /// l'écran doit toujours avoir quelque chose à lancer.
+    ///
+    /// Le repli sur la page n'existe pas dans l'original, dont `reader.range`
+    /// est toujours posé : il vient du programme. Ici la demande peut n'en
+    /// porter aucun — « Dernière lecture » ou un marque-page ouvrent sur un
+    /// verset —, et il en faut un. Il prend donc la page affichée, **dans la
+    /// pagination de l'édition affichée**, et non celle du Coran de Médine.
     private var audioSessionRange: VerseRange {
-        request.range ?? Quran.pageRange(page) ?? VerseRange(start: 1, end: 1)
+        request.range ?? displayedPageRange ?? VerseRange(start: 1, end: 1)
+    }
+
+    /// La plage de la page affichée, jamais vide — ce que l'écran audio reçoit.
+    ///
+    /// Le repli sur la séance n'existe pas dans l'original : `pageRange` lève
+    /// sur une page hors bornes, et `zipPageRange` rend alors une plage infinie.
+    /// Les deux sont inatteignables — `pages.json` et `coran_1441-bounds.json`
+    /// portent chacun 604 pages —, mais l'écran doit avoir quelque chose à
+    /// lancer dans tous les cas, et retomber sur la séance vaut mieux que
+    /// retirer la pastille.
+    private var sourcePageRange: VerseRange {
+        displayedPageRange ?? audioSessionRange
     }
 
     // MARK: Barre de titre

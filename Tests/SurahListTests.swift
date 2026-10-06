@@ -425,15 +425,28 @@ final class SurahListTests: XCTestCase {
         XCTAssertEqual(SurahListOptions.page(divergentVerse, edition: .coran1441), 120)
     }
 
-    /// Les éditions que cette version ne sait pas rendre retombent sur la
-    /// pagination du Coran de Médine — la seule qu'elle possède, et la même
-    /// décision que le lecteur (`QuranEdition.displayed`).
-    func testUnrenderedEditionsFallBackToTheMedinaPagination() {
-        XCTAssertEqual(SurahListOptions.page(divergentVerse, edition: .coranTest), 121)
+    /// Les éditions que cette version ne sait pas rendre : celles dont l'original
+    /// suit la pagination du Coran de Médine retombent dessus, et `coranTest` —
+    /// qui suit celle du moushaf de Tajwid — rend la page du 1441.
+    ///
+    /// `displayed(stored:)` remplace les deux par `.medine` pour l'AFFICHAGE, et
+    /// c'est pourquoi la liste ne les reçoit jamais (`SurahListView` passe
+    /// `model.edition`). Mais la fonction doit dire la vérité de l'original : le
+    /// jour où l'une devient rendable, la navigation est déjà juste.
+    ///
+    /// Ce test affirmait l'inverse — `coranTest` à 121, comme le Médine —, et
+    /// c'était la justification par les 607 polices `.woff2` qui le portait :
+    /// elle appartient au RENDU, pas à la navigation. Voir §9.33.
+    func testTheUnrenderedEditionsFollowTheirOwnPagination() {
+        XCTAssertEqual(SurahListOptions.page(divergentVerse, edition: .coranTest), 120)
         XCTAssertEqual(SurahListOptions.page(divergentVerse, edition: .tajweed), 121)
         XCTAssertEqual(SurahListOptions.page(divergentVerse, edition: .tajweedPages), 121)
         XCTAssertEqual(
             SurahListOptions.page(divergentVerse, edition: .coranTest),
+            SurahListOptions.page(divergentVerse, edition: .coran1441)
+        )
+        XCTAssertEqual(
+            SurahListOptions.page(divergentVerse, edition: .tajweedPages),
             SurahListOptions.page(divergentVerse, edition: .medine)
         )
     }

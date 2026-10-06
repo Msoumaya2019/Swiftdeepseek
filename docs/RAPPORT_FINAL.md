@@ -1432,6 +1432,46 @@ pinçait par ailleurs que la création du lecteur par la migration **typée** : 
 n'était pas couverte, et c'est par ce trou que le défaut est passé. Une vérification a été
 ajoutée, la mutation **M32** la tue, et le compte du banc est passé de **153** à **158**.
 
+### La navigation d'une source : une justification vraie mais hors sujet, et une pastille qui lisait l'autre Coran
+
+Le fichier portait déjà la branche `coranTest` pour le **rendu** ; sa branche de **navigation**
+avait été écartée au motif des « 607 polices `.woff2` ». Le nombre est exact, et il appartient
+à la chaîne de **rendu** (`src/coranTest/html.ts`, un `WKWebView`) — pas à la navigation, qui
+ne lit que des **nombres** : `verse-index.json`, **380 782 octets**, `{id, pages, lines}` pour
+**6 236 versets**. La raison écrite était donc **vraie mais hors sujet**, et c'est la pire
+espèce : elle décourageait une vérification. Mesuré : les deux index rendent la **même page**
+pour les 6 236 versets — **0 divergence** — et la même plage pour les **604 pages** — **0
+divergence**. `VerseBounds.rows` lit une ressource du `Bundle`, pas `VerseBounds.Source` :
+l'index du 1441 **est** celui du `coranTest`. La branche est donc portée, rangée avec le Coran
+1441, et **dormante** (`displayed(stored:)` ne rend jamais `.coranTest`).
+
+**Le défaut, lui, était vivant.** La pastille « Toute la page » du panneau de répétition
+construisait sa plage avec `Quran.pageRange(page)` — la pagination du **Coran de Médine** —,
+quand l'original reçoit `pageRangeOverride={sourcePageRange}` (`App.tsx:437`). Mesure : **36
+pages sur 604** s'écartent entre les deux paginations, et **33** d'une **longueur** différente ;
+la page 597 va de `6 099` à `6 125` dans une édition et de `6 093` à `6 118` dans l'autre —
+sept versets. La plage est désormais portée par `QuranSourceNavigation.pageRange(_:page:)`, sa
+table **dérivée** de l'index du 1441 pour qu'elle ne puisse pas dévier de `versePage`, et
+l'écran la reçoit **au lieu** de la page.
+
+**Deux leçons de banc, mesurées en réparant.** Un contrôle qui nomme une règle doit lire la
+**règle** : `case .coran1441, .coranTest:` apparaît **deux fois** dans le fichier, et un
+contrôle qui cherchait la chaîne *n'importe où* laissait une mutation retirer `coranTest` du
+bon groupe sans qu'il bronche — de même, « le fichier dit POURQUOI » était satisfait par une
+**copie** de `displayed(stored:)` deux cents lignes plus bas. Et **une mutation voyage avec son
+contrôle** : le contrôle du libellé d'objectif avait déménagé vers la page Profil (§9.24) sans
+sa mutation, restée sur un fichier où la chaîne n'existe plus — le harnais refusait de la
+jouer, et le contrôle déplacé se retrouvait **sans falsificateur**. La mutation l'a suivi.
+
+#### Les nombres
+
+Banc : `_banc/verifier-source-navigation.mjs` — **43 vérifications** — précédé d'un oracle
+**exécuté** (`oracle-source-navigation.mjs`, **18 vérifications**) qui compile le
+`sourceNavigation.ts` réel avec `esbuild` au lieu de le translittérer. Falsificateur : **19
+mutations**, toutes tuées. Tests : **585 → 594**, `QuranSourceNavigationTests` de **10** à
+**19**. Le compte global du dépôt vit désormais dans `verifier-source-navigation.mjs` ;
+`verifier-reconcile.mjs` passe de **158** à **157** et le dit.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a
@@ -1560,13 +1600,18 @@ occupaient la place sont partis au lecteur. Détail et preuve : `SWIFT_MIGRATION
 
    **`coranTest` est le cas qui compte** : c'est le défaut des deux applications,
    donc l'édition de tout utilisateur qui n'a jamais touché au choix d'affichage.
+   **Sa NAVIGATION est portée** depuis §9.33 : la page et la plage de versets d'un
+   `coranTest` sont celles du Coran 1441 — mesuré, **0 divergence** sur les 6 236
+   versets et les 604 pages —, et la pastille « Toute la page » du panneau audio
+   lisait la **mauvaise** pagination sur **36 pages sur 604**. Ce qui reste à
+   écrire est la **seule chaîne de rendu** (`WKWebView`), avec ses 607 `.woff2`
+   et ses 606 pages JSON : un report **assumé et circonscrit**.
    **`tajweed` n'est plus à faire** : son **modèle** *et* son **rendu** sont portés
    et prouvés (§9.30 et §9.31 — les règles, les six couleurs, les gardes, l'unité de
    comptage en points de code, la liste de cartes de verset de `MushafPage.tsx:34-43`
    avec le défilement de `App.tsx:499`, et l'édition désormais **proposée** parce
-   que ses données sont là). Il ne reste à décider que `coranTest`, dont la
-   chaîne de rendu (`WKWebView`) est à écrire. Ni l'une ni l'autre des deux
-   éditions ne demande de copier les 185 Mo que la version précédente annonçait.
+   que ses données sont là). Ni l'une ni l'autre des deux éditions ne demande de
+   copier les 185 Mo que la version précédente annonçait.
 5. Assistant d'objectif hebdomadaire, messagerie, groupes, quiz,
    récitations, mini-lecteur — et l'**envoi** des notifications push, dont la carte
    des préférences est en revanche portée (`SWIFT_MIGRATION.md` §9.23).

@@ -10,6 +10,14 @@
 //   `Quran` / `PassageAudio.range`. Aucun nombre de la liste des répétitions
 //   n'est écrit ici, aucun libellé de vitesse, aucun état de case à cocher.
 //
+//   La plage de la page lue y entre par un PARAMÈTRE — `pageRangeOverride`, le
+//   nom que lui donne l'original — et non par un calcul : cet écran ne reçoit
+//   aucune édition, donc il ne peut pas servir la pagination d'une autre. C'est
+//   la forme de `PassageAudioPlayer.tsx:19`, et c'est ce qui rend impossible le
+//   défaut réparé au §9.33 : la pastille « Toute la page » lisait la pagination
+//   du Coran de Médine quelle que soit l'édition affichée, et les deux
+//   paginations ne coïncident pas sur **36 pages sur 604**.
+//
 //   C'est ce qui rend cet écran vérifiable **par lecture** : il n'y a rien à
 //   éprouver, parce qu'il n'y a aucune décision à se tromper. C'est aussi ce qui
 //   garantit que les deux applications affichent la même chose à réglage égal —
@@ -46,10 +54,28 @@ import SwiftUI
 
 struct AudioRepeatSettingsView: View {
 
-    /// Les deux valeurs que l'original reçoit de son parent
-    /// (`PassageAudioPlayer.tsx:19`) : la plage de la séance, et la page lue.
+    /// Ce que l'original reçoit de son parent (`PassageAudioPlayer.tsx:19`) : la
+    /// plage de la séance, et la plage de la page lue.
+    ///
+    /// `pageRangeOverride` arrive **calculée**, et c'est la forme de l'original :
+    /// `App.tsx:505` passe `pageRangeOverride={sourcePageRange}`, où `:437`
+    /// résout la pagination de l'édition en cours. Cet écran n'a donc pas
+    /// d'édition à se tromper.
+    ///
+    /// POURQUOI ELLE EST OBLIGATOIRE ICI
+    ///   L'original la tolère absente et se rabat alors sur `pageRange(page)`,
+    ///   la pagination du Coran de Médine (`:36`). Ce repli n'est pas une
+    ///   commodité : c'est un piège silencieux, puisque 36 pages sur 604 portent
+    ///   une plage différente d'une édition à l'autre (page 597 : 6 099…6 125 au
+    ///   Médine contre 6 093…6 118 en 1441). Le rendre obligatoire supprime la
+    ///   possibilité même de servir la mauvaise pagination.
+    ///
+    /// Le `page` de l'original n'est PAS repris : il n'y servait qu'à ce repli
+    /// (`pageRange(page)`) et à réélire la plage quand la page changeait
+    /// (`:233`). Le premier n'existe plus ; le second n'a pas d'objet ici, la
+    /// feuille étant construite à neuf à chaque présentation.
     let sessionRange: VerseRange
-    let page: Int
+    let pageRangeOverride: VerseRange
 
     @EnvironmentObject private var model: AppViewModel
     @Environment(\.palette) private var palette
@@ -70,9 +96,9 @@ struct AudioRepeatSettingsView: View {
     /// la résolution de la plage — jamais d'un calcul fait ici.
     @State private var error: String?
 
-    init(sessionRange: VerseRange, page: Int) {
+    init(sessionRange: VerseRange, pageRangeOverride: VerseRange) {
         self.sessionRange = sessionRange
-        self.page = page
+        self.pageRangeOverride = pageRangeOverride
         let first = Quran.verseAt(sessionRange.start)
         let last = Quran.verseAt(sessionRange.end)
         _selectedRange = State(initialValue: sessionRange)
@@ -165,7 +191,9 @@ struct AudioRepeatSettingsView: View {
                     selection = .verse
                 }
                 pill("Toute la page", selected: selection == .page) {
-                    choose(currentPageRange)
+                    // `:36` — `currentPageRange`, c'est-à-dire `pageRangeOverride`
+                    // quand il est fourni. Il l'est toujours ici.
+                    choose(pageRangeOverride)
                     selection = .page
                 }
                 pill("Toute la sourate", selected: selection == .surah) {
@@ -423,11 +451,6 @@ struct AudioRepeatSettingsView: View {
         surahText = String(first.surah)
         firstText = String(first.ayah)
         lastText = last.surah == first.surah ? String(last.ayah) : String(first.ayah)
-    }
-
-    /// La page lue, ou la séance quand la page n'est pas résolue.
-    private var currentPageRange: VerseRange {
-        Quran.pageRange(page) ?? sessionRange
     }
 
     // MARK: - Le lancement

@@ -200,7 +200,7 @@ Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blo
 **328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
 tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
 au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
-déclare aujourd'hui **585**, répartis sur **vingt-six** fichiers. Le bloc des trois
+déclare aujourd'hui **594**, répartis sur **vingt-six** fichiers. Le bloc des trois
 cartes du profil en a ajouté **six** (416 → 422), mesurés au run n° 65 ; celui des
 marque-pages **trente-deux** (422 → 454) — vingt-deux sur le modèle et l'écran, dix sur
 la traduction d'un verset en page ; celui de la **liste des sourates** **quarante-huit**
@@ -227,6 +227,17 @@ document partagé, écrite en **JSON brut** parce que sept de ses règles testen
 `undefined` **retire** du document écrit, quand un `null` l'y ajouterait ; les deux
 retours anticipés, dont un seul refuse de pousser ; et le défaut latent que le test
 d'accord a trouvé dans `Program.migrateReaderState`.
+
+Et la **navigation d'une source** — `Core/QuranSourceNavigation.swift` — **neuf** de plus
+(585 → 594, `QuranSourceNavigationTests` passant de **10** à **19**) : la branche
+`coranTest`, dont l'omission était justifiée par un nombre **vrai mais hors sujet** — les
+607 polices `.woff2` appartiennent au **rendu**, quand la navigation ne lit que les
+**380 782 octets de nombres** de `verse-index.json`. Mesure : les deux index rendent la
+même page pour les **6 236 versets** et la même plage pour les **604 pages** — la branche
+est rangée avec le Coran 1441, et **dormante**. Et le défaut **vivant** que ce bloc a
+trouvé : la pastille « Toute la page » du panneau audio lisait la pagination du **Coran de
+Médine** là où l'original passe la plage de l'édition affichée — **36 pages sur 604**
+s'écartent, **33** d'une longueur différente. Voir §9.33.
 
 Et le run n° **69** a rappelé à quoi sert ce compte : il est **tombé**, non sur un test
 rouge mais sur une **erreur de type** — `Tests/TajweedTests.swift` lisait `verse?.surah`
@@ -342,7 +353,7 @@ Core/           Logique métier partagée — le contrat avec React Native
   VerseBounds.swift   Rectangles des versets sur les pages (bounds.json)
   Bookmark.swift      Marque-pages
   BookmarkOptions.swift  Les textes de « Mes marques-pages »
-  QuranSourceNavigation.swift  Un verset, en page de l'édition affichée
+  QuranSourceNavigation.swift  Un verset, en page et en plage de l'édition affichée
   SurahListOptions.swift  La liste des sourates, des Juz' et des Hizb
   DateKeys.swift      Dates « AAAA-MM-JJ » à midi local
   AppConfig.swift     Configuration publique
