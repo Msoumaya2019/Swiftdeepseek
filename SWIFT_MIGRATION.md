@@ -2519,11 +2519,43 @@ non-vacuité qui l'accompagne. La leçon se précise : ce n'est pas « le texte 
 de la compilation », c'est « le texte dit ce qui a une **signature** textuelle ». Un type
 n'en a pas ; une surcharge, si.
 
+#### Le run n° 72 a trouvé l'invariant qu'on avait oublié de retourner
+
+La poussée du correctif a produit le run n° **72** : `failure` en **6 min 25 s**, la
+**compilation verte** — l'étape qui était tombée au n° 71 — et l'étape « Jouer les
+tests » rouge sur **un** échec, pour **542** tests exécutés :
+
+```
+Tests/QuranEditionTests.swift:122: error: -[QuranEditionTests
+testWhateverIsStoredTheDisplayedEditionIsRenderable] : XCTAssertNotNil failed
+- tajweed n'a pas de rectangles : aucune mise en évidence possible
+```
+
+C'est une **septième** assertion que le retournement avait manquée. Le bloc avait retourné
+deux contrôles du banc et **six** assertions écrites — mais celle-ci était **dérivée** :
+son libellé parlait de « l'édition affichée », et son corps exigeait `boundsSource` de
+**toute** édition affichée. Elle disait vrai tant que la liste n'existait pas ; le jour où
+`.tajweed` est devenu affichable, elle est devenue fausse — **sans qu'aucune de ses
+lignes n'ait changé**. C'est la leçon de §9.28 : une assertion qui survit à l'état qu'elle
+visait ne protège plus rien, elle interdit le progrès. Et la leçon de §9.30 : les six
+assertions qu'on avait su retourner étaient celles qui **nommaient** l'édition ; la
+septième ne la nommait pas.
+
+**La réparation dit les deux façons de rendre, au lieu d'en choisir une.** `QuranEdition`
+porte maintenant `isVerseList` — une seule édition, `.tajweed` — et `isRenderable`, qui
+rend `isVerseList ? TajweedOptions.isAvailable : boundsSource != nil`. L'invariant se
+vérifie alors en **deux branches** : une édition paginée doit savoir où sont ses versets ;
+une édition en cartes n'a **pas** de rectangles et ne doit pas en avoir — une bande y
+serait posée sur une page qui n'existe pas. Un second test,
+`testTheVerseListEditionIsTheOnlyOneWithoutRectangles`, dit **qui** a le droit de n'avoir
+aucun rectangle : sans lui, une édition future pourrait perdre son `boundsSource` sans que
+rien ne le signale, puisque le test ci-dessus la laisserait passer en la croyant en cartes.
+
 #### Les nombres
 
-Banc : `_banc/verifier-tajweed.mjs` — **139 vérifications**, 0 échec, les **douze** bancs
-antérieurs rejoués. Falsificateur : `_banc/falsifier-tajweed.mjs` — **36 mutations**, dont
-**sept** ajoutées ici (M30 le routage, M31 le défilement, M32 l'ornement, M33 un test
-retiré, M34 le type de retour, M35 la condition de présence, M36 la surcharge `frame`),
-toutes tuées, arbre rendu intact. Tests : **527 → 542**, dont **15** pour
-`Tests/TajweedListTests.swift`.
+Banc : `_banc/verifier-tajweed.mjs` — **142 vérifications**, 0 échec, les **douze** bancs
+antérieurs rejoués. Falsificateur : `_banc/falsifier-tajweed.mjs` — **37 mutations**, dont
+**huit** ajoutées ici (M30 le routage, M31 le défilement, M32 l'ornement, M33 un test
+retiré, M34 le type de retour, M35 la condition de présence, M36 la surcharge `frame`,
+M37 la seule édition en cartes), toutes tuées, arbre rendu intact. Tests : **527 → 543**,
+dont **15** pour `Tests/TajweedListTests.swift`.

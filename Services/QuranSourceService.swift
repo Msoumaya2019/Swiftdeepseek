@@ -76,6 +76,34 @@ public enum QuranEdition: String, CaseIterable, Sendable {
         }
     }
 
+    /// Vrai quand cette édition se rend en **cartes de verset**, et non en pages.
+    ///
+    /// UNE SEULE ÉDITION, ET C'EST UNE DÉCISION
+    ///   « Lecture simplifiée » n'a aucune image : son texte est découpé en
+    ///   fragments colorés par règle, puis rendu verset par verset
+    ///   (`Features/Quran/Reader/TajweedVerseListView.swift`). Elle n'a donc
+    ///   **aucun** rectangle de verset — non par oubli, mais parce qu'il n'y a
+    ///   pas de page sur laquelle poser une bande. La mise en évidence y est
+    ///   portée par la carte.
+    public var isVerseList: Bool {
+        self == .tajweed
+    }
+
+    /// Vrai quand cette application sait **rendre** cette édition.
+    ///
+    /// DEUX FAÇONS DE RENDRE, ET C'EST POURQUOI `boundsSource` NE SUFFIT PAS
+    ///   Une édition **paginée** se rend si l'on sait où sont ses versets : sans
+    ///   `boundsSource`, aucune mise en évidence n'est possible. Une édition en
+    ///   **cartes** se rend si ses données sont là, et n'a par construction
+    ///   aucun rectangle. Exiger d'`.tajweed` un `boundsSource` la déclarerait
+    ///   illisible alors qu'elle est la seule dont les données sont dans le
+    ///   paquet — c'est exactement le défaut qu'un test a trouvé au run n° 72,
+    ///   où l'invariant « toute édition affichée a des rectangles » avait
+    ///   survécu au jour où il avait cessé d'être vrai.
+    public var isRenderable: Bool {
+        isVerseList ? TajweedOptions.isAvailable : boundsSource != nil
+    }
+
     public static var available: [QuranEdition] {
         allCases.filter(\.isAvailable)
     }

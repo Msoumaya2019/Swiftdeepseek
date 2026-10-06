@@ -200,7 +200,7 @@ Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blo
 **328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
 tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
 au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
-déclare aujourd'hui **542**, répartis sur **vingt-cinq** fichiers. Le bloc des trois
+déclare aujourd'hui **543**, répartis sur **vingt-cinq** fichiers. Le bloc des trois
 cartes du profil en a ajouté **six** (416 → 422), mesurés au run n° 65 ; celui des
 marque-pages **trente-deux** (422 → 454) — vingt-deux sur le modèle et l'écran, dix sur
 la traduction d'un verset en page ; celui de la **liste des sourates** **quarante-huit**
@@ -213,8 +213,11 @@ branches de couleur, et la note de bas de verset qui vaut `""` sur 4 906 lignes 
 celui du **rendu de la Lecture simplifiée**, **quinze** de plus (527 → 542) — les deux
 rouges distincts de la carte, l'ordre des états de fond, la traduction du `lineHeight`
 absolu en `lineSpacing` additif, le rail de séance d'une liste qui n'est pas celui de la
-marge, et l'édition enfin **offerte** parce que ses données sont là. Le prochain run les
-mesurera.
+marge, et l'édition enfin **offerte** parce que ses données sont là. Le run n° **72** les a
+mesurés — **542** — et a trouvé, dans le même souffle, la **septième** assertion que le
+retournement avait manquée : un invariant **dérivé** qui exigeait des rectangles de toute
+édition affichée. Il ne nommait pas `.tajweed`, et il est devenu faux sans qu'aucune de ses
+lignes n'ait changé. L'arbre en déclare **543** depuis.
 
 Et le run n° **69** a rappelé à quoi sert ce compte : il est **tombé**, non sur un test
 rouge mais sur une **erreur de type** — `Tests/TajweedTests.swift` lisait `verse?.surah`

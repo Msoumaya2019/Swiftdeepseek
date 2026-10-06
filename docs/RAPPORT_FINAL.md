@@ -1314,12 +1314,26 @@ contrôle, sur **tout le projet** — 90 appels `frame(…)` analysés. La front
 n° 69 se précise : ce n'est pas « le texte ne peut rien dire de la compilation », c'est
 « le texte dit ce qui a une **signature** textuelle ». Un type n'en a pas ; une surcharge, si.
 
-`_banc/verifier-tajweed.mjs` compte **139** vérifications — les douze bancs antérieurs
-rejoués — et `_banc/falsifier-tajweed.mjs` éprouve **36** mutations : toutes tuées, arbre
-rendu intact. Tests : **502 → 527 → 542**, dont **25** pour `Tests/TajweedTests.swift` et
-**15** pour `Tests/TajweedListTests.swift`. Ce banc **ne prouve pas** le comportement du portage —
-il rejoue l'original en JavaScript —, et son en-tête le dit : ce qui reste au flux, c'est
-l'exécution des 40 tests. Récit complet en `SWIFT_MIGRATION.md` §9.30 et §9.31.
+**Le run n° 72 a trouvé l'invariant qu'on avait oublié de retourner.** La compilation était
+verte, et **un** test est tombé sur **542** exécutés :
+`testWhateverIsStoredTheDisplayedEditionIsRenderable` exigeait `boundsSource` de **toute**
+édition affichée, et `tajweed` n'a pas de rectangles. C'est une **septième** assertion que le
+retournement avait manquée — et elle était **dérivée** : son libellé parlait de « l'édition
+affichée », pas de `.tajweed`. Les six qu'on avait su retourner étaient celles qui
+**nommaient** l'édition ; celle-ci ne la nommait pas, et elle est devenue fausse **sans
+qu'aucune de ses lignes n'ait changé**.
+
+`QuranEdition` porte donc maintenant les **deux façons de rendre** : `isVerseList` (une seule
+édition, `.tajweed`) et `isRenderable` (`isVerseList ? TajweedOptions.isAvailable :
+boundsSource != nil`). L'invariant se vérifie en deux branches, et un second test dit **qui**
+a le droit de n'avoir aucun rectangle.
+
+`_banc/verifier-tajweed.mjs` compte **142** vérifications — les douze bancs antérieurs
+rejoués — et `_banc/falsifier-tajweed.mjs` éprouve **37** mutations : toutes tuées, arbre
+rendu intact. Tests : **502 → 527 → 543**, dont **25** pour `Tests/TajweedTests.swift`
+et **15** pour `Tests/TajweedListTests.swift`. Ce banc **ne prouve pas** le comportement du
+portage — il rejoue l'original en JavaScript —, et son en-tête le dit : ce qui reste au
+flux, c'est l'exécution des 40 tests. Récit complet en `SWIFT_MIGRATION.md` §9.30 et §9.31.
 
 Le premier run de ce bloc, le n° **69**, est d'ailleurs tombé — non sur un test rouge, mais
 sur une **erreur de type** que rien en local ne pouvait voir : `Tests/TajweedTests.swift`

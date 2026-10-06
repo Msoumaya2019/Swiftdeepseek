@@ -106,24 +106,69 @@ final class QuranEditionTests: XCTestCase {
     // MARK: L'invariant — le contrôle qui manquait
 
     /// Quelle que soit la préférence enregistrée, l'édition affichée est
-    /// lisible, et sait où sont ses versets.
+    /// lisible, et **rendable**.
     ///
     /// C'est le contrôle qui aurait attrapé le défaut. Une édition ajoutée à
     /// `QuranEdition` sans ressource le fera échouer, au lieu de produire un
     /// lecteur muet qu'aucun test ne distingue d'un lecteur qui marche.
+    ///
+    /// LES DEUX FAÇONS DE RENDRE SONT VÉRIFIÉES SÉPARÉMENT, et c'est le run
+    /// n° 72 qui l'a exigé. Une édition **paginée** doit savoir où sont ses
+    /// versets : sans `boundsSource`, aucune mise en évidence n'est possible.
+    /// « Lecture simplifiée » se rend en **cartes** : elle n'a pas de rectangles,
+    /// et ne doit pas en avoir — une bande y serait posée sur une page qui
+    /// n'existe pas. Ce test exigeait des rectangles de **toute** édition
+    /// affichée, ce qui était vrai tant que la liste n'existait pas : l'invariant
+    /// avait survécu au jour où il avait cessé d'être vrai, et il a fallu une
+    /// exécution pour le dire.
     func testWhateverIsStoredTheDisplayedEditionIsRenderable() {
         for stored in everyStoredPreference {
             let displayed = QuranEdition.displayed(stored: stored)
+            let quoi = "préférence « \(stored ?? "absente") » → \(displayed.rawValue)"
 
-            XCTAssertTrue(
-                displayed.isAvailable,
-                "préférence « \(stored ?? "absente") » → \(displayed.rawValue) n'est pas lisible"
-            )
-            XCTAssertNotNil(
-                displayed.boundsSource,
-                "\(displayed.rawValue) n'a pas de rectangles : aucune mise en évidence possible"
-            )
+            XCTAssertTrue(displayed.isAvailable, "\(quoi) n'est pas lisible")
+            XCTAssertTrue(displayed.isRenderable, "\(quoi) n'est pas rendable")
+
+            if displayed.isVerseList {
+                XCTAssertNil(
+                    displayed.boundsSource,
+                    "\(quoi) se rend en cartes : elle ne doit avoir aucun rectangle"
+                )
+                XCTAssertTrue(
+                    TajweedOptions.isAvailable,
+                    "\(quoi) n'a de rendu que si ses trois fichiers sont là"
+                )
+            } else {
+                XCTAssertNotNil(
+                    displayed.boundsSource,
+                    "\(quoi) n'a pas de rectangles : aucune mise en évidence possible"
+                )
+            }
         }
+    }
+
+    /// Une seule édition se rend en cartes, et c'est celle-là.
+    ///
+    /// Le pendant du contrôle précédent : il dit **qui** a le droit de n'avoir
+    /// aucun rectangle. Sans lui, une édition future pourrait perdre son
+    /// `boundsSource` sans que rien ne le signale — le test ci-dessus la
+    /// laisserait passer en la croyant en cartes.
+    func testTheVerseListEditionIsTheOnlyOneWithoutRectangles() {
+        XCTAssertTrue(QuranEdition.tajweed.isVerseList)
+        XCTAssertNil(QuranEdition.tajweed.boundsSource)
+
+        for edition in QuranEdition.allCases where edition != .tajweed {
+            XCTAssertFalse(edition.isVerseList, "\(edition.rawValue) se rend en pages")
+        }
+
+        // Les deux éditions paginées reprises ont bien leurs rectangles.
+        XCTAssertNotNil(QuranEdition.medine.boundsSource)
+        XCTAssertNotNil(QuranEdition.coran1441.boundsSource)
+
+        // Et les deux non reprises n'en ont pas — sans être en cartes pour
+        // autant : elles ne sont pas rendues du tout.
+        XCTAssertFalse(QuranEdition.tajweedPages.isRenderable)
+        XCTAssertFalse(QuranEdition.coranTest.isRenderable)
     }
 
     /// Le vrai symptôme, mesuré au bout de la chaîne : le lecteur ouvre
