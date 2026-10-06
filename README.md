@@ -200,7 +200,7 @@ Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blo
 **328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
 tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
 au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
-déclare aujourd'hui **543**, répartis sur **vingt-cinq** fichiers. Le bloc des trois
+déclare aujourd'hui **585**, répartis sur **vingt-six** fichiers. Le bloc des trois
 cartes du profil en a ajouté **six** (416 → 422), mesurés au run n° 65 ; celui des
 marque-pages **trente-deux** (422 → 454) — vingt-deux sur le modèle et l'écran, dix sur
 la traduction d'un verset en page ; celui de la **liste des sourates** **quarante-huit**
@@ -218,6 +218,15 @@ mesurés — **542** — et a trouvé, dans le même souffle, la **septième** a
 retournement avait manquée : un invariant **dérivé** qui exigeait des rectangles de toute
 édition affichée. Il ne nommait pas `.tajweed`, et il est devenu faux sans qu'aucune de ses
 lignes n'ait changé. L'arbre en déclare **543** depuis.
+
+Et celui de la **réconciliation** — `Core/Reconcile.swift` — **quarante-deux** de plus
+(543 → 585) : la fonction qui décide **laquelle des deux applications gagne** sur le
+document partagé, écrite en **JSON brut** parce que sept de ses règles testent
+`=== undefined` là où une structure Swift ne sait dire que `nil` ; le ternaire de
+`reviewCycle`, seul membre de sa famille à **garder** un `null` distant ; la clé qu'un
+`undefined` **retire** du document écrit, quand un `null` l'y ajouterait ; les deux
+retours anticipés, dont un seul refuse de pousser ; et le défaut latent que le test
+d'accord a trouvé dans `Program.migrateReaderState`.
 
 Et le run n° **69** a rappelé à quoi sert ce compte : il est **tombé**, non sur un test
 rouge mais sur une **erreur de type** — `Tests/TajweedTests.swift` lisait `verse?.surah`
@@ -445,6 +454,7 @@ disparaîtrait avec eux.
 | Fichier | Ce qu'il empêche de casser |
 | --- | --- |
 | `OfflineMergeTests` | La fusion à trois voies : un client ne doit jamais écraser les données de l'autre. |
+| `ReconcileTests` | La réconciliation du document à la connexion : les deux retours anticipés de `reconcileState`, dont un seul refuse de pousser ; le ternaire de `reviewCycle`, qui **garde** un `null` distant là où ses six voisins se replient sur `??` ; la clé qu'un `undefined` **retire** du document écrit ; les quatre branches de `accountState` ; l'ordre **UTF-16** de deux horodatages (`"9" > "10"`) ; et deux tests d'**accord** entre le portage brut et le portage typé, chacun avec son témoin de non-vacuité. |
 | `ProgramTests` | Les cycles 7/14/21/30, les quantités 1 Nisf / 1 Hizb / 1 Juz / 2 Juz, et le rythme **affiché** — le libellé d'un rythme connu, la chaîne **stockée** pour un rythme inconnu. |
 | `ReviewTests` | Les consolidations J+1 / J+3 / J+7, la notation des révisions, le marquage « difficile », et les trois décisions de `setReviewsEnabled` — le retour anticipé qui ne touche pas le document, la durée **conservée** quand on éteint, la reprise datée à l'allumage **seul**. |
 | `PassageAudioTests` | Les trois règles silencieuses de la répétition d'un passage — la répétition conservée en mode « passage », `continuous` qui ne change jamais de verset, la normalisation du nombre — et l'attente avant de rejouer, dont la marge de 200 ms est un plancher. |

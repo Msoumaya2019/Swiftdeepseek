@@ -48,7 +48,15 @@ public final class StateSyncService: ObservableObject {
         await repository.load(userId: userId)
         do {
             if let remote = try await pull() {
-                await repository.applyRemote(remote)
+                // La réconciliation décide si le document adopté doit repartir :
+                // une métadonnée récupérée du local — police, accent, pages
+                // lues, suivi d'étude, cycle de révision — ou un local plus
+                // récent que le serveur. Sans cette mise en file, la décision
+                // resterait sans effet et le serveur garderait sa version.
+                let shouldPush = await repository.applyRemote(remote)
+                if shouldPush {
+                    await repository.enqueueCurrent()
+                }
                 // Une fusion reste nécessaire si des modifications locales
                 // attendaient : c'est le rôle de `flush`.
             }

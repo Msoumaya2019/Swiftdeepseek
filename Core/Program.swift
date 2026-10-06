@@ -153,13 +153,26 @@ public enum Program {
             }
         }
         if let mushaf = next.reader?.mushaf, mushaf != "tajweedPages" { return next }
-        next.reader?.mushaf = "coranTest"
-        // Lecture puis écriture, en deux temps. En une seule expression —
-        // `next.reader?.followAudio = next.reader?.followAudio != false` — le
-        // compilateur refuse : « overlapping accesses to 'next.reader' », les
-        // deux accès se recouvrant.
-        let followAudio = next.reader?.followAudio != false
-        next.reader?.followAudio = followAudio
+        // `{...state.reader, mushaf:'coranTest', followAudio: …}` — un lecteur
+        // ABSENT est donc CRÉÉ, jamais laissé absent.
+        //
+        // C'est un défaut latent qui vient d'être corrigé, et il valait la
+        // peine d'être vu : l'ancienne écriture — `next.reader?.mushaf =
+        // "coranTest"` — était une chaîne optionnelle, qui ne CRÉE pas
+        // l'objet. Sur un `reader` à `nil` (clé absente, ou `"reader": null`),
+        // elle ne faisait donc rien du tout, et le document produit divergeait
+        // de celui de l'original. Aucun document des deux applications n'est
+        // dans ce cas — `defaultState()` écrit toujours un lecteur — mais
+        // `Reconcile.migrateRaw` porte la même règle sur le document brut et,
+        // lui, le crée : les deux jumelles doivent décider la même chose, et
+        // c'est un test qui les y tient (`ReconcileTests`).
+        var reader = next.reader ?? ReaderPreferences(mushaf: "coranTest", followAudio: true)
+        reader.mushaf = "coranTest"
+        // `followAudio` est un `Bool` NON optionnel ici, donc `!== false` s'y
+        // réduit à la valeur elle-même : l'expression est gardée telle quelle
+        // pour rester lisible à côté de l'original.
+        reader.followAudio = reader.followAudio != false
+        next.reader = reader
         return next
     }
 

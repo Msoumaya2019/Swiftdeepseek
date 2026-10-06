@@ -52,6 +52,14 @@ public final class AppStateRepository: ObservableObject {
     /// de la fusion à trois voies.
     private var base: JSONValue?
     private var userId: String?
+    /// Le document du compte TEL QU'IL EST SUR CET APPAREIL — et non le repli
+    /// global.
+    ///
+    /// La distinction compte : `Reconcile.accountState` demande « le cache
+    /// appartient-il à ce compte ? » (`cached?.userId === userId`), et l'état
+    /// global n'est pas un cache de compte. Le confondre ferait adopter comme
+    /// état local un document qui n'appartient à personne.
+    private var accountCache: JSONValue?
 
     public init(store: LocalStore = LocalStore()) {
         self.store = store
@@ -68,13 +76,16 @@ public final class AppStateRepository: ObservableObject {
         self.userId = userId
         guard let userId else { return }
 
+        let account = await store.loadAccountState(userId)
+        accountCache = account
+
         // L'état du compte est prioritaire, l'état global sert de repli.
         //
         // En deux temps, et non `await a ?? (await b)` : l'opérateur `??` prend
         // son opérande droit dans une autoclosure, qui ne supporte pas
         // `await` — « 'await' in an autoclosure that does not support
         // concurrency ».
-        var cached = await store.loadAccountState(userId)
+        var cached = account
         if cached == nil { cached = await store.loadState() }
         guard let cached, let typed = AppState.decode(from: cached) else { return }
 
@@ -84,23 +95,42 @@ public final class AppStateRepository: ObservableObject {
         hasLocalChanges = !(await store.pendingOperations(for: userId)).isEmpty
     }
 
-    /// Applique un état venu du serveur, sans écraser une modification locale non
-    /// encore poussée.
-    public func applyRemote(_ remote: JSONValue) async {
-        guard let userId else { return }
+    /// Adopte le document venu du serveur, en le RÉCONCILIANT avec le cache de
+    /// ce compte — `accountState`, `src/core/program.ts:82`.
+    ///
+    /// Rend `true` quand le document adopté doit repartir vers le serveur : une
+    /// métadonnée a été récupérée du local, ou le local était plus récent.
+    /// L'appelant met alors la synchronisation en file.
+    ///
+    /// Ce que cette méthode remplace, et pourquoi c'est un correctif : elle
+    /// adoptait auparavant le document distant TEL QUEL. Un document distant
+    /// plus ancien, ou écrit par une version qui ne connaissait pas encore
+    /// `bookmarks`, `readPages` ou `studyProgress`, écrasait alors ces clés
+    /// côté local — sans que rien ne le signale. `reconcileState` est la
+    /// fonction que l'application React Native emploie au même instant.
+    @discardableResult
+    public func applyRemote(_ remote: JSONValue) async -> Bool {
+        guard let userId else { return false }
         let pending = await store.pendingOperations(for: userId)
-        if pending.isEmpty {
-            guard let typed = AppState.decode(from: remote) else { return }
-            state = Program.migrateReaderState(typed)
-            rawState = remote
+        guard pending.isEmpty else {
+            // Une modification locale attend : la fusion à trois voies de
+            // `StateSyncService` décidera, au moment de la poussée. On ne
+            // remplace rien ici, et on ne pousse rien non plus.
             base = remote
-            try? await store.saveState(remote)
-            try? await store.saveAccountState(userId, state: remote)
-        } else {
-            // Une fusion sera faite par `StateSyncService` au moment de la
-            // poussée : on ne remplace rien ici.
-            base = remote
+            return false
         }
+
+        let outcome = Reconcile.accountState(userId: userId, cache: accountCache, remote: remote)
+        guard let typed = AppState.decode(from: outcome.document) else { return false }
+        state = Program.migrateReaderState(typed)
+        rawState = outcome.document
+        // La base reste ce que le SERVEUR porte : c'est la dernière version dont
+        // on sait qu'elle était synchronisée, et c'est sur elle que portera la
+        // fusion à trois voies si une modification locale survient ensuite.
+        base = remote
+        try? await store.saveState(outcome.document)
+        try? await store.saveAccountState(userId, state: outcome.document)
+        return outcome.shouldPush
     }
 
     // MARK: Mutation
@@ -131,6 +161,23 @@ public final class AppStateRepository: ObservableObject {
         ))
         hasLocalChanges = true
         return typed
+    }
+
+    /// Met en file la synchronisation du document COURANT, sans le transformer.
+    ///
+    /// Le pendant de `mutate` pour un document qui vient d'être adopté : la
+    /// réconciliation a déjà décidé de son contenu, il n'y a rien à transformer
+    /// de plus. C'est le `enqueueState(result.state)` de `App.tsx:132`.
+    public func enqueueCurrent() async {
+        guard let userId else { return }
+        try? await store.enqueue(SyncOperation(
+            id: "\(userId):\(Int(Date().timeIntervalSince1970 * 1000)):\(UUID().uuidString.prefix(6))",
+            userId: userId,
+            payload: rawState,
+            base: base ?? rawState,
+            createdAt: DateKeys.iso(Date())
+        ))
+        hasLocalChanges = true
     }
 
     /// Marque la base de fusion après une synchronisation réussie.

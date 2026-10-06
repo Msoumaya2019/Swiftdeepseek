@@ -29,6 +29,7 @@
 | Valeur JSON opaque (clé inconnue préservée) | ✅ | ✅ | `user_state.data` | `Core/JSONValue.swift` | Indispensable pour ne rien détruire d'une clé ajoutée plus tard par le RN. |
 | Fusion à trois voies hors ligne | ✅ | ✅ | `user_state.data` | `Core/OfflineMerge.swift` | Port fidèle. 15 cas couverts dans `Tests/OfflineMergeTests.swift`. |
 | Écriture qui préserve les clés inconnues | ✅ | ✅ | `user_state.data` | `Repositories/AppStateRepository.swift` | `patch(raw:with:)` ne remplace que les clés connues. |
+| Réconciliation du document à la connexion | ✅ | ✅ | `user_state.data` | `Core/Reconcile.swift`, `Repositories/AppStateRepository.swift` | Port de `migrateReaderState`, `reconcileState` et `accountState` (`program.ts:48-130`), en **JSON brut** : sept règles de l'original testent `=== undefined`, ce qu'une structure Swift ne distingue pas de `null`. Voir §9.32. |
 | File d'attente hors ligne | ✅ | ✅ | — (locale) | `Storage/LocalStore.swift`, `Services/StateSyncService.swift` | Écritures atomiques (`.part`), cache exclu des sauvegardes iCloud. |
 | Détection du retour du réseau | ✅ | ✅ | — | `Services/ConnectivityService.swift` | `NWPathMonitor`. |
 | Thèmes (5) et accents (4) | ✅ | ✅ | `user_state.theme`, `.accent` | `Theme/Theme.swift` | Mêmes codes couleur que `src/theme/tokens.ts`. |
@@ -57,7 +58,7 @@
 | Préchargement page précédente / courante / suivante | ✅ | ✅ | — | `MushafPageViewController.swift` | Trois pages, jamais 604. Cache LRU. |
 | Centrage vertical sans marge fixe | ✅ | ✅ | — | `ReaderView.swift`, `MushafPageViewController.swift` | Zone de page = tout l'espace restant, `scaleAspectFit`, contraintes centrées. Aucun `marginTop`. |
 | Reprise à la dernière page lue | ✅ | ✅ | `user_state.lastRead` | `Features/Home/HomeView.swift`, `ViewModels/AppViewModel.swift` | |
-| Marque-pages | ✅ | ✅ | `user_state.bookmarks` | `Core/Bookmark.swift`, `Core/BookmarkOptions.swift`, `Core/QuranSourceNavigation.swift`, `Features/Quran/BookmarksView.swift` | Poser/retirer dans le lecteur, liste complète dans les deux écrans, reprise de lecture sur la page du **verset** dans l'édition affichée. La fusion (`mergeBookmarks`) est portée mais **jamais appelée** : l'original ne l'appelle que depuis `reconcileState`, non porté. Voir §9.28. |
+| Marque-pages | ✅ | ✅ | `user_state.bookmarks` | `Core/Bookmark.swift`, `Core/BookmarkOptions.swift`, `Core/QuranSourceNavigation.swift`, `Features/Quran/BookmarksView.swift` | Poser/retirer dans le lecteur, liste complète dans les deux écrans, reprise de lecture sur la page du **verset** dans l'édition affichée. La fusion (`mergeBookmarks`) est portée **et appelée** : `Reconcile.mergeBookmarksRaw` est le portage de `reconcileState`, son unique appelant dans l'original. Voir §9.28 et §9.32. |
 | Choix de l'édition | ✅ | ✅ | `user_state.reader.mushaf` | `Features/Quran/Reader/ReaderView.swift` | Les cinq éditions, et les trois non reprises : voir §9.3. |
 | Sources du Coran (attributions) | ✅ | ✅ | — | `Core/QuranSourcesCard.swift`, `Features/Settings/SettingsView.swift` | Les attributions de licence — Tanzil, QPC V4, cpfair, Rachid Maach, Quran Meta — et le lien vers tanzil.net, recopiés **au caractère près**, deux apostrophes typographiques distinctes comprises. Voir §9.24. |
 | Profil : prénom, compte, photo | ✅ | 🟡 | `auth.users`, `friend_profiles`, bucket `friend-avatars` | `Core/ProfileOptions.swift`, `Features/Profile/ProfileView.swift`, `Tests/ProfileTests.swift` | Les 47 textes, les quatre conditions d'activation et les deux bornes de photo sont portés et gelés, et l'**écran est monté** — le prénom, le compte, la déconnexion, plus l'**avis global** qui manquait à tout le monde. La photo et le formulaire de connexion restent délibérément hors de l'écran. Voir §9.25 et §9.26. |
@@ -2097,13 +2098,16 @@ n'existe dans le dépôt. Les **données** sont prêtes (`Surah.meaning`,
 manque. Les deux lignes du tableau sont corrigées, et l'écran est inscrit comme le
 prochain bloc.
 
-#### Deux points qui restent tels quels, et qu'il faut savoir
+#### Deux points qu'il fallait savoir, dont un a été réglé depuis
 
-- **`mergeBookmarks` est portée mais jamais appelée.** L'original ne l'appelle que
-  depuis `reconcileState` (`program.ts:68`), qui n'est pas porté, et
-  `offlineMerge.ts` — le chemin de fusion qui *est* porté — n'a **aucune** règle
-  propre aux marque-pages. Le portage est donc fidèle : la fusion générique à trois
-  voies traite `bookmarks` comme n'importe quelle carte d'objets.
+- **`mergeBookmarks` était portée mais jamais appelée — elle l'est maintenant.**
+  L'original ne l'appelle que depuis `reconcileState` (`program.ts:68`), qui n'était
+  pas porté, et `offlineMerge.ts` — le chemin de fusion qui *est* porté — n'a
+  **aucune** règle propre aux marque-pages. Le portage était donc fidèle mais
+  **incomplet** : la fusion générique à trois voies traite `bookmarks` comme
+  n'importe quelle carte d'objets. `Core/Reconcile.swift` (§9.32) porte
+  `reconcileState` et `accountState`, et `Reconcile.mergeBookmarksRaw` est désormais
+  **exercée** — côte à côte avec `Bookmark.merge`, que deux tests d'accord comparent.
 - **Le texte d'état vide décrit un geste que ce portage n'a pas.**
   `BookmarksScreen.tsx:11` dit « Touche « Marque-page », puis un verset sur la
   page » : l'original a un mode de pose où l'on touche le verset exact. Le portage
@@ -2553,9 +2557,134 @@ rien ne le signale, puisque le test ci-dessus la laisserait passer en la croyant
 
 #### Les nombres
 
-Banc : `_banc/verifier-tajweed.mjs` — **142 vérifications**, 0 échec, les **douze** bancs
+Banc : `_banc/verifier-tajweed.mjs` — **141 vérifications**, 0 échec, les **treize** bancs
 antérieurs rejoués. Falsificateur : `_banc/falsifier-tajweed.mjs` — **37 mutations**, dont
 **huit** ajoutées ici (M30 le routage, M31 le défilement, M32 l'ornement, M33 un test
 retiré, M34 le type de retour, M35 la condition de présence, M36 la surcharge `frame`,
 M37 la seule édition en cartes), toutes tuées, arbre rendu intact. Tests : **527 → 543**,
 dont **15** pour `Tests/TajweedListTests.swift`.
+
+### 9.32 La réconciliation : une fonction que rien n'appelait, sept règles d'absence, et un défaut latent trouvé par un test d'accord
+
+`src/core/program.ts:48-130` porte trois fonctions qui décident **laquelle des deux
+applications gagne** sur le document partagé : `migrateReaderState` réécrit les clés
+d'édition héritées avant tout, `reconcileState` fusionne un document local et un document
+distant quand les deux existent, et `accountState` choisit entre le cache local et le
+document du serveur à la connexion. Jusqu'ici, ce portage n'en avait **aucune** : il
+écrivait le document distant tel quel. `Core/Reconcile.swift` les porte toutes les trois.
+
+C'est aussi le **seul** appelant de `mergeBookmarks` — la fonction dont §9.28 disait qu'elle
+était « portée mais jamais appelée ». Elle l'est désormais.
+
+#### Pourquoi du JSON brut, et non des structures
+
+Sept comparaisons de l'original testent `=== undefined`, et ce n'est pas un détail de
+style : `uiFont`, `accent`, `studyProgress`, `reviewCycle`, `reviewConsolidations`,
+`reviewPriorityDue` et `reader.testPage`. Une structure Swift **écrase** la différence
+entre « clé absente » et « clé à `null` » — les deux deviennent `nil` —, donc un portage
+typé répondrait `true` là où l'original répond `false`. La conséquence n'est pas
+théorique : un `reviewCycle` que l'utilisateur a remis à `null` **ressusciterait** au
+premier chargement. Le document circule donc comme un `JSONValue`, et non comme un
+`AppState` — ce que l'en-tête de `Core/JSONValue.swift` annonçait depuis le premier jour :
+une clé absente et une clé nulle ne sont pas la même chose.
+
+#### Une seconde règle, mesurée : `undefined` **retire** la clé du document écrit
+
+`JSON.stringify` **supprime** une clé dont la valeur est `undefined` :
+`{...remote, profile: undefined}` garde `profile` en mémoire mais le document **sérialisé**
+ne le porte plus. Or c'est le document sérialisé que l'autre application lira — `result
+.document` en mémoire n'est pas l'observable. La fonction qui pose une clé la **retire**
+donc quand la valeur est absente, là où écrire `.null` **ajouterait** une clé que
+l'application React Native n'écrit jamais.
+
+Et parce que l'opérateur `??` de JavaScript rend son opérande droit **tel quel**, un
+`profile: null` distant est bel et bien recopié : la distinction n'est pas contournée, elle
+est **reproduite**. Un premier jet de test se trompait exactement là — il vérifiait
+l'absence de la clé sur le document **en mémoire**, où elle est encore présente. Le banc
+juge désormais sur le document **sérialisé**, et l'oracle a été muni d'un
+`documentSerialise()` pour que le cas ne puisse pas se rejouer.
+
+#### Le piège du bloc : un ternaire isolé
+
+Partout la famille des métadonnées se replie sur `??` — remplacé par `recover` — sauf
+`reviewCycle`, qui seul écrit `remote.reviewCycle === undefined ? local.reviewCycle :
+remote.reviewCycle` : il teste la **présence** de la clé, pas sa nullité, et **garde donc
+un `null` distant**. Le porter avec le même `recover` que ses six voisins aurait été le
+contresens exact. Le banc porte un contrôle **négatif** qui interdit cette écriture-là, et
+la mutation correspondante (M01) est tuée.
+
+#### Deux implémentations d'une même règle, et pourquoi les deux restent
+
+`Bookmark.merge` travaille sur des structures, `Reconcile.mergeBookmarksRaw` sur le JSON ;
+`Program.migrateReaderState` sur des structures, `Reconcile.migrateRaw` sur le JSON. Les
+versions **brutes** gagnent sur le chemin d'écriture, pour deux raisons : elles ne
+réencodent pas un document qu'on s'apprête à écrire, et elles **préservent** les champs
+inconnus d'une entrée de marque-page qu'une structure perdrait en silence. Les versions
+typées restent, parce qu'elles sont le modèle du reste de l'application — et parce que les
+comparer est une preuve. Deux tests d'**accord** les mettent côte à côte, chacun avec son
+**témoin de non-vacuité** :
+
+```swift
+XCTAssertEqual(compared, pairs.count, "aucune paire comparée : le test serait vide")
+XCTAssertEqual(compared, readers.count, "aucun document comparé : le test serait vide")
+```
+
+Un test d'accord qui ne compare rien est vert, et ne dit rien. Ces deux lignes sont ce qui
+l'empêche.
+
+#### Le défaut latent que le test d'accord a trouvé
+
+`Program.migrateReaderState` lisait `state.reader?.mushaf`. C'est un enchaînement
+facultatif, et il **ne crée pas** l'objet `reader` — contrairement au
+`{...state.reader, mushaf: …}` de l'original, qui en crée un vide pour y poser la clé. Sur
+un lecteur **absent**, la migration typée ne faisait donc **rien** quand la référence
+**crée** l'objet. Le défaut était invisible parce que rien n'appelait la migration depuis un
+lecteur absent — c'est le test d'accord, écrit pour vérifier autre chose, qui l'a mis au
+jour. La correction tient en une ligne :
+
+```swift
+var reader = next.reader ?? ReaderPreferences(mushaf: "coranTest", followAudio: true)
+```
+
+avec un commentaire qui nomme le défaut et le test qui le garde.
+
+#### La preuve : un oracle **exécuté**, pas une transcription
+
+`_banc/oracle-reconcile.mjs` **découpe** les trois fonctions dans le fichier de référence,
+retire les annotations de type nommées une à une (cinq signatures, la flèche typée
+`(): AppState =>`, `state.reader?.mushaf as string`, l'assertion non-nulle `state.reader!`),
+et les **exécute** via `new Function`. Il porte **22 cas**, et chaque cas transporte, dans
+sa clé `observations`, le **texte exact** de l'assertion Swift qu'il doit confirmer.
+
+C'est ce qui a trouvé **deux défauts réels dans mes propres tests**. Deux cas mesuraient un
+horodatage en prenant `theme` pour la différence locale — or le distant gagne **toujours**
+`theme` (`remote.theme ?? local.theme`), donc le retour anticipé « rien à pousser » se
+déclenchait **avant** le recalcul de l'horodatage, et le test lisait la valeur brute du
+distant. Une transcription n'aurait rien vu : elle aurait recopié l'erreur avec le reste du
+fichier. C'est la différence entre recopier une règle et la faire tourner.
+
+Une limite, écrite dans l'en-tête de l'oracle : `state.sessions.some(…)` lève un
+`TypeError` sur une clé absente, donc les cas de l'oracle **doivent** porter `sessions: []`.
+L'application réelle, elle, le garantit — `defaultState` l'écrit et `loadState` exige un
+tableau. C'est un danger **de l'oracle seul**, pas du portage.
+
+#### Et un vrai défaut dans le chemin de synchronisation
+
+`Repositories/AppStateRepository.applyRemote` adoptait `rawState = remote` — le document
+distant **brut** — au lieu du document **réconcilié** que `accountState` venait de
+calculer ; et rien ne **poussait** le résultat quand la réconciliation le demandait. Les
+deux sont corrigés : `applyRemote` rend maintenant le `shouldPush` de la réconciliation, et
+`StateSyncService.syncOnSignIn` enqueue le document courant quand il vaut `true`. Sans cela,
+le portage aurait porté la fonction qui décide, et continué d'écrire la mauvaise réponse.
+
+#### Les nombres
+
+Banc : `_banc/verifier-reconcile.mjs` — **153 vérifications**, 0 échec, les **treize** bancs
+antérieurs rejoués. Falsificateur : `_banc/falsifier-reconcile.mjs` — **31 mutations**,
+toutes tuées, arbre rendu intact, l'arbre vérifié par `git status --porcelain` avant et
+après chaque mutation. Tests : **543 → 585**, dont **42** pour `Tests/ReconcileTests.swift`.
+
+Le compte **global** a changé de banc à cette occasion — il n'appartient qu'au plus récent,
+sinon deux bancs l'affirmeraient et divergeraient au bloc suivant. `_banc/verifier-tajweed
+.mjs` est donc passé de **142** à **141** vérifications : le contrôle qui **nommait** le
+total appartient désormais au nouveau banc, et l'ancien affirme son **absence**.
