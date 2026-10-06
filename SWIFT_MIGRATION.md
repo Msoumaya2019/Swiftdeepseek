@@ -61,7 +61,7 @@
 | Choix de l'édition | ✅ | ✅ | `user_state.reader.mushaf` | `Features/Quran/Reader/ReaderView.swift` | Les cinq éditions, et les trois non reprises : voir §9.3. |
 | Sources du Coran (attributions) | ✅ | ✅ | — | `Core/QuranSourcesCard.swift`, `Features/Settings/SettingsView.swift` | Les attributions de licence — Tanzil, QPC V4, cpfair, Rachid Maach, Quran Meta — et le lien vers tanzil.net, recopiés **au caractère près**, deux apostrophes typographiques distinctes comprises. Voir §9.24. |
 | Profil : prénom, compte, photo | ✅ | 🟡 | `auth.users`, `friend_profiles`, bucket `friend-avatars` | `Core/ProfileOptions.swift`, `Features/Profile/ProfileView.swift`, `Tests/ProfileTests.swift` | Les 47 textes, les quatre conditions d'activation et les deux bornes de photo sont portés et gelés, et l'**écran est monté** — le prénom, le compte, la déconnexion, plus l'**avis global** qui manquait à tout le monde. La photo et le formulaire de connexion restent délibérément hors de l'écran. Voir §9.25 et §9.26. |
-| Lecture simplifiée (Tajweed) | ✅ | 🟡 | — (données embarquées) | `Core/TajweedOptions.swift`, `Tests/TajweedTests.swift` | **Modèle porté, rendu à écrire.** Les trois fonctions de `readerData.ts` sont portées et épinglées par **25** tests : indexation en points de code (1 173 / 680 / 1 171 au verset 2:282), fusion par égalité de règle, garde de concordance, six branches de couleur, et la garde du vide des notes (`""` sur 4 906 lignes). L'édition **n'est pas encore proposée** — `isAvailable` reste faux tant que le rendu verset par verset n'existe pas. Voir §9.30. |
+| Lecture simplifiée (Tajweed) | ✅ | ✅ | — (données embarquées) | `Core/TajweedOptions.swift`, `Features/Quran/Reader/TajweedVerseListView.swift`, `Tests/TajweedTests.swift`, `Tests/TajweedListTests.swift` | Portée, **modèle et rendu**. Les trois fonctions de `readerData.ts` sont épinglées par **25** tests : indexation en points de code (1 173 / 680 / 1 171 au verset 2:282), fusion par égalité de règle, garde de concordance, six branches de couleur, et la garde du vide des notes (`""` sur 4 906 lignes). Le rendu **verset par verset** (`MushafPage.tsx:34-43`, avec le défilement de `App.tsx:499`) est écrit et éprouvé par **15** tests de plus. L'édition est **proposée** : `isAvailable` lit les données (`hasArabic && hasTranslation`) au lieu de rendre `false`. Voir §9.30 et §9.31. |
 | Coran avec règles de Tajwid | ✅ | ⬜ | — | — | Ressources non copiées, voir §7. |
 | Mode lecture continue | ✅ | ⬜ | — | — | |
 
@@ -2255,7 +2255,7 @@ Banc : `_banc/verifier-liste-sourates.mjs` — **135 vérifications**, 0 échec,
 le rendu **verset par verset**, celui des cartes de verset. Ses données étaient
 **déjà** dans ce dépôt — `tajweed-text.json` (1 531 274 octets), `tajweed-rules.json`
 (2 755 691), `translation-fr-rashid.json` (1 522 305) — et **aucun** code Swift ne les
-lisait. Ce bloc-ci porte le modèle et l'épingle ; le rendu reste à écrire.
+lisait. Ce bloc-ci porte le modèle et l'épingle ; le rendu viendra au bloc suivant (§9.31).
 
 #### L'unité de comptage : le seul point où le portage pouvait planter
 
@@ -2311,16 +2311,18 @@ même famille que `''.includes('')` de §9.29 — la **vérité** opposée à la
 sauf qu'ici l'écart vit dans une donnée et non dans un appel. `Translation.footnote`
 rend donc `nil` sur `""`, et un test oppose explicitement les deux sur le même verset.
 
-#### L'édition reste NON PROPOSÉE, et c'est délibéré
+#### L'édition était alors NON PROPOSÉE, et c'était délibéré
 
-`QuranEdition.isAvailable` rend toujours `false` pour `.tajweed`, et `imageURLs` n'a
-toujours aucune branche pour elle. Le modèle est porté ; le **rendu** ne l'est pas.
-Proposer l'édition maintenant ouvrirait des cartes vides — exactement le défaut que
-§9.28 avait corrigé pour `coranTest`. Deux contrôles du banc interdisent ce dérapage :
-`isAvailable` doit rester faux, et **aucun écran** ne doit appeler `TajweedOptions`.
-Le jour où le rendu arrive, ces deux contrôles tomberont — et c'est alors qu'il faudra
-les retourner, comme §9.29 l'a fait pour la ligne du document qui annonçait la liste
-des sourates.
+`QuranEdition.isAvailable` rendait alors `false` pour `.tajweed`, et `imageURLs` n'avait
+aucune branche pour elle. Le modèle était porté ; le **rendu** ne l'était pas. Proposer
+l'édition à ce moment-là aurait ouvert des cartes vides — exactement le défaut que
+§9.28 avait corrigé pour `coranTest`. Deux contrôles du banc interdisaient ce dérapage :
+`isAvailable` devait rester faux, et **aucun écran** ne devait appeler `TajweedOptions`.
+
+La prédiction qui fermait ce paragraphe s'est vérifiée : « le jour où le rendu arrive, ces
+deux contrôles tomberont — et c'est alors qu'il faudra les retourner ». §9.31 est ce jour,
+et les deux contrôles ont été **retournés**, non supprimés : l'un exige désormais que
+`isAvailable` lise les données, l'autre qu'**exactement un** écran appelle le modèle.
 
 #### Ce que ce banc ne peut pas prouver, et qui est écrit dans son en-tête
 
@@ -2381,3 +2383,120 @@ Banc : `_banc/verifier-tajweed.mjs` — **120 vérifications**, 0 échec, les **
 bancs antérieurs rejoués. Falsificateur : `_banc/falsifier-tajweed.mjs` — **29
 mutations**, toutes tuées, arbre rendu intact. Tests : **502 → 527**, dont **25** pour
 `Tests/TajweedTests.swift`.
+
+### 9.31 Le rendu verset par verset : une édition qui n'est pas une page, et deux contrôles retournés
+
+§9.30 a porté le **modèle** du Tajweed et laissé le rendu à écrire, en fermant sur une
+prédiction : « le jour où le rendu arrive, ces deux contrôles tomberont — et c'est alors
+qu'il faudra les retourner ». Ce bloc-ci est ce jour. Il fait **deux moitiés d'un seul
+changement**, et il faut dire pourquoi elles ne se séparent pas.
+
+#### Un rendu qu'aucun écran ne pouvait atteindre
+
+`ReaderView` reçoit son édition **fixée à la construction**, et cette valeur vient de
+`QuranEdition.displayed(stored:)`, qui rend `edition.isAvailable ? edition : repli`.
+Tant que `.tajweed.isAvailable` valait `false`, `ReaderView` ne pouvait **jamais**
+recevoir `.tajweed` : la liste n'aurait été dessinée nulle part. Écrire le rendu sans
+retourner l'offre aurait donc produit du code **inatteignable** ; retourner l'offre sans
+écrire le rendu aurait ouvert des cartes vides, le défaut de §9.28. Les deux moitiés
+sont un seul bloc parce qu'aucune n'a de sens seule.
+
+#### L'offre ne peut pas être une constante
+
+Le réflexe serait `case .tajweed: return true`. C'est faux, et c'est le même piège que
+`coranTest` : une constante **offerte** ne dit rien de la présence des données. La
+condition est donc une **lecture** :
+
+```swift
+case .tajweed: return TajweedOptions.isAvailable
+```
+
+et `TajweedOptions.isAvailable` vaut `hasArabic && hasTranslation`, c'est-à-dire les trois
+JSON du Tajweed présents dans le paquet — `tajweed-text`, `tajweed-rules`,
+`translation-fr-rashid`. Si l'un manquait, l'édition disparaîtrait d'elle-même. Un
+contrôle du banc exige cette **forme** (la lecture, pas la constante) ; un autre exige la
+**conjonction** des deux présences, et une mutation (M35) retire le second terme pour
+vérifier que le contrôle le voit.
+
+#### Le rendu n'est pas une page, et c'est structurel
+
+`MushafPage.tsx:34-43` a une branche propre pour `mode === 'tajweed'` : un fond `soft`
+arrondi, un en-tête doré centré, puis **une carte par verset**. Une page du moushaf porte
+une image ; le Tajweed porte du texte, et une page peut compter **286 versets**. `App.tsx:499`
+le dit sans ambiguïté : `scrollEnabled={mushaf==='tajweed'}`,
+`height={mushaf==='tajweed'?readerViewport.height:fit.height}`,
+`flexGrow={mushaf==='tajweed'?1:0}`. Sans défilement, une telle page serait **coupée**.
+
+Le défilement est donc **structurel**, et il interdit de loger cette liste dans le
+`UIPageViewController` : `ReaderView.body` a gagné une **troisième forme** — un
+`if edition == .tajweed { TajweedVerseListView(…) } else { MushafPageController(…) }`,
+plat, dans le `ZStack` existant. Plat, et non un nouveau `@ViewBuilder` : au-delà de dix
+enfants, Swift cesse de type-vérifier le surplus.
+
+#### Quatre décisions du rendu, dont une qui change un type
+
+**Les couleurs des cartes sont des littéraux, et ce ne sont pas celles de la page.**
+`difficult ? '#FCE8E8' : marque-page ? selected : sélection ? selected : paper`, bordure
+`difficult ? 1 : 0`, `borderColor: difficult ? '#D97878' : colors.green2`. Ce rouge **n'est
+pas** `VerseHighlightStyle.difficultRed` (`#E85B5B`), qui est la couleur de **surlignage
+sur la page** : deux rouges, deux usages, et un test les oppose nommément.
+
+**`color(of:textColor:)` a changé de type.** La fonction rendait une `String` ; elle rend
+désormais une `Color` — `(Span, Color) -> Color`. La raison n'est pas esthétique :
+`Theme.color(hexString:)` rend `nil` sur une chaîne invalide, et **aucune table de cette
+application ne porte la couleur de texte d'un thème sous forme hexadécimale** —
+`Palette.text` est une `Color`. Prendre une `String` aurait obligé la vue à **fabriquer**
+un hexadécimal que rien ne vérifie : une seconde source pour la même vérité. La table des
+règles, elle, **reste une chaîne** (`color(_ rule: String) -> String`) pour que le banc
+puisse la comparer au fichier de référence.
+
+**`lineSpacing` n'est pas `lineHeight`.** Le `lineHeight` de l'original est **absolu**
+(`{fontSize:16, lineHeight:25}`) ; le `lineSpacing` de SwiftUI est **additif**. La
+traduction est donc `max(0, lineHeight − UIFont.systemFont(ofSize: fontSize).lineHeight)`,
+et son invariant est vérifiable : `UIFont.lineHeight + lineSpacing == lineHeight`. Un test
+le mesure aux tailles employées (25, 31.2, 34, 16).
+
+**Le rail de séance de la liste n'est pas celui de la marge.** `MushafPage.tsx:41` lit
+`plainPositions[id]`, rempli par le `onLayout` de **chaque carte** : une barre de la
+première carte active au **bas de la dernière**, et **un point par verset actif** — vingt
+pixels, rempli jusqu'à `sessionThrough` inclus. `MarginAnnotations`, lui, regroupe par
+proximité et couvre des **groupes**. Confondre les deux donne un rail plausible et faux.
+Un test par règle : la barre, les points, leur ordre, le remplissage, et l'absence de rail
+quand aucun verset n'est actif.
+
+#### Ce qui n'est pas porté, et qui est écrit dans l'en-tête du fichier
+
+Le geste de balayage (`swipe.panHandlers`), le bandeau d'étude (`studyBanner`) et le zoom
+(`ZoomableReader`) : le rendu reçoit `textScale` mais le tient à `1`. L'original les a ;
+ils ne sont pas dans ce bloc, et le fichier le dit plutôt que de le taire.
+
+#### Les deux contrôles retournés, et les six assertions qui les suivaient
+
+Retourner l'offre a fait tomber **huit** affirmations, pas deux : les deux contrôles du
+banc, et **six** assertions de tests qui disaient la même chose dans quatre fichiers —
+`QuranEditionTests` (deux), `QuranSourceNavigationTests` (une), `QuranDisplayTests`
+(trois). C'est la trace que laisse une migration bloquée : les assertions de l'ancienne
+application continuent d'affirmer ses contraintes.
+
+Elles ont été **retournées**, pas supprimées. Le contrôle des appelants méritait d'être
+revu pour lui-même : il ne testait qu'une **longueur** (`appelants.length === 0`) et jamais
+la **valeur** de l'élément — il ne pouvait donc pas distinguer « aucun appelant » de
+« un mauvais appelant », deux défauts différents. Il exige maintenant **exactement un**
+appelant, et le **nomme**. C'est ce qui a fait apparaître un défaut du contrôle lui-même :
+`path.relative` rend des **antislashs** sous Windows, si bien que la comparaison au chemin
+littéral échouait — invisible tant que le contrôle ne comparait qu'un nombre.
+
+Deux autres garde-fous ont été ajoutés, chacun contre un faux verdict : un contrôle de
+**non-vacuité** sur les ancres de `funcBody` (le changement de signature de
+`color(of:textColor:)` avait rendu une ancre muette, et un contrôle qui cherche dans une
+chaîne vide échoue pour la **mauvaise raison**), et la qualification des deux repères
+`TajweedOptions.ornament)` / `TajweedOptions.ornamentGap)` — le premier est un **préfixe**
+du second, donc un repère nu aurait été satisfait par la mauvaise constante.
+
+#### Les nombres
+
+Banc : `_banc/verifier-tajweed.mjs` — **137 vérifications**, 0 échec, les **douze** bancs
+antérieurs rejoués. Falsificateur : `_banc/falsifier-tajweed.mjs` — **35 mutations**, dont
+**six** ajoutées ici (M30 le routage, M31 le défilement, M32 l'ornement, M33 un test
+retiré, M34 le type de retour, M35 la condition de présence), toutes tuées, arbre rendu
+intact. Tests : **527 → 542**, dont **15** pour `Tests/TajweedListTests.swift`.

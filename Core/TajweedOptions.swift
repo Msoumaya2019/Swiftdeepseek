@@ -53,6 +53,7 @@
 
 import CoreGraphics
 import Foundation
+import SwiftUI
 
 public enum TajweedOptions {
 
@@ -283,9 +284,28 @@ public enum TajweedOptions {
     /// La couleur d'un fragment — `` span.rule ? tajweedColor(span.rule) : colors.text ``
     /// (`MushafPage.tsx:39`). La couleur du texte est **passée** par l'écran :
     /// elle vient du thème actif, que ce fichier ne connaît pas.
-    public static func color(of span: Span, textColor: String) -> String {
+    ///
+    /// POURQUOI ELLE EST UN `Color` ET NON LA CHAÎNE DE L'ORIGINAL
+    ///   En JavaScript les deux branches rendent une **chaîne**, donc `colors.text`
+    ///   en est une aussi. Ici la table des règles reste une chaîne — c'est elle
+    ///   que le banc compare au fichier de référence, où `#FAF7F2` ne se confond
+    ///   pas avec `#faf7f2` —, mais ce que l'écran peint est une `Color`. Et
+    ///   aucune table de cette application ne porte le texte d'un thème sous
+    ///   forme de chaîne : `Palette.text` est une `Color`. Prendre une chaîne
+    ///   obligerait donc l'écran à **fabriquer** un hexadécimal que rien ne
+    ///   vérifie — c'est-à-dire à inventer une seconde source pour la même
+    ///   vérité. `Core/QuranDisplayOptions.swift` fait déjà ce choix, et importe
+    ///   `SwiftUI` pour la même raison.
+    ///
+    /// LE REPLI EST UNE CEINTURE
+    ///   `Theme.color(hexString:)` rend `nil` sur une chaîne qui n'est pas six
+    ///   chiffres hexadécimaux, et le repli est alors la couleur de texte
+    ///   passée — le comportement d'un fragment **nu**. Sur les six couleurs
+    ///   livrées la conversion réussit : `TajweedListTests` l'épingle, donc ce
+    ///   repli ne se déclenche pas.
+    public static func color(of span: Span, textColor: Color) -> Color {
         guard let rule = span.rule else { return textColor }
-        return color(rule)
+        return Theme.color(hexString: color(rule)) ?? textColor
     }
 
     /// Les 18 règles livrées, triées par fréquence décroissante — mesuré.

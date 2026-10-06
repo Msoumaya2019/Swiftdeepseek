@@ -150,25 +150,41 @@ final class QuranSourceNavigationTests: XCTestCase {
         }
     }
 
-    // MARK: - La branche qui n'est pas portée
+    // MARK: - La branche des éditions de Tajwid
 
-    /// Les éditions que cette version ne rend pas retombent sur la page du moushaf.
+    /// Les trois éditions de Tajwid empruntent **la même** branche — celle du
+    /// moushaf —, et deux d'entre elles sont inatteignables.
     ///
-    /// C'est une DIVERGENCE ASSUMÉE, et elle est bornée : `sourceVersePage`
-    /// appellerait `testVersePage` pour `coranTest`, qui lit un index construit
-    /// depuis le moushaf de Tajwid — 607 polices `.woff2` que cette application
-    /// n'embarque pas. La branche est **inatteignable** : `isAvailable` est faux
-    /// pour ces éditions, et `displayed(stored:)` les remplace toutes par
-    /// `.medine`. Voir `QuranEditionTests` pour cette substitution.
-    func testTheUnportedTajwidBranchFallsBackToTheMushafPage() {
+    /// POUR LES DEUX INATTEIGNABLES, C'EST UNE DIVERGENCE ASSUMÉE, et elle est
+    /// bornée : `sourceVersePage` appellerait `testVersePage` pour `coranTest`,
+    /// qui lit un index construit depuis le moushaf de Tajwid — 607 polices
+    /// `.woff2` que cette application n'embarque pas. La branche est
+    /// **inatteignable** pour elles : `isAvailable` est faux, et
+    /// `displayed(stored:)` les remplace par `.medine`. Voir
+    /// `QuranEditionTests` pour cette substitution.
+    ///
+    /// POUR « LECTURE SIMPLIFIÉE », LA MÊME BRANCHE EST LA BONNE, et elle est
+    /// désormais ATTEIGNABLE. L'édition n'est pas un zip, donc `isZipSource` est
+    /// faux, et sa page est celle du Coran de Médine : c'est la pagination que
+    /// `TajweedVerseListView` reçoit, et dont elle rend les versets. Ce test
+    /// affirmait l'inverse — que l'édition ne pouvait pas être atteinte —, et il
+    /// aurait donc fallu le retourner pour que le rendu existe : un contrôle
+    /// négatif qui survit à l'état qu'il visait ne protège plus rien, il interdit
+    /// le progrès.
+    func testTheTajwidEditionsShareTheMushafPageBranch() {
         XCTAssertEqual(QuranSourceNavigation.versePage(.coranTest, verseID: verse), medinePage)
-        XCTAssertEqual(QuranSourceNavigation.versePage(.tajweed, verseID: verse), medinePage)
         XCTAssertEqual(QuranSourceNavigation.versePage(.tajweedPages, verseID: verse), medinePage)
 
         // Ce qui rend la divergence inatteignable — sans quoi elle serait un
         // défaut, et pas une limite.
         XCTAssertFalse(QuranEdition.coranTest.isAvailable)
+        XCTAssertFalse(QuranEdition.tajweedPages.isAvailable)
         XCTAssertEqual(QuranEdition.displayed(stored: "coranTest"), .medine)
-        XCTAssertEqual(QuranEdition.displayed(stored: "tajweed"), .medine)
+        XCTAssertEqual(QuranEdition.displayed(stored: "tajweedPages"), .medine)
+
+        // Et celle qui a quitté cette catégorie : même branche, mais atteinte.
+        XCTAssertTrue(QuranEdition.tajweed.isAvailable)
+        XCTAssertEqual(QuranEdition.displayed(stored: "tajweed"), .tajweed)
+        XCTAssertEqual(QuranSourceNavigation.versePage(.tajweed, verseID: verse), medinePage)
     }
 }

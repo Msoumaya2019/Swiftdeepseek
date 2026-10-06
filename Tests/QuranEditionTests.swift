@@ -68,15 +68,25 @@ final class QuranEditionTests: XCTestCase {
 
     // MARK: Le repli
 
+    /// Le repli, et **la seule** édition qui en a encore besoin.
+    ///
+    /// « Lecture simplifiée » a quitté cette liste : elle est lisible depuis que
+    /// son rendu existe (`TajweedVerseListView`), donc `displayed(stored:)` la
+    /// garde. L'y laisser aurait fait échouer ce test sur une édition devenue
+    /// disponible — et, pire, aurait demandé au code de continuer à la
+    /// remplacer.
     func testAnUnrenderablePreferenceFallsBackToTheMedineMushaf() {
         XCTAssertEqual(QuranEdition.displayed(stored: "coranTest"), .medine)
-        XCTAssertEqual(QuranEdition.displayed(stored: "tajweed"), .medine)
         XCTAssertEqual(QuranEdition.displayed(stored: "tajweedPages"), .medine)
     }
 
     func testARenderablePreferenceIsKept() {
         XCTAssertEqual(QuranEdition.displayed(stored: "traditional"), .medine)
         XCTAssertEqual(QuranEdition.displayed(stored: "coran_1441"), .coran1441)
+        // `displayed(stored:)` rend l'édition **elle-même** : la préférence
+        // enregistrée par l'application React Native n'est pas réécrite.
+        XCTAssertEqual(QuranEdition.displayed(stored: "tajweed"), .tajweed)
+        XCTAssertEqual(QuranEdition.tajweed.isAvailable, TajweedOptions.isAvailable)
     }
 
     func testAnAbsentOrUnknownPreferenceFallsBack() {

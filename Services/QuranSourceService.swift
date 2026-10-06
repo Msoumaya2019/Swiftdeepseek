@@ -1,13 +1,22 @@
 // QuranSourceService.swift
 // Accès aux éditions du Coran.
 //
-// Deux éditions sont câblées dans cette première étape, exactement celles
-// demandées :
+// Trois éditions sont lisibles, et elles ne se rendent pas de la même façon :
 //   - « Coran de Médine »   (identifiant stocké : traditional) — 604 pages PNG
 //     embarquées dans Resources/Mushaf, 1920 × 3106.
 //   - « Coran 1441 »        (identifiant stocké : coran_1441) — 9060 images de
 //     lignes (604 pages × 15), 1440 × 2320, téléchargées à la demande comme le
 //     fait déjà l'application React Native.
+//   - « Lecture simplifiée » (identifiant stocké : tajweed) — aucune page : le
+//     texte des versets, découpé en fragments colorés par règle de Tajweed
+//     (`Core/TajweedOptions.swift`), rendu en cartes par
+//     `Features/Quran/Reader/TajweedVerseListView.swift`.
+//
+// Les deux autres éditions de Tajwid — « Moushaf Tajwid » (`tajweedPages`) et
+// « Coran avec règles de Tajwid » (`coranTest`) — ne sont pas rendues ici : la
+// première attend ses images, la seconde une chaîne de rendu HTML et 607
+// polices. Elles restent déclarées pour que le document `reader.mushaf` partagé
+// avec l'application React Native se lise sans perte.
 //
 // Les identifiants sont ceux du document `reader.mushaf` partagé : un
 // utilisateur qui lisait le Coran 1441 dans React Native doit retrouver le
@@ -39,10 +48,31 @@ public enum QuranEdition: String, CaseIterable, Sendable {
     }
 
     /// Éditions réellement lisibles dans cette version.
+    ///
+    /// TROIS ÉDITIONS, ET DEUX FAÇONS DE L'ÊTRE
+    ///   Le Coran de Médine et le Coran 1441 sont lisibles dès que leurs pages
+    ///   sont là — dans le paquet pour l'un, installées pour l'autre. « Lecture
+    ///   simplifiée » n'a **aucune page** : elle rend le texte des versets, en
+    ///   cartes (`TajweedVerseListView`), et elle est lisible si — et seulement
+    ///   si — ses trois fichiers de données sont dans le paquet. La condition
+    ///   n'est donc pas une constante mais `TajweedOptions.isAvailable`, qui lit
+    ///   les ressources.
+    ///
+    ///   C'est ce qui rend le rendu **atteignable** : `displayed(stored:)` ne
+    ///   laisse passer que les éditions lisibles, donc tant que cette ligne
+    ///   rendait `false`, `ReaderView` ne pouvait pas recevoir `.tajweed` et la
+    ///   liste n'aurait jamais été dessinée. Une vue que rien ne peut atteindre
+    ///   n'est pas une fonctionnalité.
+    ///
+    /// LES DEUX AUTRES ÉDITIONS DE TAJWID RESTENT NON RENDUES
+    ///   `tajweedPages` attend ses images, et `coranTest` ses 607 polices
+    ///   `.woff2` — une chaîne de rendu que cette application n'a pas. Les
+    ///   proposer ouvrirait des pages vides : le défaut que le §9.28 a corrigé.
     public var isAvailable: Bool {
         switch self {
         case .medine, .coran1441: return true
-        case .tajweed, .tajweedPages, .coranTest: return false
+        case .tajweed: return TajweedOptions.isAvailable
+        case .tajweedPages, .coranTest: return false
         }
     }
 

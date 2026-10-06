@@ -225,11 +225,13 @@ Lecteur plein écran du Moushaf, `Features/Quran/Reader/`.
   l'île dynamique et à la barre d'accueil. **Aucune marge haute fixe, nulle part.**
 - **Ratio des pages jamais modifié** (`scaleAspectFit`).
 - Cinq éditions déclarées : Coran de Médine, Coran 1441, Lecture simplifiée,
-  Moushaf Tajwid, Coran avec règles de Tajwid. **Deux sont lisibles** : le Coran
-  de Médine, embarqué (604 pages), et le Coran 1441, qui s'installe par un
-  téléchargement reprisable de 102 608 011 octets (`SWIFT_MIGRATION.md` §9.4).
-  Les trois autres ne sont pas reprises — voir la limite ci-dessous, et §9.3 de
-  `SWIFT_MIGRATION.md` pour ce qu'elles contiennent réellement.
+  Moushaf Tajwid, Coran avec règles de Tajwid. **Trois sont lisibles** : le Coran
+  de Médine, embarqué (604 pages) ; le Coran 1441, qui s'installe par un
+  téléchargement reprisable de 102 608 011 octets (`SWIFT_MIGRATION.md` §9.4) ; et la
+  **Lecture simplifiée**, qui n'est **pas** une page — elle rend le texte verset par
+  verset, coloré par règle (`SWIFT_MIGRATION.md` §9.31). Les deux autres ne sont pas
+  reprises — voir la limite ci-dessous, et §9.3 de `SWIFT_MIGRATION.md` pour ce
+  qu'elles contiennent réellement.
 - **Défaut corrigé : le lecteur ouvrait sur une édition qu'il ne sait pas
   rendre.** L'état initial repris de l'original donne
   `reader.mushaf = "coranTest"` (`Program.swift:94`, d'après `program.ts:57`) —
@@ -1217,9 +1219,9 @@ raconté côté migration, est en `SWIFT_MIGRATION.md` §9.29.
 emploie. L'édition `tajweed` — « Lecture simplifiée » — n'est pas une page : l'original la
 fait passer par le rendu **verset par verset**. Ses données étaient **déjà** dans le dépôt
 (1,46 Mo de texte, 2,63 Mo de règles, 1,45 Mo de traduction) et **aucun** code Swift ne les
-lisait. Ce bloc porte le **modèle** et l'épingle ; le rendu reste à écrire, et l'édition
-reste donc **non proposée** — la proposer maintenant ouvrirait des cartes vides, exactement
-le défaut que §9.28 avait corrigé pour `coranTest`.
+lisait. Le **modèle** a été porté d'abord ; le **rendu** l'a suivi au bloc suivant, et les
+deux moitiés forment **un seul** changement : ni l'une ni l'autre n'a de sens seule, et
+c'est ce que le paragraphe suivant montre.
 
 **Le seul point où le portage pouvait planter est l'unité de comptage.** Les `start`/`end`
 des annotations indexent le texte. En JavaScript, `[...text]` découpe en **points de code** ;
@@ -1252,12 +1254,62 @@ paginées, et c'est **fidèle** — `isZipSource` ne vaut que pour `coran_1441`
 (`quranSources.ts:6`), donc l'original retombe aussi sur `pageOf(id)`. Un contrôle du banc
 compare les deux sources pour figer cet accord, plutôt que de « corriger » un portage juste.
 
-`_banc/verifier-tajweed.mjs` compte **120** vérifications — les douze bancs antérieurs
-rejoués — et `_banc/falsifier-tajweed.mjs` éprouve **29** mutations : toutes tuées, arbre
-rendu intact. Tests : **502 → 527**, dont **25** pour `Tests/TajweedTests.swift`. Ce banc
-**ne prouve pas** le comportement du portage — il rejoue l'original en JavaScript —, et son
-en-tête le dit : ce qui reste au flux, c'est l'exécution des 25 tests. Récit complet en
-`SWIFT_MIGRATION.md` §9.30.
+**Un rendu qu'aucun écran ne pouvait atteindre.** `ReaderView` reçoit son édition **fixée à
+la construction**, et cette valeur vient de `QuranEdition.displayed(stored:)`, qui rend
+l'édition **seulement si** `isAvailable`. Tant que `.tajweed.isAvailable` valait `false`, le
+lecteur ne pouvait **jamais** recevoir `.tajweed` : la liste n'aurait été dessinée nulle part.
+Écrire le rendu sans retourner l'offre aurait produit du code **inatteignable** ; retourner
+l'offre sans écrire le rendu aurait ouvert des cartes vides — le défaut de §9.28. Les
+deux moitiés sont donc **un seul bloc**.
+
+**L'offre ne peut pas être une constante.** `case .tajweed: return true` serait faux, et du
+même défaut que `coranTest` : une constante ne dit rien de la **présence des données**. La
+condition **lit** donc les ressources — `hasArabic && hasTranslation`, c'est-à-dire les trois
+JSON du Tajweed présents dans le paquet —, et l'édition disparaîtrait d'elle-même si l'un
+manquait. Un contrôle exige cette **forme**, un autre la conjonction, et une mutation retire
+le second terme pour vérifier que le contrôle le voit.
+
+**Le rendu n'est pas une page, et le défilement est structurel.** `MushafPage.tsx:34-43` a sa
+branche propre : un fond arrondi, un en-tête doré centré, puis **une carte par verset**. Une
+page du moushaf porte une image ; le Tajweed porte du texte, et une page peut compter **286
+versets**. `App.tsx:499` le dit — `scrollEnabled={mushaf==='tajweed'}`,
+`height={mushaf==='tajweed'?readerViewport.height:fit.height}`. Sans défilement la page serait
+**coupée**, et c'est pourquoi cette liste **ne peut pas** vivre dans le `UIPageViewController` :
+le lecteur a gagné une **troisième forme de corps**, un simple `if edition == .tajweed { liste }
+else { page }` — plat, et non un nouveau `@ViewBuilder`, car au-delà de dix enfants Swift cesse
+de type-vérifier le surplus.
+
+**Quatre décisions, dont une qui change un type.** Les couleurs des cartes sont des littéraux
+et **ne sont pas** celles de la page : `#FCE8E8` et `#D97878` pour un verset difficile, là où
+le surlignage de page emploie `#E85B5B` — deux rouges, deux usages, et un test les oppose.
+`color(of:textColor:)` est passée de `(Span, String) -> String` à `(Span, Color) -> Color`,
+parce qu'**aucune table de cette application ne porte la couleur de texte d'un thème en
+hexadécimal** (`Palette.text` est une `Color`) : prendre une chaîne aurait obligé la vue à
+**fabriquer** un hexadécimal que rien ne vérifie. La table des règles, elle, reste une chaîne,
+pour que le banc puisse la comparer au fichier de référence. Le `lineHeight` de l'original est
+**absolu**, le `lineSpacing` de SwiftUI est **additif** : la traduction est
+`max(0, lineHeight − UIFont.systemFont(ofSize: fontSize).lineHeight)`, et son invariant
+`UIFont.lineHeight + lineSpacing == lineHeight` est mesuré. Enfin le rail de séance de la liste
+**n'est pas** celui de la marge — `MushafPage.tsx:41` lit la position de **chaque carte** et pose
+un point par verset actif, là où `MarginAnnotations` regroupe par proximité ; les confondre
+donne un rail plausible et faux.
+
+**Deux contrôles retournés, et six assertions qui les suivaient.** Retourner l'offre a fait
+tomber **huit** affirmations, pas deux : les deux contrôles du banc, et **six** assertions de
+tests qui disaient la même chose dans quatre fichiers. C'est la trace que laisse une migration
+bloquée — les assertions de l'ancienne application continuent d'affirmer ses contraintes.
+Elles ont été **retournées**, pas supprimées. Le contrôle des appelants, lui, ne testait qu'une
+**longueur** et jamais la **valeur** : il ne pouvait donc pas distinguer « aucun appelant » de
+« un mauvais appelant ». Il exige maintenant **exactement un** appelant, et le nomme — ce qui a
+révélé un défaut du contrôle lui-même, `path.relative` rendant des **antislashs** sous Windows,
+invisible tant que le contrôle ne comparait qu'un nombre.
+
+`_banc/verifier-tajweed.mjs` compte **137** vérifications — les douze bancs antérieurs
+rejoués — et `_banc/falsifier-tajweed.mjs` éprouve **35** mutations : toutes tuées, arbre
+rendu intact. Tests : **502 → 527 → 542**, dont **25** pour `Tests/TajweedTests.swift` et
+**15** pour `Tests/TajweedListTests.swift`. Ce banc **ne prouve pas** le comportement du portage —
+il rejoue l'original en JavaScript —, et son en-tête le dit : ce qui reste au flux, c'est
+l'exécution des 40 tests. Récit complet en `SWIFT_MIGRATION.md` §9.30 et §9.31.
 
 Le premier run de ce bloc, le n° **69**, est d'ailleurs tombé — non sur un test rouge, mais
 sur une **erreur de type** que rien en local ne pouvait voir : `Tests/TajweedTests.swift`
@@ -1390,18 +1442,17 @@ occupaient la place sont partis au lecteur. Détail et preuve : `SWIFT_MIGRATION
    | Édition | Ce qu'elle est | Ressources manquantes | Portable ici |
    | --- | --- | --- | --- |
    | `coranTest` — « Coran avec règles de Tajwid » | HTML dans un WebView (`coranTest/html.ts`) | 607 `.woff2` (48,88 Mo) + 606 JSON de page (4,25 Mo) | **non** : la chaîne de rendu est à écrire (`WKWebView`) |
-   | `tajweed` — « Lecture simplifiée » | texte arabe coloré par règle | **aucune** : ses deux fichiers sont **déjà dans ce dépôt** | **modèle porté** (§9.30) ; **rendu verset par verset à écrire** |
+   | `tajweed` — « Lecture simplifiée » | texte arabe coloré par règle | **aucune** : ses trois fichiers sont **déjà dans ce dépôt** | **portée** : modèle (§9.30) et rendu verset par verset (§9.31) |
    | `tajweedPages` — « Moushaf Tajwid » | pages coloriées | 604 PNG (132,13 Mo) | **sans objet** : mode inatteignable |
 
    **`coranTest` est le cas qui compte** : c'est le défaut des deux applications,
    donc l'édition de tout utilisateur qui n'a jamais touché au choix d'affichage.
-   **`tajweed` est le meilleur rapport effort/résultat** : ses données sont déjà
-   embarquées. Son **modèle est porté et prouvé** (§9.30 — les règles, les six
-   couleurs, les gardes, et l'unité de comptage en points de code, qui aurait
-   planté sur le plus long verset du Coran). Ce qui reste est le **rendu** : la
-   liste de cartes de verset de `MushafPage.tsx:34-43`, et la décision de la
-   brancher dans le lecteur à la place de l'image de page. L'édition reste
-   **non proposée** tant que ce rendu n'existe pas. Ni l'une ni l'autre des deux
+   **`tajweed` n'est plus à faire** : son **modèle** *et* son **rendu** sont portés
+   et prouvés (§9.30 et §9.31 — les règles, les six couleurs, les gardes, l'unité de
+   comptage en points de code, la liste de cartes de verset de `MushafPage.tsx:34-43`
+   avec le défilement de `App.tsx:499`, et l'édition désormais **proposée** parce
+   que ses données sont là). Il ne reste à décider que `coranTest`, dont la
+   chaîne de rendu (`WKWebView`) est à écrire. Ni l'une ni l'autre des deux
    éditions ne demande de copier les 185 Mo que la version précédente annonçait.
 5. Assistant d'objectif hebdomadaire, messagerie, groupes, quiz,
    récitations, mini-lecteur — et l'**envoi** des notifications push, dont la carte

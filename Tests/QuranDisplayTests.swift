@@ -130,7 +130,7 @@ final class QuranDisplayTests: XCTestCase {
         // Ce que cette version ne sait pas rendre : refus, jamais d'installation
         // — l'installation ne changerait rien à l'affaire, les ressources
         // n'existant pas.
-        for edition in [QuranEdition.tajweed, .coranTest, .tajweedPages] {
+        for edition in [QuranEdition.coranTest, .tajweedPages] {
             for installed in [true, false] {
                 XCTAssertEqual(
                     QuranDisplayOptions.choice(for: edition, coran1441Installed: installed),
@@ -139,12 +139,28 @@ final class QuranDisplayTests: XCTestCase {
                 )
             }
         }
+
+        // « Lecture simplifiée » a QUITTÉ cette liste : elle est lisible depuis
+        // que son rendu existe (`TajweedVerseListView`), et elle ne s'installe
+        // pas — ses trois fichiers de données sont dans le paquet, comme les
+        // 604 pages du Coran de Médine. Un appui la sélectionne donc, installé
+        // ou non.
+        for installed in [true, false] {
+            XCTAssertEqual(
+                QuranDisplayOptions.choice(for: .tajweed, coran1441Installed: installed),
+                .select,
+                "« tajweed » doit être sélectionnable, installé ou non."
+            )
+        }
     }
 
     /// Le refus nomme l'édition refusée — l'ancien `QuranScreenView` disait la
     /// même chose avec sa propre chaîne ; elle est désormais dans le modèle.
+    ///
+    /// « Lecture simplifiée » n'est plus refusée : elle a quitté cette liste en
+    /// même temps que la précédente, et pour la même raison.
     func testTheRefusalNamesTheEdition() {
-        for edition in [QuranEdition.tajweed, .coranTest, .tajweedPages] {
+        for edition in [QuranEdition.coranTest, .tajweedPages] {
             let notice = QuranDisplayOptions.unavailableNotice(for: edition)
             XCTAssertTrue(notice.hasPrefix(edition.label), "Le refus doit nommer « \(edition.label) ».")
         }
@@ -389,18 +405,23 @@ final class QuranDisplayTests: XCTestCase {
     /// quatre clés proposées sont des `QuranEdition` que `displayed(stored:)`
     /// sait résoudre.
     ///
-    /// Les trois éditions non disponibles retombent sur le Coran de Médine —
+    /// Les **deux** éditions non disponibles retombent sur le Coran de Médine —
     /// c'est le repli voulu, et il n'est pas une réécriture de la préférence.
+    /// Elles étaient trois : « Lecture simplifiée » est lisible depuis que son
+    /// rendu existe, et elle se résout maintenant en **elle-même**.
     func testEveryProposedKeyIsUnderstoodByTheReader() {
         for key in QuranDisplayOptions.editionKeys {
             let resolved = QuranEdition.displayed(stored: key)
             XCTAssertTrue(resolved.isAvailable, "« \(key) » doit se résoudre en une édition lisible.")
         }
-        // Les trois que cette version ne sait pas rendre retombent sur Médine,
+        // Les deux que cette version ne sait pas rendre retombent sur Médine,
         // et la préférence stockée, elle, reste intacte.
-        for key in ["coranTest", "tajweed"] {
+        for key in ["coranTest", "tajweedPages"] {
             XCTAssertEqual(QuranEdition.displayed(stored: key), QuranEdition.fallback)
             XCTAssertNotEqual(key, QuranEdition.fallback.rawValue)
         }
+        // Celle qui est lisible se résout en elle-même : c'est ce qui la rend
+        // atteignable par le lecteur, et donc rendable.
+        XCTAssertEqual(QuranEdition.displayed(stored: "tajweed"), .tajweed)
     }
 }

@@ -49,6 +49,7 @@
 //   annotations, 18 règles, 1 330 notes de traduction.
 
 import XCTest
+import SwiftUI
 @testable import Swiftdeepseek
 
 final class TajweedTests: XCTestCase {
@@ -307,12 +308,26 @@ final class TajweedTests: XCTestCase {
     /// Un fragment nu prend la couleur de **texte du thème**, que ce fichier ne
     /// connaît pas : elle est passée par l'écran. C'est la traduction de
     /// `` span.rule ? tajweedColor(span.rule) : colors.text `` (`MushafPage.tsx:39`).
+    ///
+    /// Le second cas passe par `Theme.color(hexString:)` : c'est le pont entre la
+    /// table des règles — qui reste une **chaîne**, comparable au fichier de
+    /// référence — et ce que l'écran peint. `TajweedListTests` épingle la
+    /// conversion des six couleurs ; ici, une seule, pour la règle du cas.
     func testABareSpanTakesTheThemeTextColor() {
         let nu = TajweedOptions.Span(text: "x", rule: nil)
-        XCTAssertEqual(TajweedOptions.color(of: nu, textColor: "#241C2B"), "#241C2B")
+        XCTAssertEqual(
+            TajweedOptions.color(of: nu, textColor: Theme.white.text),
+            Theme.white.text
+        )
 
+        guard let attendu = Theme.color(hexString: "#B45375") else {
+            return XCTFail("« #B45375 » doit se convertir en couleur")
+        }
         let colore = TajweedOptions.Span(text: "x", rule: "madd_2")
-        XCTAssertEqual(TajweedOptions.color(of: colore, textColor: "#241C2B"), "#B45375")
+        XCTAssertEqual(
+            TajweedOptions.color(of: colore, textColor: Theme.white.text),
+            attendu
+        )
     }
 
     // MARK: - `frenchVerse(id)` et la note de bas de verset

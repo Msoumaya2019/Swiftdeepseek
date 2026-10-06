@@ -81,18 +81,39 @@ public struct ReaderView: View {
             // ZONE DE PAGE : tout l'espace qui reste. C'est elle qui centre.
             ZStack {
                 model.palette.cream
-                MushafPageController(
-                    page: $page,
-                    edition: edition,
-                    source: model.sources,
-                    difficulty: difficultIDs,
-                    bookmarks: bookmarkIDs,
-                    playing: model.audio.currentVerseID,
-                    session: readerSession,
-                    style: VerseHighlightStyle.from(model.palette),
-                    onPageChange: { _ in }
-                )
-                .accessibilityLabel("Moushaf, page \(page)")
+                // TROISIÈME FORME DU CORPS — l'édition « Lecture simplifiée »
+                // n'est pas une page.
+                //
+                // Les deux autres éditions rendues ici sont des images : une page,
+                // un rectangle, et un `UIPageViewController` qui les fait glisser.
+                // « Lecture simplifiée » rend le **texte** des versets, en cartes
+                // qui défilent (`MushafPage.tsx:34-43`, `App.tsx:499`). Elle ne
+                // peut donc pas passer par le contrôleur de pages : c'est la seule
+                // raison de cette branche, et la seule édition qui l'emprunte.
+                if edition == .tajweed {
+                    TajweedVerseListView(
+                        page: page,
+                        language: .arabic,
+                        playing: model.audio.currentVerseID,
+                        difficulty: difficultIDs,
+                        bookmarks: bookmarkIDs,
+                        session: readerSession,
+                        palette: model.palette
+                    )
+                } else {
+                    MushafPageController(
+                        page: $page,
+                        edition: edition,
+                        source: model.sources,
+                        difficulty: difficultIDs,
+                        bookmarks: bookmarkIDs,
+                        playing: model.audio.currentVerseID,
+                        session: readerSession,
+                        style: VerseHighlightStyle.from(model.palette),
+                        onPageChange: { _ in }
+                    )
+                    .accessibilityLabel("Moushaf, page \(page)")
+                }
             }
             .frame(maxWidth: .infinity, maxHeight: .infinity)
 

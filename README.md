@@ -200,7 +200,7 @@ Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blo
 **328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
 tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
 au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
-déclare aujourd'hui **527**, répartis sur **vingt-quatre** fichiers. Le bloc des trois
+déclare aujourd'hui **542**, répartis sur **vingt-cinq** fichiers. Le bloc des trois
 cartes du profil en a ajouté **six** (416 → 422), mesurés au run n° 65 ; celui des
 marque-pages **trente-deux** (422 → 454) — vingt-deux sur le modèle et l'écran, dix sur
 la traduction d'un verset en page ; celui de la **liste des sourates** **quarante-huit**
@@ -209,8 +209,12 @@ la garde de la requête vide — trouvée par l'intégration continue, pas par l
 la pagination d'une division, la progression et les libellés ; celui du **Tajweed**
 **vingt-cinq** (502 → 527) — l'unité de comptage en points de code et non en graphèmes,
 la fusion par égalité de règle, le contre-exemple du fragment unique *coloré*, les six
-branches de couleur, et la note de bas de verset qui vaut `""` sur 4 906 lignes. Le
-prochain run les mesurera.
+branches de couleur, et la note de bas de verset qui vaut `""` sur 4 906 lignes ; et
+celui du **rendu de la Lecture simplifiée**, **quinze** de plus (527 → 542) — les deux
+rouges distincts de la carte, l'ordre des états de fond, la traduction du `lineHeight`
+absolu en `lineSpacing` additif, le rail de séance d'une liste qui n'est pas celui de la
+marge, et l'édition enfin **offerte** parce que ses données sont là. Le prochain run les
+mesurera.
 
 Et le run n° **69** a rappelé à quoi sert ce compte : il est **tombé**, non sur un test
 rouge mais sur une **erreur de type** — `Tests/TajweedTests.swift` lisait `verse?.surah`
@@ -219,6 +223,11 @@ quatre outils locaux — équilibre des délimiteurs, cohérence des types, banc
 lisent tous du **texte** et n'en pouvaient rien dire : **un banc qui lit du texte ne prouve
 rien de la compilation**. Le compte de 527 annoncé plus haut n'a donc pas été *mesuré* au
 n° 69, seulement *prédit*.
+
+Le run n° **70** (`baa294e`), qui porte le correctif de cette erreur de type, l'a ensuite
+**mesuré** : `Executed 527 tests, with 1 test skipped and 0 failures`. La prédiction se
+vérifie — mais c'est la **mesure** qui compte, et elle est venue d'un run, pas d'un
+raisonnement.
 
 Le run n° 52, lui, ne portait qu'un compte **déduit** : l'artefact publié est
 l'**IPA seul** — aucun résultat de tests — et `gh` n'était alors pas authentifié dans
