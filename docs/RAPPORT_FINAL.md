@@ -1562,6 +1562,11 @@ faute de type (le run n° 69 avant lui). La réparation est un **troisième term
 (`?? 1`, le repli de `zipVersePage`), et le contrôle qui garde cette forme est **entré au banc**
 (gardé par **M24**, qui reproduit exactement le retrait du troisième terme).
 
+Deux runs, deux verdicts : le **n° 78** (`cf52fd0`) est **rouge** à la compilation —
+`cannot assign value of type 'Int?' to type 'Int'`, **aucun test exécuté** ; le **n° 79**
+(`032038c`), sur la correction, passe les **15 / 15** étapes et son journal porte
+`Executed 637 tests, with 1 test skipped and 0 failures` — exactement le compte **prédit**.
+
 Banc : `_banc/verifier-surah-picker.mjs` — **56 vérifications**, six sections, dont celle qui
 rejoue les **43** saisies de part et d'autre de l'oracle, et celle qui exige le repli terminal.
 Falsificateur : **24 mutations**, **0 survivante, 0 à côté**. Tests : **611 → 637**, dont **26** dans
