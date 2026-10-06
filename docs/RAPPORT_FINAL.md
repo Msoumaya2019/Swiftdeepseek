@@ -1252,12 +1252,20 @@ paginées, et c'est **fidèle** — `isZipSource` ne vaut que pour `coran_1441`
 (`quranSources.ts:6`), donc l'original retombe aussi sur `pageOf(id)`. Un contrôle du banc
 compare les deux sources pour figer cet accord, plutôt que de « corriger » un portage juste.
 
-`_banc/verifier-tajweed.mjs` compte **117** vérifications — les douze bancs antérieurs
-rejoués — et `_banc/falsifier-tajweed.mjs` éprouve **28** mutations : toutes tuées, arbre
+`_banc/verifier-tajweed.mjs` compte **120** vérifications — les douze bancs antérieurs
+rejoués — et `_banc/falsifier-tajweed.mjs` éprouve **29** mutations : toutes tuées, arbre
 rendu intact. Tests : **502 → 527**, dont **25** pour `Tests/TajweedTests.swift`. Ce banc
 **ne prouve pas** le comportement du portage — il rejoue l'original en JavaScript —, et son
 en-tête le dit : ce qui reste au flux, c'est l'exécution des 25 tests. Récit complet en
 `SWIFT_MIGRATION.md` §9.30.
+
+Le premier run de ce bloc, le n° **69**, est d'ailleurs tombé — non sur un test rouge, mais
+sur une **erreur de type** que rien en local ne pouvait voir : `Tests/TajweedTests.swift`
+lisait `verse?.surah` sur le tuple de `TajweedOptions.verse(_:)`, qui ne porte que `text` et
+`annotations`. C'est le pendant de §9.29 : un banc qui rejoue l'original ne prouve rien du
+portage, et **un banc qui lit du texte ne prouve rien de la compilation**. Le run n° 69 est
+donc aussi la démonstration que la seule autorité sur la compilation reste
+`.github/workflows/ios.yml`.
 
 ## 13. Problèmes rencontrés
 

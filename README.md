@@ -212,6 +212,14 @@ la fusion par égalité de règle, le contre-exemple du fragment unique *coloré
 branches de couleur, et la note de bas de verset qui vaut `""` sur 4 906 lignes. Le
 prochain run les mesurera.
 
+Et le run n° **69** a rappelé à quoi sert ce compte : il est **tombé**, non sur un test
+rouge mais sur une **erreur de type** — `Tests/TajweedTests.swift` lisait `verse?.surah`
+sur le tuple de `TajweedOptions.verse(_:)`, qui ne porte que `text` et `annotations`. Les
+quatre outils locaux — équilibre des délimiteurs, cohérence des types, banc, falsificateur —
+lisent tous du **texte** et n'en pouvaient rien dire : **un banc qui lit du texte ne prouve
+rien de la compilation**. Le compte de 527 annoncé plus haut n'a donc pas été *mesuré* au
+n° 69, seulement *prédit*.
+
 Le run n° 52, lui, ne portait qu'un compte **déduit** : l'artefact publié est
 l'**IPA seul** — aucun résultat de tests — et `gh` n'était alors pas authentifié dans
 la session de mesure. La déduction s'adossait à une **mesure** — le run n° 50 a mesuré

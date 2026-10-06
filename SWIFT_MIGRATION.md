@@ -2340,7 +2340,44 @@ Coran de Médine, et c'est cette page qui choisit la plage de versets affichée
 (`MushafPage.tsx:31`). Un contrôle du banc compare les deux sources pour figer cet
 accord, plutôt que de « corriger » un portage qui était juste.
 
-Banc : `_banc/verifier-tajweed.mjs` — **117 vérifications**, 0 échec, les **douze**
-bancs antérieurs rejoués. Falsificateur : `_banc/falsifier-tajweed.mjs` — **28
+#### Le run n° 69 est tombé, sur une faute de type qu'aucun banc ne pouvait voir
+
+La poussée du bloc a produit le run n° **69** : `failure` en **2 min 5 s**, l'étape « Jouer
+les tests » rouge. Ce n'était **pas** un test qui échouait — c'était la **compilation** du
+fichier de test. Deux erreurs, lignes 209 et 210 de `Tests/TajweedTests.swift` :
+
+```
+error: value of tuple type '(text: String, annotations: [TajweedOptions.Annotation])' has no member 'surah'
+error: value of tuple type '(text: String, annotations: [TajweedOptions.Annotation])' has no member 'ayah'
+```
+
+Le test lisait `verse?.surah` sur le tuple que rend `TajweedOptions.verse(_:)`, lequel ne porte
+que `text` et `annotations`. Les coordonnées d'un verset vivent dans la table du Coran, et
+c'est là que `verseLabel` les prend déjà : la correction lit `Quran.verses[versetFusionne - 1]`
+— aucune API ajoutée, contrat du modèle inchangé.
+
+C'est le pendant exact de la leçon de §9.29. Là, un banc qui **rejoue l'original** ne prouve
+rien du portage ; ici, **un banc qui lit du texte ne prouve rien de la compilation**. Les
+quatre outils locaux — `equilibre-delimiteurs`, `coherence-swift`, `verifier-tajweed`,
+`falsifier-tajweed` — lisent tous du **texte** : ils comptent des délimiteurs, des noms de
+types, des lignes de données. Aucun ne type-vérifie, et une faute de **type** n'a aucune
+signature textuelle. Le banc était donc vert — ses **120** contrôles — pendant que le code ne
+compilait pas. La seule autorité reste `.github/workflows/ios.yml`.
+
+Corollaire, et il vaut pour tout ce document : le compte de **527** tests que le banc annonçait
+n'a **pas** été mesuré au n° 69, l'exécution s'étant arrêtée avant. Une **prédiction** n'est pas
+une mesure, même quand elle se vérifie ensuite.
+
+**La garde ajoutée, et ce qu'elle avoue.** Le banc porte maintenant un contrôle **proxy** :
+dans `Tests/TajweedTests.swift`, toute ligne lisant `.surah` ou `.ayah` doit la lire sur
+`TajweedOptions.translation(…)` ou sur `Quran.verses`. Il ne type-vérifie pas — il dit où il
+s'arrête : ce sont les deux seules **sources** de coordonnées admises dans ce fichier. Deux
+contrôles l'encadrent : l'un épingle la **forme du tuple** (`text: String, annotations:
+[Annotation]`), pour que le proxy rougisse le jour où `verse(_:)` porterait `surah` au lieu de
+survivre en silence ; l'autre vérifie qu'il **n'est pas vide** (quatre lignes concernées).
+Mutation **M29** ajoutée pour l'éprouver : elle réintroduit `verse?.surah`, et le proxy la tue.
+
+Banc : `_banc/verifier-tajweed.mjs` — **120 vérifications**, 0 échec, les **douze**
+bancs antérieurs rejoués. Falsificateur : `_banc/falsifier-tajweed.mjs` — **29
 mutations**, toutes tuées, arbre rendu intact. Tests : **502 → 527**, dont **25** pour
 `Tests/TajweedTests.swift`.

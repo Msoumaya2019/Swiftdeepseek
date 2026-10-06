@@ -206,8 +206,8 @@ final class TajweedTests: XCTestCase {
     func testThreeAdjacentAnnotationsOfTheSameRuleBecomeOneSpan() {
         let verse = TajweedOptions.verse(versetFusionne)
         XCTAssertEqual(verse?.annotations.count, 3)
-        XCTAssertEqual(verse?.surah, 42)
-        XCTAssertEqual(verse?.ayah, 2)
+        XCTAssertEqual(Quran.verses[versetFusionne - 1].surah, 42)
+        XCTAssertEqual(Quran.verses[versetFusionne - 1].ayah, 2)
 
         let fragments = TajweedOptions.spans(versetFusionne)
         XCTAssertEqual(fragments.count, 1)
