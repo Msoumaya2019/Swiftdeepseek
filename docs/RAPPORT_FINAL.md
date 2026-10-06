@@ -1304,8 +1304,18 @@ Elles ont été **retournées**, pas supprimées. Le contrôle des appelants, lu
 révélé un défaut du contrôle lui-même, `path.relative` rendant des **antislashs** sous Windows,
 invisible tant que le contrôle ne comparait qu'un nombre.
 
-`_banc/verifier-tajweed.mjs` compte **137** vérifications — les douze bancs antérieurs
-rejoués — et `_banc/falsifier-tajweed.mjs` éprouve **35** mutations : toutes tuées, arbre
+**Le run n° 71 est tombé, et sur une règle que le banc POUVAIT voir.** L'erreur unique —
+`extra argument 'minHeight' in call`, à `TajweedVerseListView.swift:294` — venait d'un
+appel `.frame(width:minHeight:alignment:)`, **surcharge qui n'existe pas** : `frame` en a
+deux, `width`/`height` et la famille `minWidth`…`maxHeight`, et jamais un mélange. C'est une
+faute d'**API**, et sa règle est purement **syntaxique** : un appel qui porte `width:` *et*
+`minHeight:` ne peut pas compiler, et cela se **lit**. Le banc porte donc désormais ce
+contrôle, sur **tout le projet** — 90 appels `frame(…)` analysés. La frontière tracée au
+n° 69 se précise : ce n'est pas « le texte ne peut rien dire de la compilation », c'est
+« le texte dit ce qui a une **signature** textuelle ». Un type n'en a pas ; une surcharge, si.
+
+`_banc/verifier-tajweed.mjs` compte **139** vérifications — les douze bancs antérieurs
+rejoués — et `_banc/falsifier-tajweed.mjs` éprouve **36** mutations : toutes tuées, arbre
 rendu intact. Tests : **502 → 527 → 542**, dont **25** pour `Tests/TajweedTests.swift` et
 **15** pour `Tests/TajweedListTests.swift`. Ce banc **ne prouve pas** le comportement du portage —
 il rejoue l'original en JavaScript —, et son en-tête le dit : ce qui reste au flux, c'est

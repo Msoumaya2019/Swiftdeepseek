@@ -291,7 +291,13 @@ struct TajweedVerseListView: View {
             pied
         }
         .padding(12)
-        .frame(width: largeur, minHeight: hauteur, alignment: .top)
+        // `frame(width:minHeight:alignment:)` N'EXISTE PAS. `frame` a deux
+        // surcharges : `width`/`height` d'un côté, la famille
+        // `minWidth`/`idealWidth`/`maxWidth`/`minHeight`/`idealHeight`/`maxHeight`
+        // de l'autre — et jamais un mélange. La largeur est donc FIXÉE par
+        // `minWidth == maxWidth`, et la hauteur seulement PLANCHER par
+        // `minHeight` : c'est `width` + `minHeight` de l'original.
+        .frame(minWidth: largeur, maxWidth: largeur, minHeight: hauteur, alignment: .top)
         .background(palette.soft, in: RoundedRectangle(cornerRadius: 9))
         // Le repère est posé APRÈS la mise en page : c'est la boîte de la liste
         // entière — remplissage compris — que les cartes mesurent, et c'est elle

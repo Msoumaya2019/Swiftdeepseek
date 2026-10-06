@@ -2493,10 +2493,37 @@ chaîne vide échoue pour la **mauvaise raison**), et la qualification des deux 
 `TajweedOptions.ornament)` / `TajweedOptions.ornamentGap)` — le premier est un **préfixe**
 du second, donc un repère nu aurait été satisfait par la mauvaise constante.
 
+#### Le run n° 71 est tombé, sur une règle d'API que le texte POUVAIT voir
+
+La poussée du bloc a produit le run n° **71** : `failure` en **57 s**, l'étape
+« Compiler (simulateur) » rouge, une **seule** erreur —
+
+```
+error: extra argument 'minHeight' in call
+```
+
+`TajweedVerseListView.swift:294` écrivait `.frame(width: largeur, minHeight: hauteur,
+alignment: .top)`. Or **cette surcharge n'existe pas** : `frame` en a deux, `width`/`height`
+et la famille `minWidth`/`idealWidth`/`maxWidth`/`minHeight`/`idealHeight`/`maxHeight` —
+et jamais un mélange. La correction fixe la largeur par `minWidth == maxWidth` et la
+hauteur seulement **plancher** par `minHeight` : c'est exactement `width` + `minHeight` de
+l'original. Neuf étapes sur quatorze étaient vertes avant celle-ci, dont celle qui vérifie
+que la configuration Supabase atteint la compilation — le défaut était bien unique.
+
+Ce run vaut par ce qu'il apprend sur la **frontière** tracée au n° 69. Là, une faute de
+**type** n'avait aucune signature textuelle, et le banc ne pouvait rien en dire. Ici la faute
+est d'**API**, et sa règle est **purement syntaxique** : un appel qui porte `width:` *et*
+`minHeight:` ne peut pas compiler, et cela se **lit**. Le banc porte donc désormais ce
+contrôle, sur **tout le projet** — 90 appels `frame(…)` analysés —, avec le témoin de
+non-vacuité qui l'accompagne. La leçon se précise : ce n'est pas « le texte ne peut rien dire
+de la compilation », c'est « le texte dit ce qui a une **signature** textuelle ». Un type
+n'en a pas ; une surcharge, si.
+
 #### Les nombres
 
-Banc : `_banc/verifier-tajweed.mjs` — **137 vérifications**, 0 échec, les **douze** bancs
-antérieurs rejoués. Falsificateur : `_banc/falsifier-tajweed.mjs` — **35 mutations**, dont
-**six** ajoutées ici (M30 le routage, M31 le défilement, M32 l'ornement, M33 un test
-retiré, M34 le type de retour, M35 la condition de présence), toutes tuées, arbre rendu
-intact. Tests : **527 → 542**, dont **15** pour `Tests/TajweedListTests.swift`.
+Banc : `_banc/verifier-tajweed.mjs` — **139 vérifications**, 0 échec, les **douze** bancs
+antérieurs rejoués. Falsificateur : `_banc/falsifier-tajweed.mjs` — **36 mutations**, dont
+**sept** ajoutées ici (M30 le routage, M31 le défilement, M32 l'ornement, M33 un test
+retiré, M34 le type de retour, M35 la condition de présence, M36 la surcharge `frame`),
+toutes tuées, arbre rendu intact. Tests : **527 → 542**, dont **15** pour
+`Tests/TajweedListTests.swift`.
