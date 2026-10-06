@@ -620,9 +620,16 @@ public struct ReaderView: View {
     /// exactement le défaut que `QuranSourceNavigation.versePage` répare, et il
     /// est mesuré — **56 versets sur 6 236** changent de première page entre le
     /// Coran de Médine et le 1441.
+    ///
+    /// Les DEUX appels rendent `Int?`, et le repli terminal est **page 1** :
+    /// c'est celui de `zipVersePage` (`pages.first ?? 1`), le seul cas où
+    /// `versePage` rend `nil` — un verset absent des deux index, inatteignable
+    /// puisque **les 6 236 y figurent**. Le dire ici plutôt que d'écrire un `!`
+    /// qui ferait tomber l'application le jour où l'index changerait.
     private func showPage(_ verseID: Int) {
         page = QuranSourceNavigation.versePage(edition, verseID: verseID)
             ?? Quran.pageOf(verseID)
+            ?? 1
     }
 
     private var editionPicker: some View {

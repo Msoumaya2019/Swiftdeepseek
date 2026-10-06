@@ -1547,9 +1547,24 @@ révélait. C'est la **deuxième** fois qu'un falsificateur tué en pleine mutat
 mutée. Après arrêt de la campagne et restauration du fichier, les **17** bancs retournent vert
 **et déterministes**.
 
-Banc : `_banc/verifier-surah-picker.mjs` — **55 vérifications**, six sections, dont celle qui
-rejoue les **43** saisies de part et d'autre de l'oracle. Falsificateur : **23 mutations**,
-**0 survivante, 0 à côté**. Tests : **611 → 637**, dont **26** dans
+**Le banc ne type-vérifie pas, et le run n° 78 l'a montré.** Poussé sous `cf52fd0`, il s'arrête
+à « Compiler (simulateur) » sur une **faute de type** — les trois étapes suivantes non jouées,
+donc aucun test exécuté :
+
+```
+ReaderView.swift:625:13: error: cannot assign value of type 'Int?' to type 'Int'
+```
+
+`showPage` enchaînait `versePage(...) ?? pageOf(...)` : **les deux rendent `Int?`**, donc le `??`
+rend `Int?` et l'affectation à `page: Int` est refusée. Le banc relisait le **texte** du corps,
+y voyait les deux appels, et **verdissait** — deuxième fois qu'un banc vert laisse passer une
+faute de type (le run n° 69 avant lui). La réparation est un **troisième terme non optionnel**
+(`?? 1`, le repli de `zipVersePage`), et le contrôle qui garde cette forme est **entré au banc**
+(gardé par **M24**, qui reproduit exactement le retrait du troisième terme).
+
+Banc : `_banc/verifier-surah-picker.mjs` — **56 vérifications**, six sections, dont celle qui
+rejoue les **43** saisies de part et d'autre de l'oracle, et celle qui exige le repli terminal.
+Falsificateur : **24 mutations**, **0 survivante, 0 à côté**. Tests : **611 → 637**, dont **26** dans
 `Tests/SurahPickerTests.swift`. Le compte global a changé de détenteur à trois reprises —
 `source-navigation → porte-auth → surah-picker` — et un contrôle **durable** (la **propriété** :
 un seul banc calcule, les autres citent) remplace désormais la citation d'un nombre. Détail :
