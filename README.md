@@ -200,7 +200,7 @@ Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blo
 **328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
 tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
 au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
-déclare aujourd'hui **611**, répartis sur **vingt-sept** fichiers. Le bloc des trois
+déclare aujourd'hui **637**, répartis sur **vingt-huit** fichiers. Le bloc des trois
 cartes du profil en a ajouté **six** (416 → 422), mesurés au run n° 65 ; celui des
 marque-pages **trente-deux** (422 → 454) — vingt-deux sur le modèle et l'écran, dix sur
 la traduction d'un verset en page ; celui de la **liste des sourates** **quarante-huit**
@@ -249,6 +249,18 @@ du **mode** — six caractères pour créer un compte, la seule non-vacuité pou
 en **unités UTF-16** comme partout ailleurs. La porte **s'ouvre sur un choix** — trois
 boutons, dont « Réessayer la restauration de ma session », celui qu'un portage « propre »
 perdrait. Voir §9.34.
+
+Et le **sélecteur de sourate** — `Core/SurahPickerOptions.swift` et
+`Features/Quran/SurahPickerView.swift` — **vingt-six** de plus (611 → 637) : la feuille
+qui s'ouvre **depuis le lecteur**, et non l'onglet Coran. Sa règle de page est un
+`Number(...)` suivi de `Number.isInteger` — et `Number` **n'est pas** `parseInt` :
+`'  12  '` vaut 12, `'0007'` vaut 7, `'+5'` vaut 5, et `''` vaut **0**, donc refusé
+comme le `0` saisi. L'oracle **extrait** le prédicat du fichier et l'évalue ; il a
+d'ailleurs **menti une fois** — `page > 604` cherché là où le fichier écrit
+`page>604`, sans espaces — et l'expression extraite était **vide**. Deux divergences
+sont **nommées** plutôt que tues : `Number('1e2')` vaut 100 et `Number('0x10')` vaut 16,
+que `Int` refuse ; elles sont **hors d'atteinte**, le champ portant un pavé numérique.
+Voir §9.35.
 
 Et le run n° **69** a rappelé à quoi sert ce compte : il est **tombé**, non sur un test
 rouge mais sur une **erreur de type** — `Tests/TajweedTests.swift` lisait `verse?.surah`

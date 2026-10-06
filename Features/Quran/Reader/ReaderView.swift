@@ -33,6 +33,7 @@ public struct ReaderView: View {
     @State private var showAudio = false
     @State private var showAudioSettings = false
     @State private var showEditionPicker = false
+    @State private var showSurahPicker = false
     @State private var showBookmarks = false
     @State private var chromeHeight: CGFloat = 0
 
@@ -124,6 +125,7 @@ public struct ReaderView: View {
         .ignoresSafeArea(edges: .bottom)
         .onDisappear { model.recordReading(page: page) }
         .sheet(isPresented: $showEditionPicker) { editionPicker }
+        .sheet(isPresented: $showSurahPicker) { surahPicker }
         .sheet(isPresented: $showAudioSettings) {
             AudioRepeatSettingsView(
                 sessionRange: audioSessionRange,
@@ -216,6 +218,19 @@ public struct ReaderView: View {
                     .font(.system(size: 17))
             }
             .accessibilityLabel("Changer d'édition")
+
+            // Le chemin de l'original passe par le panneau d'options de séance
+            // (`onSurah` → `setSurahPicker(true)`, `App.tsx:514`) — `ReaderMoreSheet`,
+            // non porté. Le sélecteur doit être atteignable malgré tout : il est
+            // donc posé ici, et la ligne ⬜ du panneau le reprendra quand elle
+            // s'ouvrira, sans rien changer à cet écran.
+            Button {
+                showSurahPicker = true
+            } label: {
+                Image(systemName: "text.book.closed")
+                    .font(.system(size: 17))
+            }
+            .accessibilityLabel(SurahPickerOptions.title)
 
             Button {
                 toggleBookmark()
@@ -548,6 +563,68 @@ public struct ReaderView: View {
     ///   une page **fausse** dans le Coran 1441, ce qui est pire que de laisser
     ///   l'ancienne édition à l'écran. La préférence est bien écrite, et
     ///   l'application React Native la relit.
+    /// Le sélecteur de sourate, monté comme la feuille de l'original.
+    ///
+    /// LES CINQ GESTES DE `onSelect` (`App.tsx:517`)
+    ///   La liste est longue et chacun compte :
+    ///     `stopActiveAudio()`      → `model.audio.stop()`
+    ///     `setPlayingVerseId(null)` → l'état de lecture appartient à
+    ///                                 `AudioService.currentVerseID`, que
+    ///                                 `stop()` remet à `nil` — un seul appel
+    ///                                 couvre donc les deux premiers.
+    ///     `setAudioCommand(null)`  → il n'existe pas d'équivalent : l'original
+    ///                                 garde une file de commandes que la version
+    ///                                 Swift n'a pas (elle appelle directement le
+    ///                                 service). Rien à oublier.
+    ///     `setSelectedVerse(null)` → il n'existe pas non plus d'état « verset
+    ///                                 sélectionné » hors du verset joué.
+    ///     `setSessionPanel(null)` + `setSurahPicker(false)` → la feuille se
+    ///                                 ferme d'elle-même.
+    ///
+    ///   Les trois gestes sans équivalent ne sont pas des manques : ce sont des
+    ///   états que cette version n'a jamais eus.
+    ///
+    /// LES DEUX GESTES DE `onClose`
+    ///   `setSurahPicker(false)` puis `setSessionPanel('options')` — on revient
+    ///   au panneau d'options. Ce panneau n'est pas porté (`ReaderMoreSheet`) :
+    ///   la fermeture rend donc simplement la page, ce qui est le même effet
+    ///   visible tant que le panneau n'existe pas.
+    private var surahPicker: some View {
+        SurahPickerView(
+            currentSurah: Quran.surahAt(currentVerseID).number,
+            currentPage: page,
+            // `onPage={next=>{setSurahPicker(false);showPage(next);}}` — la
+            // feuille se ferme, PUIS la page change. L'ordre est observable :
+            // rester ouvert sur une page qui a changé derrière serait déroutant.
+            onPage: { next in
+                showSurahPicker = false
+                showPage(next)
+            },
+            onClose: { showSurahPicker = false },
+            onSelect: { surah in
+                model.audio.stop()
+                showSurahPicker = false
+                // `onChangeSurah(surah)` — le lecteur ouvre la première page de
+                // la sourate choisie, dans l'édition affichée.
+                showPage(surah.start)
+            }
+        )
+        .environmentObject(model)
+    }
+
+    /// `showPage` de l'original : la page d'un verset, **dans l'édition
+    /// affichée**, jamais un numéro brut posé dans `page`.
+    ///
+    /// `surah.start` est un identifiant de **verset**, pas une page : le poser
+    /// tel quel montrerait la page 1..114 au lieu de la sourate. C'est
+    /// exactement le défaut que `QuranSourceNavigation.versePage` répare, et il
+    /// est mesuré — **56 versets sur 6 236** changent de première page entre le
+    /// Coran de Médine et le 1441.
+    private func showPage(_ verseID: Int) {
+        page = QuranSourceNavigation.versePage(edition, verseID: verseID)
+            ?? Quran.pageOf(verseID)
+    }
+
     private var editionPicker: some View {
         NavigationStack {
             List {

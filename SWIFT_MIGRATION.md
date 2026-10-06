@@ -2802,3 +2802,181 @@ sans passer par `displayed()`. Inobservable aujourd'hui (`.coranTest` n'est jama
 `SurahListView` passe bien `model.edition`), mais le jour où la chaîne `.woff2` arrive, le
 portage divergerait de l'original. **Divergence délibérée, consignée** — pas un oubli.
 
+
+### 9.34 La porte d'accueil : un dossier vide qui ne l'était pas, et deux surfaces d'authentification qui se ressemblent
+
+`Features/Auth/` était **vide**, et ce vide ne voulait pas dire « fonctionnalité
+manquante » : l'écran de connexion vivait **à la racine de l'application**
+(`App/ContentView.swift`, `private struct SignInView`). C'est le premier défaut —
+un dossier qui a l'air d'attendre du code alors que le code est ailleurs, au
+mauvais endroit pour qui le cherche.
+
+Le second est plus grave, parce qu'il ne se voit pas : `SignInView` employait
+`ProfileOptions.canSignIn`, c'est-à-dire la règle de la **carte du profil**, tout
+en se présentant comme la **porte** de l'application. La référence porte bel et
+bien **deux surfaces d'authentification avec des règles différentes** :
+
+| Surface | Fichier | Règle |
+| --- | --- | --- |
+| La **porte** | `src/App.tsx:285` | `busy \|\| !email.includes('@') \|\| (mode==='signup' ? password.length<6 : !password)` |
+| La **carte du profil** | `src/App.tsx:322` | `busy \|\| !email \|\| !password` |
+
+La porte exige donc l'**arobase même pour se connecter**, et fait dépendre la
+longueur du mot de passe du **mode** : six caractères pour créer un compte, la
+seule non-vacuité pour se connecter. La carte, elle, se contente de la
+non-vacuité des deux champs. Le portage mélangeait les deux.
+
+Trois autres faits, tous mesurés :
+
+- **La porte s'ouvre sur un CHOIX.** `mode` est initialisé à `null`
+  (`App.tsx:260`), et **trois** boutons se rendent tant qu'il l'est : « Se
+  connecter », « Créer mon compte », et « Réessayer la restauration de ma
+  session ». Ce troisième est ce qu'un portage « propre » perd — il ne
+  correspond à aucun écran, seulement à une reprise.
+- **Les boutons secondaires sont conditionnels.** « Mot de passe oublié »
+  n'existe qu'en connexion ; « Renvoyer la confirmation » n'existe qu'en
+  inscription **et seulement après qu'un message a été écrit**. Les confondre
+  ferait apparaître deux actions impossibles.
+- **Le mot de passe se compte en unités UTF-16.** `password.length` en
+  JavaScript compte les unités, pas les graphèmes : **trois emoji valent six
+  unités**, et arment l'inscription. Le test le dit par la mesure —
+  `troisEmoji.count == 3` **et** `passwordLength(troisEmoji) == 6`.
+
+#### L'oracle, et quatre contrôles qui ne mordaient pas
+
+`_banc/oracle-auth-gate.mjs` **extrait** les deux expressions `disabled={…}` du
+texte de `App.tsx` et les **évalue** — il ne recopie pas la règle. Sur 100
+décisions, le portage et l'original s'accordent ; ils divergent sur **14** cas,
+qui sont exactement la frontière entre les deux surfaces.
+
+Le banc a d'abord laissé **six mutations survivantes**, chacune révélant un
+contrôle qui ne mordait pas :
+
+1. une borne `[\s\S]{0,600}` après `func canSubmit` **débordait sur la
+   fonction suivante**, qui portait le même test — lire le **corps**, borné ;
+2. la divergence avec `ProfileOptions.canSignIn` n'était affirmée par **aucun**
+   contrôle — en ajouter un qui lise le corps de `canSignIn` ;
+3. un contrôle relisait le **type** `Mode?` au lieu de la **déclaration** : une
+   valeur initiale `.login` le laissait vert ;
+4. un **compte** ne voit ni un renommage ni une assertion changée — épingler le
+   **nom** du test et la **ligne** d'assertion ;
+5. la garde d'unicité de l'oracle ne se déclenche jamais sur `App.tsx` : un
+   contrôle du seul résultat ne peut pas voir qu'on l'a retirée — lire la
+   **garde** dans le texte de l'oracle.
+
+Et un cinquième défaut, dans l'outillage du banc lui-même : `codeSwift` ouvrait
+un littéral de caractère sur **toute apostrophe droite**, alors que les fichiers
+du portage sont pleins d'apostrophes **typographiques** (`’`). Une apostrophe
+**non appariée** faisait glisser tout le fichier en « état chaîne », où les
+commentaires n'étaient **plus** retirés — et un commentaire citant
+`AuthGateOptions.canSubmit` suffisait alors à satisfaire un contrôle sur
+l'appel. On sort désormais d'un littéral sur un **saut de ligne**, et un `’`
+n'ouvre jamais rien.
+
+#### Les nombres
+
+- **17** tests ajoutés (`Tests/AuthGateTests.swift`), **594 → 611**.
+- `_banc/verifier-porte-auth.mjs` : **42** vérifications.
+- `_banc/falsifier-porte-auth.mjs` : **18** mutations, **0 survivante**.
+
+### 9.35 Le sélecteur de sourate : `Number` n'est pas `parseInt`, et un oracle qui a menti
+
+`src/SurahPicker.tsx` fait **18 lignes**, et ce n'est pas l'onglet Coran : c'est
+une **feuille modale posée sur le lecteur** (`Modal presentationStyle="pageSheet"`),
+ouverte depuis le panneau d'options de séance (`App.tsx:514`). Sa règle tient en
+une ligne, `goPage` (`:11`) :
+
+```js
+const page = Number(pageText);
+if (!Number.isInteger(page) || page < 1 || page > 604) { Alert.alert('Page invalide', …); return; }
+```
+
+**`Number` n'est pas `parseInt`, et le portage doit le savoir.** Relevé sur
+dix-neuf saisies, mesuré et non supposé :
+
+| Saisie | `Number(...)` | Décision |
+| --- | --- | --- |
+| `'  12  '` | 12 | accepté — les espaces extérieurs sont tolérés |
+| `'0007'` | 7 | accepté |
+| `'+5'` | 5 | accepté |
+| `''` / `' '` | 0 | **refusé** — `0 < 1` |
+| `'605'` | 605 | refusé |
+| `'3.5'` | 3.5 | refusé — `Number.isInteger(3.5)` est faux |
+| `'abc'`, `'nan'`, `'inf'` | `NaN` | refusé |
+| `'1e2'` | 100 | **accepté** |
+| `'0x10'` | 16 | **accepté** |
+
+`Int("1e2")` et `Int("0x10")` rendent `nil` en Swift : **deux divergences
+réelles**. Elles sont **nommées dans le portage** plutôt que tues, et elles sont
+**hors d'atteinte** : le champ porte `keyboardType="number-pad"`, un pavé qui
+n'offre que les dix chiffres — ni `e`, ni `x`, ni `.`, ni `,`, ni `+`, ni `-`.
+Sur tout ce qui est atteignable, les deux décisions s'accordent.
+
+Les deux autres règles sont plus discrètes :
+
+- **`initialScrollIndex={Math.max(0, currentSurah-1)}`** (`:15`). Le `max` n'est
+  pas décoratif : `currentSurah` peut valoir `0`, et l'indice vaudrait alors
+  `-1` — que `FlatList` refuse.
+- **`{onPage && …}`** : la ligne de saut n'existe que si l'appelant fournit
+  `onPage`. C'est la propriété **optionnelle** du type de la référence, et elle
+  décide d'une ligne entière de l'interface.
+
+#### L'oracle a menti une fois, et c'est la mesure qui l'a dit
+
+`_banc/oracle-surah-picker.mjs` **extrait** le prédicat du fichier et l'évalue.
+La première version le cherchait par sa **forme lettrée** — `page > 604` — alors
+que le fichier écrit `page>604`, **sans espaces**. `indexOf` a rendu `-1`, et
+l'expression extraite est sortie **vide** : l'oracle lisait l'espacement
+**attendu**, pas celui du fichier. Un banc qui aurait comparé des décisions
+contre une expression vide aurait pu rester vert pour la pire des raisons.
+
+L'ancrage est désormais par **structure** (`\s*`), le caractère d'ambiguïté est
+refusé explicitement, et **les deux lectures des bornes doivent s'accorder** —
+le prédicat en lit une, une fonction dédiée l'autre, et l'oracle **lève** si
+elles diffèrent.
+
+#### Le montage, et le geste qui compte
+
+`onSelect` (`App.tsx:517`) fait **cinq** gestes ; le premier est le seul
+audible : arrêter l'audio. Sans lui, le verset **précédent** continuerait de
+jouer sur la nouvelle page. Les quatre autres oublient un état que le portage
+n'a pas (file de commandes, verset sélectionné), ou ferment la feuille.
+
+`onPage`, lui, **ferme la feuille PUIS navigue** — et l'ordre est observable :
+rester ouvert sur une page qui a changé derrière serait déroutant.
+
+Et une règle de fond : `surah.start` est un identifiant de **verset**, pas une
+page. Le poser dans `page` montrerait la page 8 pour la sourate 2 — un défaut
+silencieux, visible, et faux. On passe par `showPage`, qui résout dans
+l'**édition affichée** (`QuranSourceNavigation.versePage`).
+
+#### Les pièges de banc, mesurés ici
+
+1. **Un contrôle qui cherche une chaîne n'importe où confond « la règle est là »
+   et « la chaîne est là ».** `has(reader, 'model.audio.stop()')` restait vert
+   après le retrait de l'appel — le nom survit ailleurs. Lire le **corps**.
+2. **L'ancre du corps doit désigner la DÉCLARATION, pas une mention.**
+   `corpsDe(reader, 'surahPicker', …)` prenait `showSurahPicker` dans les états
+   et rendait un corps **vide** : trois mutations mouraient « à côté » sur un
+   découpage faux.
+3. **Comparer des positions se fait dans le CODE, pas dans le texte.** Un
+   commentaire qui **cite** la ligne avant qu'elle n'existe faisait échouer
+   l'ordre sur un fichier **juste**.
+4. **Une ancre qui doit rester absente du fichier qui la cherche ne peut pas y
+   être écrite telle quelle.** Le contrôle du compte citait sa propre ancre, et
+   `codeJS` **garde les chaînes** : le banc se satisfaisait lui-même. L'ancre est
+   écrite **en pièces concaténées**.
+5. **Une mutation qui ne change rien n'accuse pas le banc.** M07 écrivait la
+   borne dans un **commentaire**, que `codeSwift` retire : la mutation était
+   invisible, et le survivant accusait le banc à tort. La mutation doit être du
+   **code**.
+
+#### Les nombres
+
+- **26** tests ajoutés (`Tests/SurahPickerTests.swift`), **611 → 637**.
+- `_banc/verifier-surah-picker.mjs` : **55** vérifications.
+- `_banc/falsifier-surah-picker.mjs` : **23** mutations, **0 survivante**, **0 à
+  côté**.
+- `verifier-source-navigation.mjs` passe de **43** à **44** : son contrôle de
+  passation citait un successeur **périmé deux fois** (`611`, puis `157`) ; il
+  vérifie désormais la propriété durable — **un seul** banc calcule le total.

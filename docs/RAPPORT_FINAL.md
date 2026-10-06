@@ -1506,6 +1506,55 @@ toutes tuées, arbre rendu intact. Tests : **594 → 611**, dont **17** dans
 `Tests/AuthGateTests.swift`. `verifier-ecran-profil.mjs` passe de **147** à **149** : ses deux
 contrôles qui interrogeaient la porte dans `ContentView` sont retournés.
 
+### Le sélecteur de sourate : `Number` n'est pas `parseInt`, et un oracle qui a menti
+
+Le sélecteur — ouvert depuis le lecteur pour changer de sourate ou sauter à une page — est
+porté : `Core/SurahPickerOptions.swift` tient les règles, `Features/Quran/SurahPickerView.swift`
+la feuille, montée par `ReaderView`.
+
+**Deux divergences réelles, nommées et déclarées inatteignables.** L'original valide la page
+avec `Number(...)` ; le portage avec `Int(...)`. Sur **19** saisies éprouvées, deux décisions
+diffèrent : `Number("1e2")` vaut `100` et `Number("0x10")` vaut `16` — acceptés — là où
+`Int("1e2")` et `Int("0x10")` valent `nil` en Swift — refusés. Les deux sont **inatteignables**
+(le champ est `keyboardType("number-pad")`, qui ne produit ni `e` ni `x`), et c'est la seule
+raison de les garder nommées plutôt que corrigées. Chaque divergence est **affirmée par un test
+qui la saisit par son nom**, pour qu'un futur lecteur ne les croie pas oubliées.
+
+Les autres saisies s'accordent : `"  12  "` et `"0007"` sont tolérées (`12`, `7`), `""` est
+refusé des deux côtés (`0`, hors intervalle / `nil`), et `"3.5"` est refusé des deux côtés — non
+entier pour `Number.isInteger`, non entier pour `Int`.
+
+**L'oracle extrait et évalue, il ne paraphrase pas.** `_banc/oracle-surah-picker.mjs` **extrait**
+le prédicat de `goPage` dans `SurahPicker.tsx` par sa **structure** (`\s*`), puis l'**évalue**.
+Trois gardes empêchent un oracle qui mentirait : une **unicité** (deux occurrences rendraient le
+choix arbitraire), une **concordance des bornes** (le prédicat doit citer `1` et `604`, les mêmes
+que celles trouvées ailleurs), et une **non-vacuité exigée du banc** — l'oracle doit **accepter ET
+refuser** : mesuré **29 acceptées, 14 refusées**, soit **43 décisions**.
+
+**Trois règles silencieuses.** `surah.start` est un **identifiant de verset**, pas une page : le
+poser dans `page` afficherait la **page 8** pour la sourate 2 — il passe par
+`QuranSourceNavigation.versePage(edition, verseID:)`. `Math.max(0, currentSurah - 1)` empêche
+l'indice `-1`, que `FlatList` rejette. Et la ligne de saut de page **n'existe que si l'appelant
+passe `onPage`** (`{onPage && …}`, une propriété optionnelle).
+
+**Un défaut dans les instruments, pas dans le portage.** Avant de livrer, les bancs sont devenus
+**non déterministes** : un **seul** échec, mais **différent** à chaque exécution — six exécutions
+de `verifier-liste-sourates.mjs`, six contrôles différents. La cause était une **campagne de
+falsification lancée en arrière-plan**, qui écrivait dans l'arbre pendant que les bancs le
+lisaient, et qui avait **laissé une mutation en place** : un test renommé en
+`skippedListModeRendersTheWholeMushafInOrder`, donc **jamais exécuté**, et que seul `git status`
+révélait. C'est la **deuxième** fois qu'un falsificateur tué en pleine mutation laisse la source
+mutée. Après arrêt de la campagne et restauration du fichier, les **17** bancs retournent vert
+**et déterministes**.
+
+Banc : `_banc/verifier-surah-picker.mjs` — **55 vérifications**, six sections, dont celle qui
+rejoue les **43** saisies de part et d'autre de l'oracle. Falsificateur : **23 mutations**,
+**0 survivante, 0 à côté**. Tests : **611 → 637**, dont **26** dans
+`Tests/SurahPickerTests.swift`. Le compte global a changé de détenteur à trois reprises —
+`source-navigation → porte-auth → surah-picker` — et un contrôle **durable** (la **propriété** :
+un seul banc calcule, les autres citent) remplace désormais la citation d'un nombre. Détail :
+`SWIFT_MIGRATION.md` §9.35.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a
