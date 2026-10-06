@@ -1472,6 +1472,40 @@ mutations**, toutes tuées. Tests : **585 → 594**, `QuranSourceNavigationTests
 **19**. Le compte global du dépôt vit désormais dans `verifier-source-navigation.mjs` ;
 `verifier-reconcile.mjs` passe de **158** à **157** et le dit.
 
+### La porte d'accueil : un dossier vide qui ne l'était pas
+
+`Features/Auth/` était **vide** — non parce que la fonctionnalité manquait, mais parce que
+l'écran était écrit **à la racine de l'application**, dans `App/ContentView.swift`. La porte
+est désormais `Features/Auth/AuthGateView.swift`, montée par `ContentView`, et sa règle vit
+dans `Core/AuthGateOptions.swift`.
+
+**La référence porte deux surfaces d'authentification qui se ressemblent et ne s'arment pas
+pareil.** La porte (`App.tsx:285`) exige l'arobase **même pour se connecter** ; la carte du
+profil (`:322`) s'en passe. Et la longueur du mot de passe dépend du **mode** : six caractères
+pour créer un compte, la seule non-vacuité pour se connecter — en **unités UTF-16**, comme
+partout dans ce projet. Sur **100 décisions** balayées, les deux surfaces **divergent sur 14
+cas**, et dans **tous**, la porte refuse ce que la carte accepte.
+
+Le portage précédent faisait exactement l'erreur que ce bloc ferme : l'écran de connexion
+employait `ProfileOptions.canSignIn` — la règle de la **carte** — tout en se présentant comme
+la porte, et n'offrait **aucun** chemin d'inscription. La porte **s'ouvre sur un choix** :
+trois boutons, dont « Réessayer la restauration de ma session », celui qu'un portage « propre »
+perdrait.
+
+**Quatre pièges de banc ont été mesurés en tuant les survivantes** : une fenêtre de lecture
+`[\s\S]{0,600}` qui débordait du corps de `canSubmit` vers sa voisine (qui contient le même
+test) ; une apostrophe typographique `’` qui faisait glisser tout l'analyseur en « état
+chaîne », où les commentaires ne sont plus retirés ; un contrôle qui relisait le **type**
+`AuthGateOptions.Mode?` là où une **valeur initiale** changeait la décision ; et un **compte**
+de tests qui ne voit ni un renommage ni une valeur d'assertion modifiée. Détail :
+`SWIFT_MIGRATION.md` §9.34.
+
+Banc : `_banc/verifier-porte-auth.mjs` — **42 vérifications** — avec un oracle qui **extrait
+et évalue** les deux `disabled={…}` réels de `App.tsx`. Falsificateur : **18 mutations**,
+toutes tuées, arbre rendu intact. Tests : **594 → 611**, dont **17** dans
+`Tests/AuthGateTests.swift`. `verifier-ecran-profil.mjs` passe de **147** à **149** : ses deux
+contrôles qui interrogeaient la porte dans `ContentView` sont retournés.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a
@@ -1639,7 +1673,12 @@ rangées dans l'écran des réglages « tant que la page Profil n'existe pas »,
 **réconciliation du document** (§12, `SWIFT_MIGRATION.md` §9.32) — `migrateReaderState`,
 `reconcileState` et `accountState` portés en **JSON brut**, la fonction qui décide laquelle
 des deux applications gagne sur le document partagé, et dont dépendait la fusion des
-marque-pages que §9.28 disait « jamais appelée ». Le **fond** et le **suivi audio** que cette carte
+marque-pages que §9.28 disait « jamais appelée », et la **porte d'accueil** (§12,
+`SWIFT_MIGRATION.md` §9.34) — l'écran qui décide si l'on entre, retrouvé **vide dans son
+dossier** parce qu'il était écrit à la racine, avec les **deux** surfaces d'authentification de
+l'original enfin distinguées : l'arobase exigée même pour se connecter, la longueur du mot de
+passe dépendant du **mode**, et le troisième bouton (« Réessayer la restauration de ma
+session ») qu'un portage « propre » perdrait. Le **fond** et le **suivi audio** que cette carte
 porte sont, eux, stockés, affichés et vérifiés mais **pas encore appliqués** :
 leurs seuls consommateurs dans l'original vivent dans l'édition rendue en WebView,
 absente de ce portage.*

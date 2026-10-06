@@ -24,7 +24,7 @@ public struct ContentView: View {
             // `MainTabView` : l'original le pose à la racine de son interface, et
             // c'est ce qui lui permet de survivre au changement de compte. Ici,
             // « Déconnecté. » s'affiche alors que `AuthGate` est déjà revenu à
-            // `SignInView` ; monté dans les onglets, il disparaîtrait avec eux.
+            // `AuthGateView` ; monté dans les onglets, il disparaîtrait avec eux.
             .overlay(alignment: .bottom) {
                 if let notice = model.notice, !notice.isEmpty {
                     NoticeToast(text: notice) { model.notice = nil }
@@ -54,7 +54,12 @@ private struct AuthGate: View {
                 case .checking:
                     SplashView()
                 case .signedOut:
-                    SignInView()
+                    // La porte vit dans `Features/Auth/AuthGateView.swift` : cet
+                    // écran est un écran comme les autres, et sa place est dans
+                    // son dossier. Il a été écrit ici à l'origine, ce qui laissait
+                    // `Features/Auth/` vide tout en faisant croire que l'écran
+                    // manquait.
+                    AuthGateView()
                 case .signedIn:
                     MainTabView()
                 }
@@ -113,130 +118,5 @@ private struct SplashView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(model.palette.cream)
-    }
-}
-
-// MARK: - Connexion
-
-private struct SignInView: View {
-
-    @EnvironmentObject private var model: AppViewModel
-
-    @State private var email = ""
-    @State private var password = ""
-    @State private var isWorking = false
-    @State private var message: String?
-    @State private var isError = false
-
-    var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
-                VStack(alignment: .leading, spacing: Theme.Spacing.xs) {
-                    Text("Coran Mémoire")
-                        .font(.system(size: Theme.Typography.screen, weight: .bold))
-                        .foregroundStyle(model.palette.green)
-                    Text("Connecte-toi avec ton compte habituel : tu retrouveras ta progression, tes révisions et tes amis.")
-                        .font(.system(size: Theme.Typography.secondary))
-                        .foregroundStyle(model.palette.muted)
-                }
-                .padding(.top, Theme.Spacing.section)
-
-                Card {
-                    VStack(alignment: .leading, spacing: Theme.Spacing.md) {
-                        Text("Adresse e-mail")
-                            .font(.system(size: Theme.Typography.metadata))
-                            .foregroundStyle(model.palette.muted)
-                        TextField("nom@exemple.fr", text: $email)
-                            .textContentType(.username)
-                            .keyboardType(.emailAddress)
-                            .textInputAutocapitalization(.never)
-                            .autocorrectionDisabled()
-                            .font(.system(size: Theme.Typography.body))
-                            .padding(Theme.Spacing.sm)
-                            .background(model.palette.soft, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
-
-                        Text("Mot de passe")
-                            .font(.system(size: Theme.Typography.metadata))
-                            .foregroundStyle(model.palette.muted)
-                        SecureField("••••••••", text: $password)
-                            .textContentType(.password)
-                            .font(.system(size: Theme.Typography.body))
-                            .padding(Theme.Spacing.sm)
-                            .background(model.palette.soft, in: RoundedRectangle(cornerRadius: Theme.Radius.small))
-
-                        Button {
-                            Task { await signIn() }
-                        } label: {
-                            HStack {
-                                if isWorking { ProgressView().tint(model.palette.paper) }
-                                Text(isWorking ? "Connexion…" : "Se connecter")
-                                    .font(.system(size: Theme.Typography.body, weight: .semibold))
-                            }
-                            .frame(maxWidth: .infinity, minHeight: 46)
-                        }
-                        .buttonStyle(.borderedProminent)
-                        .tint(model.palette.green)
-                        // La règle vient de `ProfileOptions.canSignIn`, comme
-                        // celle des trois autres boutons de la carte du profil :
-                        // « Se connecter » n'exige **pas** d'arobase, c'est le
-                        // contrat de l'original.
-                        .disabled(
-                            !ProfileOptions.canSignIn(
-                                busy: isWorking,
-                                email: email,
-                                password: password
-                            )
-                        )
-
-                        if let message {
-                            Text(message)
-                                .font(.system(size: Theme.Typography.secondary))
-                                .foregroundStyle(isError ? model.palette.red : model.palette.muted)
-                        }
-
-                        Button("Mot de passe oublié ?") {
-                            Task { await resetPassword() }
-                        }
-                        .font(.system(size: Theme.Typography.secondary))
-                        .foregroundStyle(model.palette.green)
-                        .disabled(email.isEmpty)
-                    }
-                }
-
-                Text("Cette application utilise le même compte que l'application existante. Si tu n'as pas encore de compte, crée-le depuis l'application d'origine : tu éviteras un doublon.")
-                    .font(.system(size: Theme.Typography.metadata))
-                    .foregroundStyle(model.palette.muted)
-            }
-            .padding(.horizontal, Theme.Spacing.lg)
-            .padding(.bottom, Theme.Spacing.section)
-        }
-        .background(model.palette.cream)
-    }
-
-    private func signIn() async {
-        isWorking = true
-        message = nil
-        isError = false
-        let result = await model.authenticate(email: email, password: password, register: false)
-        isWorking = false
-        // Un succès change d'écran : `AuthGate` passe à `MainTabView` et cette
-        // vue disparaît. Seul l'échec se dit ici — et il se dit **ici**, à côté
-        // des champs, plutôt que par l'avis global : c'est une porte, et le
-        // message doit rester sous les yeux au moment de corriger.
-        if result.outcome == .failed {
-            message = result.notice
-            isError = true
-        }
-    }
-
-    private func resetPassword() async {
-        isError = false
-        do {
-            try await model.auth.requestPasswordReset(email: email)
-            message = "Un lien de réinitialisation vient d'être envoyé à \(email)."
-        } catch {
-            message = error.localizedDescription
-            isError = true
-        }
     }
 }

@@ -200,7 +200,7 @@ Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blo
 **328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
 tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
 au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
-déclare aujourd'hui **594**, répartis sur **vingt-six** fichiers. Le bloc des trois
+déclare aujourd'hui **611**, répartis sur **vingt-sept** fichiers. Le bloc des trois
 cartes du profil en a ajouté **six** (416 → 422), mesurés au run n° 65 ; celui des
 marque-pages **trente-deux** (422 → 454) — vingt-deux sur le modèle et l'écran, dix sur
 la traduction d'un verset en page ; celui de la **liste des sourates** **quarante-huit**
@@ -238,6 +238,17 @@ est rangée avec le Coran 1441, et **dormante**. Et le défaut **vivant** que ce
 trouvé : la pastille « Toute la page » du panneau audio lisait la pagination du **Coran de
 Médine** là où l'original passe la plage de l'édition affichée — **36 pages sur 604**
 s'écartent, **33** d'une longueur différente. Voir §9.33.
+
+Et la **porte d'accueil** — `Core/AuthGateOptions.swift` et
+`Features/Auth/AuthGateView.swift` — **dix-sept** de plus (594 → 611) : l'écran qui
+décide si l'on entre, retrouvé **vide dans son dossier** parce qu'il était écrit à la
+racine de l'application. La référence porte **deux surfaces d'authentification qui se
+ressemblent et ne se comportent pas pareil** : la porte exige l'arobase **même pour se
+connecter**, quand la carte du profil s'en passe ; et sa longueur de mot de passe dépend
+du **mode** — six caractères pour créer un compte, la seule non-vacuité pour se connecter,
+en **unités UTF-16** comme partout ailleurs. La porte **s'ouvre sur un choix** — trois
+boutons, dont « Réessayer la restauration de ma session », celui qu'un portage « propre »
+perdrait. Voir §9.34.
 
 Et le run n° **69** a rappelé à quoi sert ce compte : il est **tombé**, non sur un test
 rouge mais sur une **erreur de type** — `Tests/TajweedTests.swift` lisait `verse?.surah`
