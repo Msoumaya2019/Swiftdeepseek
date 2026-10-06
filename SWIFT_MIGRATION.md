@@ -2677,10 +2677,47 @@ deux sont corrigés : `applyRemote` rend maintenant le `shouldPush` de la récon
 `StateSyncService.syncOnSignIn` enqueue le document courant quand il vaut `true`. Sans cela,
 le portage aurait porté la fonction qui décide, et continué d'écrire la mauvaise réponse.
 
+#### Le run n° 74 est tombé, et il avait raison deux fois
+
+La compilation est passée, et **trois assertions** sont tombées sur **585** tests exécutés —
+le compte est donc **mesuré**, et il vaut celui que le banc annonçait. Les trois sont dans
+mes propres tests, et le portage était juste dans les deux cas.
+
+**Le premier est le plus instructif.** `testNoRemoteKeepsTheLocalDocumentAndPushes` attendait
+le local **tel quel** : `XCTAssertEqual(outcome.document, local)`. Or la référence écrit
+`local = migrateReaderState(local)` **avant** `if (!remote)`, donc un lecteur **absent** est
+**créé** — `{...undefined}` vaut `{}` en JavaScript, et `undefined !== false` vaut `true`. Le
+document rendu porte donc un `reader` que le test ne prévoyait pas.
+
+**Ce qui a laissé passer ce test mérite d'être écrit, parce que c'est un défaut de la preuve
+et non du code.** L'oracle portait bien le cas, et son entrée était la bonne — un local sans
+lecteur. Mais son observation jugeait `state.theme` sous l'étiquette
+`XCTAssertEqual(outcome.document, local)` : **un champ unique mesuré sous le nom d'une
+assertion portant sur tout le document**. Le cas disait « l'original rend `night` », donc
+« vrai », tandis que l'assertion Swift affirmait quelque chose de plus fort, et de faux. Un
+`texte` doit mesurer **exactement le chemin qu'il nomme**, sinon un cas vert couvre une
+assertion fausse. Les quatre observations du cas nomment maintenant chacune son assertion — et
+l'oracle **dit** que l'original crée le lecteur (`state.reader.mushaf="coranTest"`).
+
+**Et aucun contrôle du banc ne visait cette création.** Le banc pinçait celle de la migration
+**typée** (`Program.migrateReaderState`), pas celle de la migration **brute** — le trou exact
+par lequel le défaut est passé. Un contrôle les épingle toutes les deux désormais, et la
+mutation **M32** retire la création brute : elle est tuée.
+
+**Le second défaut est une attente retournée.** `testTheRawDefaultIsNotTheTypedDefault`
+affirmait que la sérialisation typée « écrit un `null` ». Mesuré : elle **omet** la clé —
+`Codable` synthétisé passe par `encodeIfPresent`, donc une propriété optionnelle nulle
+disparaît du JSON. C'est le document **brut**, et lui seul, qui écrit `reviewCycle: null`. La
+distinction est celle de tout ce bloc : `reconcileState` teste
+`remote.reviewCycle === undefined`, donc une clé **absente** est remplacée par la valeur
+locale, et un `null` explicite est **conservé**. Les deux attentes sont retournées, et la
+troisième assertion — `XCTAssertNotEqual(typed, Reconcile.defaultDocument())` — était déjà
+vraie.
+
 #### Les nombres
 
-Banc : `_banc/verifier-reconcile.mjs` — **153 vérifications**, 0 échec, les **treize** bancs
-antérieurs rejoués. Falsificateur : `_banc/falsifier-reconcile.mjs` — **31 mutations**,
+Banc : `_banc/verifier-reconcile.mjs` — **158 vérifications**, 0 échec, les **treize** bancs
+antérieurs rejoués. Falsificateur : `_banc/falsifier-reconcile.mjs` — **32 mutations**,
 toutes tuées, arbre rendu intact, l'arbre vérifié par `git status --porcelain` avant et
 après chaque mutation. Tests : **543 → 585**, dont **42** pour `Tests/ReconcileTests.swift`.
 

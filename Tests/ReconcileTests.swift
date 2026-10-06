@@ -42,9 +42,16 @@ final class ReconcileTests: XCTestCase {
     // MARK: 1. Pas de distant
 
     func testNoRemoteKeepsTheLocalDocumentAndPushes() {
+        // Le local est MIGRÉ **avant** le retour anticipé : la référence écrit
+        // `local = migrateReaderState(local)` avant `if (!remote)`. Un lecteur
+        // ABSENT est donc CRÉÉ — `{...undefined}` vaut `{}` en JavaScript, et
+        // `undefined !== false` vaut `true`. Attendre `local` tel quel est faux,
+        // et c'est ce que ce test faisait : le run n° 74 l'a mesuré.
         let local = document(at: "2024-01-01T00:00:00.000Z", ["theme": .string("night")])
         let outcome = Reconcile.reconcile(local: local, remote: nil)
-        XCTAssertEqual(outcome.document, local)
+        XCTAssertEqual(outcome.document["theme"]?.stringValue, "night")
+        XCTAssertEqual(outcome.document["reader"]?["mushaf"]?.stringValue, "coranTest")
+        XCTAssertEqual(outcome.document["reader"]?["followAudio"]?.boolValue, true)
         XCTAssertTrue(outcome.shouldPush)
     }
 
@@ -499,17 +506,27 @@ final class ReconcileTests: XCTestCase {
     }
 
     func testTheRawDefaultIsNotTheTypedDefault() throws {
-        // La sérialisation de `Program.defaultState()` écrit des clés valant
-        // `null` que l'original ne produit pas. Les confondre ferait répondre
-        // `true` à `remote.uiFont === undefined && local.uiFont !== undefined`
-        // quand le cache appartient à un autre compte.
+        // La sérialisation de `Program.defaultState()` **OMET** une propriété
+        // optionnelle nulle — `Codable` synthétisé passe par `encodeIfPresent`
+        // —, là où l'original ÉCRIT `reviewCycle: null`. La distinction décide :
+        // `reconcileState` teste `remote.reviewCycle === undefined`, donc une clé
+        // ABSENTE est remplacée par la valeur locale, et un `null` explicite est
+        // CONSERVÉ. C'est le document brut, et lui seul, qui écrit ce `null`.
+        //
+        // Le run n° 74 a mesuré le CONTRAIRE de ce que ce test affirmait : le
+        // typé n'écrit aucun `null`. Les deux attentes sont donc retournées.
         let typed = try JSONDecoder().decode(
             JSONValue.self,
             from: JSONEncoder().encode(Program.defaultState())
         )
-        XCTAssertEqual(typed["uiFont"]?.isNull, true, "le typé écrit un null")
-        XCTAssertNil(Reconcile.defaultDocument()["uiFont"], "le document brut n'écrit rien")
-        XCTAssertEqual(typed["reviewCycle"]?.isNull, true)
+        XCTAssertNil(typed["uiFont"], "le typé n'écrit pas une clé optionnelle nulle")
+        XCTAssertNil(typed["reviewCycle"], "le typé OMET le `null` de l'original")
+        XCTAssertEqual(
+            Reconcile.defaultDocument()["reviewCycle"]?.isNull,
+            true,
+            "le document brut ÉCRIT le `null` de l'original"
+        )
+        XCTAssertNil(Reconcile.defaultDocument()["uiFont"], "et il n'ajoute pas les clés absentes")
         XCTAssertNotEqual(typed, Reconcile.defaultDocument())
     }
 

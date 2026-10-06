@@ -1410,13 +1410,27 @@ adoptait `rawState = remote` — le document distant **brut** — au lieu du doc
 deux sont corrigés : `applyRemote` rend maintenant le `shouldPush` de la réconciliation, et
 `StateSyncService.syncOnSignIn` enqueue le document courant quand il vaut `true`.
 
-`_banc/verifier-reconcile.mjs` compte **153** vérifications — les **treize** bancs
-antérieurs rejoués — et `_banc/falsifier-reconcile.mjs` éprouve **31** mutations : toutes
+`_banc/verifier-reconcile.mjs` compte **158** vérifications — les **treize** bancs
+antérieurs rejoués — et `_banc/falsifier-reconcile.mjs` éprouve **32** mutations : toutes
 tuées, arbre rendu intact. Tests : **543 → 585**, dont **42** pour
 `Tests/ReconcileTests.swift`. Le compte **global** a changé de banc à cette occasion — il
 n'appartient qu'au plus récent —, et `_banc/verifier-tajweed.mjs` est passé de **142** à
 **141** vérifications : le contrôle qui nommait le total appartient désormais au nouveau
 banc, et l'ancien affirme son **absence**. Récit complet en `SWIFT_MIGRATION.md` §9.32.
+
+**Le run n° 74 est tombé, et il avait raison deux fois.** La compilation est passée ; **trois
+assertions** sont tombées sur **585** tests exécutés — le compte est donc *mesuré*, et il vaut
+celui que le banc annonçait. Les trois sont dans mes propres tests, et le portage était juste
+dans les deux cas. `testNoRemoteKeepsTheLocalDocumentAndPushes` attendait le local tel quel,
+alors que la référence le **migre avant** le retour anticipé : un lecteur absent est **créé**.
+Et `testTheRawDefaultIsNotTheTypedDefault` affirmait que la sérialisation typée « écrit un
+`null` » — mesuré : elle l'**omet** (`encodeIfPresent`), et c'est le document **brut** qui
+l'écrit. La leçon du premier est une leçon sur la **preuve** : l'oracle portait le bon cas et
+la bonne entrée, mais jugeait `state.theme` sous l'étiquette d'une assertion portant sur
+**tout** le document — un `texte` doit mesurer exactement le chemin qu'il nomme. Le banc ne
+pinçait par ailleurs que la création du lecteur par la migration **typée** : la **brute**
+n'était pas couverte, et c'est par ce trou que le défaut est passé. Une vérification a été
+ajoutée, la mutation **M32** la tue, et le compte du banc est passé de **153** à **158**.
 
 ## 13. Problèmes rencontrés
 
