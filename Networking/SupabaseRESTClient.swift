@@ -361,4 +361,109 @@ public actor SupabaseRESTClient {
         }
         return JSONValue.from(object)
     }
+
+    /// Écrit une ligne dans une table PostgREST — l'équivalent de
+    /// `client().from(table).insert(...)`.
+    ///
+    /// `Prefer: return=minimal` comme l'application React Native : l'insertion
+    /// ne renvoie rien, donc aucune ligne n'est exposée au-delà de ce que la RLS
+    /// autorise déjà. `resolution` n'est **pas** posé : c'est un `insert` pur,
+    /// pas un `upsert`.
+    public func insert(
+        table: String,
+        row: [String: Any],
+        accessToken: String
+    ) async throws {
+        let payload = try JSONSerialization.data(withJSONObject: row)
+        _ = try await request(
+            "rest/v1/\(table)",
+            method: "POST",
+            body: payload,
+            accessToken: accessToken,
+            extraHeaders: ["Prefer": "return=minimal"]
+        )
+    }
+
+    /// `upsert` d'une ligne, la clé étant déclarée par `onConflict` (une colonne
+    /// ou une liste `a,b`) — l'équivalent de `client().from(table).upsert(...)`.
+    ///
+    /// `resolution=merge-duplicates` est ce que fait Supabase par défaut pour un
+    /// `upsert` : la ligne existante est **fusionnée**, pas dupliquée.
+    public func upsert(
+        table: String,
+        row: [String: Any],
+        onConflict: String,
+        accessToken: String
+    ) async throws {
+        let payload = try JSONSerialization.data(withJSONObject: row)
+        _ = try await request(
+            "rest/v1/\(table)",
+            method: "POST",
+            query: [URLQueryItem(name: "on_conflict", value: onConflict)],
+            body: payload,
+            accessToken: accessToken,
+            extraHeaders: ["Prefer": "resolution=merge-duplicates,return=minimal"]
+        )
+    }
+
+    /// Compte les lignes qui répondent à `query` — l'équivalent de
+    /// `client().from(table).select('id',{count:'exact',head:true})`.
+    ///
+    /// `head:true` n'est pas une option de PostgREST : PostgREST répond au
+    /// `HEAD` avec le décompte dans `Content-Range`, sans corps. C'est donc une
+    /// méthode **dédiée**, pas un `select` détourné.
+    ///
+    /// La valeur vient de `Content-Range`, « `start-end/total` » ou `*/total`
+    /// quand la plage est vide — les deux formes portent le total après la barre.
+    public func count(
+        table: String,
+        query: [URLQueryItem],
+        accessToken: String
+    ) async throws -> Int {
+        var items = query
+        items.append(URLQueryItem(name: "select", value: "id"))
+        let (_, response) = try await request(
+            "rest/v1/\(table)",
+            method: "HEAD",
+            query: items,
+            accessToken: accessToken,
+            extraHeaders: ["Prefer": "count=exact"]
+        )
+        guard let range = response.value(forHTTPHeaderField: "Content-Range"),
+              let total = range.split(separator: "/").last,
+              let value = Int(total) else {
+            return 0
+        }
+        return value
+    }
+
+    /// Lit **au plus une** ligne et la rend en objet, ou `nil` s'il n'y en a
+    /// aucune — l'équivalent de `.maybeSingle()`, que PostgREST n'a pas.
+    ///
+    /// On passe par `Accept: application/vnd.pgrst.object+json`, que PostgREST
+    /// rend en **objet** au lieu d'un tableau d'une ligne. `limit=1` borne la
+    /// lecture : sans lui, PostgREST refuserait deux lignes là où `.maybeSingle()`
+    /// aurait échoué. Le cas « aucune ligne » rend `nil` et **non** une erreur.
+    public func maybeSingle(
+        table: String,
+        query: [URLQueryItem],
+        accessToken: String
+    ) async throws -> JSONValue? {
+        var items = query
+        items.append(URLQueryItem(name: "limit", value: "1"))
+        let (data, response) = try await request(
+            "rest/v1/\(table)",
+            query: items,
+            accessToken: accessToken,
+            extraHeaders: ["Accept": "application/vnd.pgrst.object+json"]
+        )
+        // PostgREST renvoie 406 (Not Acceptable) quand zéro ligne correspond à
+        // la demande d'objet unique : c'est le « pas de ligne », pas une panne.
+        if response.statusCode == 406 { return nil }
+        guard let object = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+        if object is NSNull { return nil }
+        return JSONValue.from(object)
+    }
 }
