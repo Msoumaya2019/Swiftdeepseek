@@ -2980,3 +2980,129 @@ l'**édition affichée** (`QuranSourceNavigation.versePage`).
 - `verifier-source-navigation.mjs` passe de **43** à **44** : son contrôle de
   passation citait un successeur **périmé deux fois** (`611`, puis `157`) ; il
   vérifie désormais la propriété durable — **un seul** banc calcule le total.
+
+### 9.36 La messagerie : les règles d'un fil, et les primitives d'écriture qui manquaient
+
+Le bloc précédent avait rendu l'onglet Amis **lisible** — la liste des relations,
+les demandes reçues, le code d'invitation. Il ne montrait **rien** de ce que deux
+amis se disent : `SocialService` portait dix-huit fonctions, aucune ne touchait
+`friend_messages`. C'est ce trou que ce bloc ferme, en portant le cœur de
+`src/services/social.ts:130-190`.
+
+**Les règles vivent dans `Core/`.** `Core/MessagingOptions.swift` porte les
+décisions, et rien d'autre : les bornes (`pageSize` **50**, `summaryLimit` **300**,
+le partage tronqué à **2000**), les **quatre sortes** de message et le fait qu'une
+seule — `recitation` — porte une pièce jointe, le masquage d'un message pour soi
+seul, la marque de lecture, et le résumé d'une conversation. Aucune de ces
+fonctions ne parle au réseau : elles se mesurent, et c'est tout.
+
+**Le résumé d'une conversation est trois décisions dans un ordre précis.**
+L'original écrit `result[row.link_id] ??= {...}` — donc le **premier** message
+parcouru gagne, et comme la liste arrive du plus récent au plus ancien, c'est le
+dernier message qui s'affiche. Un message supprimé remplace son **corps** par le
+libellé, mais **garde sa date** : c'est la date d'envoi qui ordonne la liste, pas
+celle du masquage. Et un décompte non nul **crée** le résumé s'il n'existait pas,
+avec `new Date()` pour horodatage — un horodatage que rien ne peut mesurer hors
+ligne, donc **injecté**. Une quatrième décision se cache sous la troisième :
+`unread: 0` est posé par le parcours puis **écrasé** par le décompte, jamais
+déduit du nombre de messages.
+
+**Le comptage se fait en unités UTF-16, pas en graphèmes.** `slice(0, 2000)` de
+JavaScript compte les unités ; `String.count` de Swift compte les graphèmes. Sur
+1 001 familles emoji, les deux donnent des longueurs différentes. Le portage prend
+donc `Array(description.utf16)` et reconstruit en `String(decoding:as:UTF16.self)`
+— ce qui **tolère** une paire de substitution coupée par la borne, là où une
+reconstruction naïve produirait un caractère invalide.
+
+**Deux divergences sont nommées plutôt que tues.** La première : `trim` de
+JavaScript retire `U+FEFF` (le BOM), `whitespacesAndNewlines` de Swift **non** —
+mesuré, `U+FEFF` appartient à la catégorie `Cf` (format) et non `Zs` (séparateur
+d'espace). La seconde : la formule du nombre de versets d'une récitation
+(`end - start + 1`) n'a **pas** de garde dans l'original ; le portage la ramène à
+zéro par `max(0, …)`. Aucune des deux n'est atteignable depuis l'interface, et
+toutes deux sont écrites dans le fichier au lieu d'être découvertes plus tard.
+
+#### Les primitives d'écriture qui manquaient
+
+`SupabaseRESTClient` ne savait que **lire** (`select`) et appeler une fonction
+(`rpc`). La messagerie écrit dans trois tables et compte des lignes. Quatre
+primitives sont donc ajoutées, chacune avec la sémantique exacte de l'original :
+
+- `insert` — `Prefer: return=minimal`, un `INSERT` pur, **jamais** un `upsert` ;
+- `upsert` — `resolution=merge-duplicates` et `on_conflict` : la ligne est
+  **fusionnée**, pas dupliquée. Sans elle, une conversation ne se marquerait lue
+  qu'une fois ;
+- `count` — un `HEAD` avec `count=exact`, le total lu dans `Content-Range`. Ce
+  n'est pas un `select` détourné : `head:true` de l'original n'existe pas côté
+  PostgREST, c'est la **méthode** qui change ;
+- `maybeSingle` — l'objet unique. PostgREST n'a pas de `.maybeSingle()` : on
+  demande `Accept: application/vnd.pgrst.object+json` et on borne à `limit=1`.
+  Le cas « aucune ligne » rend **`nil`**, pas une erreur — PostgREST répond
+  **406**, et lever là ferait échouer la lecture d'un profil d'ami qui n'a pas
+  encore de ligne.
+
+#### L'oracle, exécuté et non cité
+
+`_banc/oracle-messaging.mjs` rejoue les expressions **réelles** de `social.ts` :
+`body.trim()`, `slice(0,2000)`, la comparaison `created_at > last_read_at`, le
+`??=` des résumés, `Math.floor` de la durée. Il vérifie d'abord que ses **onze
+ancres** sont toujours dans l'original — une ancre périmée rendrait l'oracle
+complaisant — puis rejoue **56 relevés**.
+
+La leçon de ce bloc : le banc **exécute** l'oracle, il ne le cite pas. Une
+première version se contentait d'un contrôle de texte (« le banc de tests nomme
+l'oracle ») ; mesuré, une mutation de l'ORACLE **survivait** — le banc ne le
+lançait jamais. L'oracle est donc devenu une **fonction exportée** `relever()`,
+que le banc appelle et dont il lit le verrou ; lancé seul, il imprime et sort.
+
+#### Quatre contrôles qui ne mordaient pas, et pourquoi
+
+La première campagne a laissé **cinq survivantes**. Chacune a nommé un vrai trou :
+
+1. **Un contrôle de sortie rejouée ne voit pas le fichier muté.** Neuf mutations
+   portaient sur les *règles rejouées en JavaScript*, pas sur le Swift : monter
+   la borne dans `MessagingOptions.swift` ne changeait rien à la fonction de
+   rejeu. Une section entière lit désormais le **corps réel** de chaque fonction —
+   découpé sur l'accolade **appariée**, commentaires retirés.
+2. **Un nom préfixe en cachait un autre.** `func upsert` trouvait
+   `upsertUserState`, une **autre** fonction : le corps rendu était le sien, et le
+   contrôle `on_conflict` accusait une fonction qui le porte pourtant. L'ancre
+   exige désormais que le nom **se termine** (`(?![A-Za-z0-9_])`).
+3. **Une chaîne peut satisfaire pour un voisin.** `merge-duplicates` apparaît
+   **deux fois** dans le client — aussi dans `upsertUserState`. Chercher la chaîne
+   dans le fichier entier laissait l'une couvrir l'autre : le contrôle lit
+   maintenant le **corps** de `upsert`.
+4. **Une ancre écrite en clair se satisfait elle-même.** Le contrôle du compte
+   cherchait `let compteTotal = 0`, chaîne qu'il écrivait lui-même — et `codeJS`
+   **garde** les chaînes. L'ancre est composée en morceaux.
+
+#### Deux contrôles de banc repris, parce qu'ils étaient périmés
+
+Le contrôle de passation de `verifier-surah-picker` **citait son propre
+successeur** — il nommait `verifier-messagerie.mjs`, un nom qui périme au bloc
+suivant. Il vérifie désormais la propriété **durable** : ce banc-ci ne calcule
+plus le compte, et le porteur actuel le fait.
+
+Celui de `verifier-source-navigation` allait plus loin dans l'erreur : il
+**nommait** `verifier-surah-picker.mjs` comme « le plus récent », ce qui se
+périme exactement au bloc suivant. Il **compte** désormais combien de bancs
+calculent le total — il en faut **un**, et peu importe lequel.
+
+#### Un piège de fin de ligne, encore
+
+Les deux bancs de ce bloc ont été écrits avec des fins de ligne **CRLF**. Une
+ancre de mutation écrite avec `\n` ne correspondait donc **pas** au fichier :
+« 0 occurrence de l'ancre », sur un texte qui paraissait identique. C'est la
+deuxième fois que ce piège coûte un aller-retour — les fichiers Swift, eux,
+étaient déjà en LF, et c'est ce qui compte pour l'intégration continue.
+
+#### Les nombres
+
+- **41** tests ajoutés (`Tests/MessagingTests.swift`), **637 → 678**.
+- `_banc/oracle-messaging.mjs` : **56** relevés d'accord avec l'original.
+- `_banc/verifier-messagerie.mjs` : **165** contrôles verts.
+- `_banc/falsifier-messagerie.mjs` : **24** mutations, **0 survivante**, **0 à
+  côté**.
+- Le compte global des tests **change de porteur** : `verifier-surah-picker` le
+  rend, `verifier-messagerie` le calcule, et `verifier-source-navigation` vérifie
+  la propriété durable — **un seul** banc le calcule.

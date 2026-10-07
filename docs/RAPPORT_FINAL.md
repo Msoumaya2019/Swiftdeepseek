@@ -1575,6 +1575,56 @@ Falsificateur : **24 mutations**, **0 survivante, 0 à côté**. Tests : **611 �
 un seul banc calcule, les autres citent) remplace désormais la citation d'un nombre. Détail :
 `SWIFT_MIGRATION.md` §9.35.
 
+### La messagerie : les règles d'un fil, et les primitives d'écriture qui manquaient
+
+L'onglet Amis était **lisible** — la liste des relations, les demandes reçues, le code
+d'invitation — mais ne montrait **rien** de ce que deux amis se disent : sur les
+**18** fonctions de `SocialService`, aucune ne touchait `friend_messages`. Ce bloc porte le
+cœur de `src/services/social.ts:130-190`.
+
+**Les règles vivent dans `Core/`.** `Core/MessagingOptions.swift` porte les décisions, et rien
+d'autre : les bornes (`pageSize` **50**, `summaryLimit` **300**, partage tronqué à **2000**),
+les **quatre sortes** de message — seule `recitation` porte une pièce jointe —, le masquage d'un
+message pour soi seul, la marque de lecture, et les **trois décisions** du résumé d'une
+conversation : le **premier** message parcouru gagne (`??=`, donc le plus récent, la liste
+arrivant à l'envers) ; un message supprimé remplace son **corps** par le libellé mais **garde sa
+date** ; un décompte non nul **crée** le résumé s'il n'existait pas, avec `new Date()` —
+horodatage **injecté**, puisque rien ne peut le mesurer hors ligne. Une quatrième décision se
+cache sous la troisième : `unread: 0` est posé par le parcours puis **écrasé**, jamais déduit du
+nombre de messages.
+
+**Le comptage se fait en unités UTF-16, pas en graphèmes** — `slice(0,2000)` de JavaScript et
+`String.count` de Swift divergent sur les emoji ; le portage prend donc `Array(utf16)` et
+reconstruit en `String(decoding:as:UTF16.self)`, ce qui **tolère** une paire de substitution
+coupée.
+
+**Le client REST gagne quatre primitives d'écriture.** Il ne savait que lire (`select`) et
+appeler une fonction (`rpc`) : la messagerie écrit dans trois tables et compte des lignes.
+`insert` (`return=minimal`, un `INSERT` pur) ; `upsert` (`resolution=merge-duplicates` +
+`on_conflict` — la fusion, sans quoi une conversation ne se marquerait lue qu'une fois) ;
+`count` (un **`HEAD`** avec `count=exact`, le total lu dans `Content-Range` — ce n'est pas un
+`select` détourné, c'est la **méthode** qui change) ; et `maybeSingle`, où PostgREST répond
+**406** sur « aucune ligne » — qu'il faut rendre **`nil`** et non lever, sinon la lecture d'un
+profil d'ami sans ligne échouerait.
+
+**Deux divergences nommées plutôt que tues** : `trim` de JavaScript retire `U+FEFF`, la classe
+`whitespacesAndNewlines` de Swift non (`U+FEFF` est `Cf`, pas `Zs` — mesuré) ; et la formule du
+nombre de versets d'une récitation (`end - start + 1`) n'a **pas** de garde dans l'original, le
+portage la ramène à zéro par `max(0, …)`. Aucune des deux n'est atteignable depuis l'interface.
+
+**La campagne a été instructive.** Cinq survivantes à la première passe, chacune nommant un
+vrai trou : un contrôle de sortie **rejouée** ne voit pas le fichier muté (il fallait lire le
+**corps réel**, découpé sur l'accolade appariée) ; `func upsert` trouvait `upsertUserState` — un
+nom **préfixe** en cachait un autre ; `merge-duplicates` apparaît **deux fois** dans le client,
+donc chercher la chaîne dans le fichier entier laissait l'une couvrir l'autre ; et une ancre
+écrite **en clair** dans le contrôle se satisfaisait elle-même, `codeJS` gardant les chaînes.
+
+Banc : `_banc/verifier-messagerie.mjs` — **165 contrôles**, dont une section qui lit le **corps
+réel** de chaque fonction pure, et l'**exécution** de l'oracle (`relever()`), et non sa citation.
+Falsificateur : **24 mutations**, **0 survivante, 0 à côté**. Tests : **637 → 678**, dont **41**
+dans `Tests/MessagingTests.swift`. Oracle : `_banc/oracle-messaging.mjs`, **56 relevés** d'accord
+avec l'original. Détail : `SWIFT_MIGRATION.md` §9.36.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a

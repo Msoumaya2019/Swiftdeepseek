@@ -200,7 +200,7 @@ Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blo
 **328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
 tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
 au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
-déclare aujourd'hui **637**, répartis sur **vingt-huit** fichiers. Le bloc des trois
+déclare aujourd'hui **678**, répartis sur **vingt-neuf** fichiers. Le bloc des trois
 cartes du profil en a ajouté **six** (416 → 422), mesurés au run n° 65 ; celui des
 marque-pages **trente-deux** (422 → 454) — vingt-deux sur le modèle et l'écran, dix sur
 la traduction d'un verset en page ; celui de la **liste des sourates** **quarante-huit**
@@ -261,6 +261,20 @@ d'ailleurs **menti une fois** — `page > 604` cherché là où le fichier écri
 sont **nommées** plutôt que tues : `Number('1e2')` vaut 100 et `Number('0x10')` vaut 16,
 que `Int` refuse ; elles sont **hors d'atteinte**, le champ portant un pavé numérique.
 Voir §9.35.
+
+Et la **messagerie** — `Core/MessagingOptions.swift` et `Services/SocialService.swift` —
+**quarante-et-un** de plus (637 → 678) : le cœur de ce que deux amis se disent, là où
+l'onglet Amis ne montrait que la liste des relations. Les règles vivent dans `Core/` : les
+bornes (`pageSize` 50, `summaryLimit` 300, partage tronqué à 2000), les **quatre sortes** de
+message — une seule porte une pièce jointe —, le masquage d'un message pour soi seul, et les
+**trois décisions** du résumé d'une conversation : le premier message parcouru gagne, un
+message supprimé **garde sa date**, un décompte non nul **crée** le résumé. Le comptage se
+fait en **unités UTF-16**, pas en graphèmes — `slice(0,2000)` et `String.count` divergent sur
+les emoji. Le client REST gagne enfin des **primitives d'écriture** : `insert`, `upsert`
+(fusion), `count` (un `HEAD`, pas un `select`), et `maybeSingle` — où PostgREST répond **406**
+sur « aucune ligne », qu'il faut rendre `nil` et non lever. Et deux divergences sont **nommées**
+plutôt que tues : `trim` de JavaScript retire `U+FEFF`, `whitespacesAndNewlines` de Swift non ;
+la formule du nombre de versets d'une récitation n'a pas de garde dans l'original. Voir §9.36.
 
 Et le run n° **69** a rappelé à quoi sert ce compte : il est **tombé**, non sur un test
 rouge mais sur une **erreur de type** — `Tests/TajweedTests.swift` lisait `verse?.surah`
