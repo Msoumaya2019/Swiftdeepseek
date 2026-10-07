@@ -24,27 +24,17 @@ public struct FriendsView: View {
     @State private var isLoading = false
     @State private var errorText: String?
     @State private var infoText: String?
-    @State private var openRoom: OpenRoom?
-
-    /// La pièce ouverte, ou rien. L'original décide par `selected` — `null`
-    /// veut dire « la liste ». Ici c'est une valeur **présentée**, ce qui laisse
-    /// SwiftUI empiler l'écran et le désempiler d'un geste, sans `useEffect` de
-    /// navigation.
-    private struct OpenRoom: Identifiable, Hashable {
-        let id: String
-        let room: MessagingOptions.Room
-        let name: String
-        let accessToken: String
-
-        static func == (lhs: OpenRoom, rhs: OpenRoom) -> Bool { lhs.id == rhs.id }
-
-        func hash(into hasher: inout Hasher) { hasher.combine(id) }
-    }
+    /// La pile de navigation de l'onglet. Vide = la liste d'amis.
+    ///
+    /// L'original décide par `selected` — `null` veut dire « la liste ». Ici
+    /// c'est le **chemin** qui le dit, et SwiftUI empile/désempile l'écran d'un
+    /// geste, sans `useEffect` de navigation.
+    @State private var path: [Route] = []
 
     public init() {}
 
     public var body: some View {
-        NavigationStack {
+        NavigationStack(path: $path) {
             ScrollView {
                 VStack(alignment: .leading, spacing: Theme.Spacing.lg) {
                     HeroHeader(title: "Mes amis", subtitle: "Révisez et encouragez-vous ensemble.")
@@ -52,6 +42,7 @@ public struct FriendsView: View {
                     addFriendCard
                     requestsSection
                     friendsSection
+                    circlesCard
                     comingSoonCard
                 }
                 .padding(.horizontal, Theme.Spacing.lg)
@@ -61,23 +52,81 @@ public struct FriendsView: View {
             .navigationTitle("Amis")
             .refreshable { await load() }
             .task { await load() }
-            .navigationDestination(item: $openRoom) { open in
-                MessagingView(
-                    room: open.room,
-                    title: open.name,
-                    isAdminContact: false,
-                    myID: myID ?? "",
-                    accessToken: open.accessToken,
-                    onUnreadChange: { Task { await load() } },
-                    shareText: shareText
-                )
+            // `navigationDestination(item:)` n'existe qu'à partir d'iOS 17, et
+            // la cible du projet est iOS 16 (`project.yml:23`). On passe donc
+            // par la forme iOS 16 : un `NavigationLink(value:)` invisible
+            // déclenché par un chemin, plus `navigationDestination(for:)`.
+            //
+            // Le chemin porte les DEUX destinations possibles, parce qu'un
+            // `NavigationStack` n'accepte qu'un `navigationDestination(for:)`
+            // par type — d'où l'énumération plutôt que deux `Bool`.
+            .navigationDestination(for: Route.self) { route in
+                switch route {
+                case let .room(id, name, token):
+                    MessagingView(
+                        room: id,
+                        title: name,
+                        isAdminContact: false,
+                        myID: myID ?? "",
+                        accessToken: token,
+                        onUnreadChange: { Task { await load() } },
+                        shareText: shareText
+                    )
+                case let .circles(token):
+                    CirclesView(
+                        myID: myID ?? "",
+                        accessToken: token,
+                        onUnreadChange: { Task { await load() } }
+                    )
+                }
             }
         }
+    }
+
+    /// Les destinations de la pile d'amis.
+    ///
+    /// Le jeton est obtenu **à l'ouverture** (`circlesToken`), pas au rendu :
+    /// c'est pour cela que la route le porte, plutôt que de le relire dans la
+    /// destination — une destination ne peut pas `await` à la construction.
+    enum Route: Hashable {
+        case room(MessagingOptions.Room, String, String)
+        case circles(String)
     }
 
     /// Le texte que l'ami reçoit quand on partage volontairement son étape.
     /// L'original le fabrique dans `App.tsx` et le passe à `FriendsScreen`.
     private var shareText: String { "" }
+
+    // MARK: Cercles privés
+
+    /// La porte d'entrée des cercles.
+    ///
+    /// Elle vit **dans** la liste d'amis, à la place exacte où l'original
+    /// l'ouvre (`SocialScreens.tsx:196` : « Cercles privés · 3 à 5 personnes »).
+    /// L'écran des cercles a besoin du jeton : on ne l'obtient qu'à l'ouverture,
+    /// d'où une navigation par **état** — et non un `NavigationLink` qui
+    /// n'aurait pas le jeton au moment de construire la destination.
+    private var circlesCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                Text("Cercles privés · 3 à 5 personnes")
+                    .font(.system(size: Theme.Typography.subhead, weight: .semibold))
+                    .foregroundStyle(model.palette.green)
+                Text("Apprenez ensemble dans un petit groupe : un fil partagé, et chacun garde son programme.")
+                    .font(.system(size: Theme.Typography.metadata))
+                    .foregroundStyle(model.palette.muted)
+                CardButton(title: circlesToken == nil ? "Ouverture…" : "Ouvrir mes cercles",
+                           disabled: circlesToken == nil) {
+                    if let token = circlesToken { path.append(.circles(token)) }
+                }
+            }
+        }
+    }
+
+    /// Le jeton, obtenu une fois au chargement de l'écran. `nil` tant qu'il
+    /// n'est pas là : le bouton reste éteint plutôt que d'ouvrir un écran sans
+    /// réseau.
+    @State private var circlesToken: String?
 
     private var myID: String? { model.auth.userId }
 
@@ -251,7 +300,11 @@ public struct FriendsView: View {
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
                 Text("À venir")
                     .font(.system(size: Theme.Typography.card, weight: .semibold))
-                Text("La messagerie, les groupes, les objectifs partagés, les rendez-vous de révision et les quiz entre amis arrivent aux étapes suivantes. Ils s'appuieront sur les mêmes tables et les mêmes fonctions que l'application actuelle, donc tes conversations et tes amis seront bien les mêmes des deux côtés.")
+                // La messagerie et les cercles ne sont PLUS « à venir » : ils
+                // sont portés. Laisser la phrase d'origine aurait annoncé comme
+                // futur ce que l'écran ouvre déjà — le genre de mensonge qu'un
+                // simple `grep` ne voit pas, mais que l'utilisateur lit.
+                Text("Les objectifs partagés, les rendez-vous de révision, les récitations entre amis et les quiz arrivent aux étapes suivantes. Ils s'appuieront sur les mêmes tables et les mêmes fonctions que l'application actuelle, donc tes conversations et tes amis seront bien les mêmes des deux côtés.")
                     .font(.system(size: Theme.Typography.secondary))
                     .foregroundStyle(model.palette.muted)
             }
@@ -294,12 +347,9 @@ public struct FriendsView: View {
     // exactement ce que la CI a signalé, et le banc le mesure désormais.
     private func ouvrirLaConversation(_ row: FriendRow) async {
         guard let token = await model.socialAccessToken() else { return }
-        openRoom = OpenRoom(
-            id: row.id,
-            room: .link(row.id),
-            name: row.other?.displayName ?? "Ami",
-            accessToken: token
-        )
+        // Le jeton est obtenu ICI — c'est tout l'intérêt de la fonction
+        // asynchrone : sans lui, la route ne peut pas être construite.
+        path.append(.room(.link(row.id), row.other?.displayName ?? "Ami", token))
     }
 
     private func open(link row: FriendRow) {
@@ -311,6 +361,7 @@ public struct FriendsView: View {
             errorText = "Connecte-toi pour utiliser les amis."
             return
         }
+        circlesToken = token
         isLoading = true
         defer { isLoading = false }
         do {

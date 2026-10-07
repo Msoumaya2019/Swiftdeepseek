@@ -200,7 +200,7 @@ Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blo
 **328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
 tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
 au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
-déclare aujourd'hui **696**, répartis sur **trente** fichiers. Le bloc des trois
+déclare aujourd'hui **703**, répartis sur **trente et un** fichiers. Le bloc des trois
 cartes du profil en a ajouté **six** (416 → 422), mesurés au run n° 65 ; celui des
 marque-pages **trente-deux** (422 → 454) — vingt-deux sur le modèle et l'écran, dix sur
 la traduction d'un verset en page ; celui de la **liste des sourates** **quarante-huit**
@@ -287,6 +287,17 @@ même branche. La garde du rendez-vous a failli **diverger** : une sonde cassée
 shell) avait conclu que le 31 février était invalide, alors qu'il **roule au 3 mars** — et
 l'original l'accepte, donc une garde d'aller-retour aurait refusé une saisie que l'application React
 Native accepte. Voir §9.37.
+
+Et l'**écran des cercles privés** — `Features/Friends/CirclesView.swift` — **sept** de plus
+(696 → 703). Le service des groupes était porté *et* prouvé, mais rien ne l'appelait : la seule
+façon d'ouvrir un fil de cercle était de connaître un identifiant. C'est le défaut de §34 — une
+capacité sans porte d'entrée. Trois règles naissent avec l'écran : la borne du nom d'un cercle
+(**deux caractères une fois détouré**), la liste **fermée** des rôles qui modèrent, et l'invitation
+qui n'attend la réponse que de **moi**. Et deux défauts que la CI a vus avant le banc : `CardButton`
+n'a **pas** de paramètre `secondary`, et `navigationDestination(item:)` n'existe qu'à partir d'iOS
+**17** alors que la cible est iOS **16** — deux classes désormais fermées par un contrôle, éprouvées
+chacune par une mutation. Le groupe porte aussi `contact_user_id`, colonne **ajoutée** hors du
+schéma initial : une clé absente décode en `nil`, et c'est un test qui le mesure.
 
 Et le run n° **69** a rappelé à quoi sert ce compte : il est **tombé**, non sur un test
 rouge mais sur une **erreur de type** — `Tests/TajweedTests.swift` lisait `verse?.surah`

@@ -1671,6 +1671,39 @@ survivantes à la première passe. Tests : **678 → 696**. Oracle : **93 relev�
 porteur — un nombre qui a valu 41 puis 59 ; il éprouve maintenant que le porteur **dérive** la part.
 Détail : `SWIFT_MIGRATION.md` §9.37.
 
+### L'écran des cercles privés, et deux classes de défaut que la CI a vues avant le banc
+
+Le service des groupes était porté *et* prouvé depuis plusieurs blocs. Il manquait **un écran qui
+l'appelle** : la seule façon d'ouvrir un fil de cercle était de connaître un identifiant.
+`Features/Friends/CirclesView.swift` comble ce trou, et la liste d'amis l'ouvre. C'est le défaut de
+§34, répété — une capacité sans porte d'entrée.
+
+Trois règles naissent avec l'écran, dans `Core/MessagingOptions` : la borne du nom d'un cercle
+(**deux caractères une fois détouré**, et la règle **rend** le nom détouré que l'écran envoie), la
+liste **fermée** des rôles qui modèrent (`owner`, `moderator` — et `nil` n'administre rien), et
+l'invitation qui ne peut attendre la réponse que de **moi**. Une quatrième porte sur le modèle :
+`FriendGroup.contactUserId`, colonne **ajoutée** hors du schéma initial — une clé absente et une clé
+nulle doivent toutes deux décoder en `nil`.
+
+**Deux défauts, deux runs rouges.** `invalid redeclaration of 'open(link:)'` — deux déclarations du
+même nom, un bouton synchrone et sa partie asynchrone. Puis
+`'navigationDestination(item:)' is only available in iOS 17.0 or newer` — la cible est iOS **16**.
+Le premier était invisible à tout contrôle qui **cherche** une forme ; le second, à tout contrôle
+qui ne lit pas la cible. Les deux classes sont pourtant fermables sans compilateur : une déclaration
+de fonction est **unique** dans son type, une signature est **lisible** — `CardButton` n'a **pas**
+de paramètre `secondary`, et une cible est **écrite** dans `project.yml`. Trois contrôles de plus,
+éprouvés par trois mutations. Et l'on lit le **code**, pas le texte : les vues *documentent* en
+commentaire pourquoi l'API iOS 17 est écartée.
+
+**Deux survivantes, deux fautes de lecture.** `corpsDe` cherche `func <nom>` — il ne trouve pas un
+`struct`. Deux contrôles retombaient donc sur « tout le fichier », où une clé `CodingKeys` et le
+paramètre d'un **autre** composant satisfaisaient l'assertion. Corrigé par un découpage explicite de
+la déclaration. C'est la **troisième** fois qu'une survivante se révèle être un contrôle qui lit le
+mauvais objet.
+
+Banc : **234 contrôles**. Falsificateur : **45 mutations**, **0 survivante, 0 à côté**. Tests :
+**696 → 703**, sur **trente et un** fichiers. Détail : `SWIFT_MIGRATION.md` §9.38.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a

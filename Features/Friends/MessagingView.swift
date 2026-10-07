@@ -114,7 +114,7 @@ struct MessagingView: View {
     @ViewBuilder
     private var toolsSection: some View {
         if !isAdminContact {
-            CardButton(title: showTools ? "Masquer les options" : "Profil et entraide", secondary: true) {
+            CardButton(title: showTools ? "Masquer les options" : "Profil et entraide") {
                 showTools.toggle()
             }
         }
@@ -292,7 +292,7 @@ struct MessagingView: View {
             .padding(.top, Theme.Spacing.sm)
 
         if hasOlder {
-            CardButton(title: loadingOlder ? "Chargement…" : "Charger les messages précédents", secondary: true) {
+            CardButton(title: loadingOlder ? "Chargement…" : "Charger les messages précédents") {
                 Task { await loadOlder() }
             }
         }
@@ -402,7 +402,7 @@ struct MessagingView: View {
                 .disabled(busy || MessagingOptions.outgoing(draft).isEmpty || isSuspended)
             }
             if linkID != nil, !isAdminContact, !shareText.isEmpty {
-                CardButton(title: "Partager volontairement mon étape", secondary: true) {
+                CardButton(title: "Partager volontairement mon étape") {
                     Task { await shareStep() }
                 }
             }

@@ -350,4 +350,56 @@ public enum MessagingOptions {
         if trimmed.isEmpty { return 0 }
         return Double(trimmed)
     }
+
+    // MARK: Cercles privés
+
+    /// Le nom d'un cercle est-il acceptable ?
+    ///
+    /// L'original désactive le bouton sur `groupName.trim().length < 2`
+    /// (`SocialScreens.tsx:196`) — **deux caractères une fois détouré**, et le
+    /// détourage est celui de JavaScript (`String.prototype.trim`), qui retire
+    /// les blancs Unicode, pas seulement l'espace ASCII.
+    ///
+    /// C'est la seule condition qui garde la création : le nom part ensuite tel
+    /// quel à `create_friend_group` (`p_name`), sans re-détourage côté Swift.
+    /// La règle rend donc le nom **détouré**, et l'appelant envoie ce qu'elle
+    /// rend — sinon l'écran validerait « a b » et enverrait «  a b  », et les
+    /// deux applications ne nommeraient pas le même cercle de la même façon.
+    ///
+    /// Ce n'est PAS une validation d'unicité ni une longueur maximale : la
+    /// fonction Postgres ne les impose pas, et en ajouter ici ferait refuser à
+    /// Swift ce que l'application actuelle accepte.
+    public static func circleNameIsAcceptable(_ text: String) -> Bool {
+        trimmedCircleName(text).count >= 2
+    }
+
+    /// Le nom détouré, tel qu'il sera envoyé. `Character` compte des
+    /// **graphèmes**, comme `String.length` de JavaScript compte des unités
+    /// UTF-16 : deux emoji — un seul « caractère » chacun — passent la borne.
+    public static func trimmedCircleName(_ text: String) -> String {
+        text.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
+
+    /// Ce rôle peut-il inviter, nommer un modérateur ou retirer un membre ?
+    ///
+    /// L'original l'écrit deux fois : `['owner','moderator'].includes(m.role)`
+    /// (`SocialScreens.tsx:203` et `:204`). Deux copies d'une même liste, dans
+    /// le même écran — le portage en fait **une** fonction, pour qu'une
+    /// divergence soit impossible.
+    ///
+    /// `member` n'y est pas, et `nil` non plus : un rôle inconnu n'administre
+    /// rien. C'est le sens de `includes` sur une liste fermée.
+    public static func managesMembers(_ role: String?) -> Bool {
+        guard let role else { return false }
+        return role == "owner" || role == "moderator"
+    }
+
+    /// Cette appartenance attend-elle une réponse de **moi** ?
+    ///
+    /// `m.user_id === myId && !m.accepted_at` — l'original, deux fois aussi
+    /// (`:202` et `:203`). L'ordre des deux tests n'importe pas, mais le second
+    /// est bien sur `accepted_at` **nul**, non sur sa valeur.
+    public static func awaitsMyAnswer(_ member: GroupMember, myID: String) -> Bool {
+        member.userId == myID && member.acceptedAt == nil
+    }
 }

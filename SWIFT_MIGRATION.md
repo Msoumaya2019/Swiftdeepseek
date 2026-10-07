@@ -3212,3 +3212,99 @@ vidée laisse `ancres.length` intact.
 - Un contrôle **fragile** réparé chez un prédécesseur (`verifier-porte-auth`
   épinglait « 41 dans `Tests/MessagingTests.swift` », un chiffre qui a valu 41
   puis 59) : il éprouve maintenant que le porteur **dérive** la part.
+
+### 9.38 Les cercles privés, et deux classes de défaut que la CI a vues avant le banc
+
+Le service des groupes était porté depuis plusieurs blocs — `createGroup`,
+`inviteGroupMember`, `acceptGroupInvite`, `setGroupModerator`,
+`removeGroupMember`, `deleteGroup` — et **prouvé** : chaque fonction avait son
+contrôle, chaque URL sa forme, chaque RPC son nom. Il manquait une seule chose :
+**un écran qui l'appelle**. Sans lui, la seule façon d'ouvrir un fil de cercle
+était de connaître un identifiant. C'est exactement le défaut de §34, quand
+`Features/Auth/` était vide alors que `SignInView` vivait à la racine — une
+capacité sans porte d'entrée.
+
+`Features/Friends/CirclesView.swift` comble le trou, et la liste d'amis l'ouvre
+par un `path.append(.circles(token))`.
+
+#### Trois règles, nées avec l'écran
+
+Elles vivent dans `Core/MessagingOptions.swift`, comme celles de §9.37 — l'écran
+ne décide de rien :
+
+- **`circleNameIsAcceptable`** — l'original désactive le bouton sur
+  `groupName.trim().length < 2` (`SocialScreens.tsx:196`) : **deux caractères une
+  fois détouré**, borne inclusive. La règle **rend** le nom détouré, et l'écran
+  envoie ce qu'elle rend — sinon deux détourages pourraient diverger, et les deux
+  applications ne nommeraient pas le même cercle pareil.
+- **`managesMembers`** — l'original écrit deux fois
+  `['owner','moderator'].includes(m.role)` (`:203`, `:204`). Une seule fonction
+  ici. `member`, `""` et `nil` n'administrent rien : c'est le sens d'une liste
+  **fermée**, là où un `!= "member"` aurait tout laissé passer.
+- **`awaitsMyAnswer`** — `m.user_id === myId && !m.accepted_at`, écrit deux fois
+  lui aussi (`:202`, `:203`). C'est le seul état qui affiche « Rejoindre ».
+
+Et une quatrième, sur le **modèle** : `FriendGroup.contactUserId`. La colonne
+`contact_user_id` est **ajoutée** hors du schéma initial
+(`supabase/admin-contact.sql:2`), et le type de l'original la porte optionnelle
+en plus d'être nulle (`social.ts:7`). Une clé **absente** et une clé **nulle**
+doivent donc toutes deux décoder en `nil` — c'est le défaut de `Codable` pour un
+`Optional`, et un test le mesure sur les trois formes de réponse.
+
+#### Deux défauts que la CI a vus avant le banc
+
+Le bloc a coûté **deux runs rouges**, et les deux causes étaient **écrites dans
+le banc comme hors de sa portée** :
+
+- `invalid redeclaration of 'open(link:)'` — deux déclarations du même nom à
+  quinze lignes d'écart. Le bouton est **synchrone** et ne peut pas `await` : la
+  partie asynchrone portait pourtant le même libellé. Elle prend désormais un nom
+  distinct, `ouvrirLaConversation`.
+- `'navigationDestination(item:)' is only available in iOS 17.0 or newer` — la
+  cible est iOS **16** (`project.yml:23`). Les trois vues passent par la forme
+  iOS 16 : un chemin, et `navigationDestination(for:)`.
+
+Le premier était invisible à **tout** contrôle de texte qui **cherche** une
+forme ; le second, invisible à tout contrôle qui ne lit pas la cible.
+
+Les deux classes sont pourtant **fermables** sans compilateur :
+
+- une déclaration de fonction est **unique** dans son type — le banc compte donc
+  les déclarations des quatre sources d'app et exige qu'aucun nom ne se répète ;
+- une signature est **lisible** — le banc lit la déclaration de `CardButton` et
+  refuse un paramètre `secondary` qu'elle n'a pas ;
+- une cible est **écrite** — le banc lit `iOS: "16.0"` dans `project.yml` et
+  refuse `navigationDestination(item:)` dans le **code** des vues.
+
+**On lit le CODE, pas le texte** : les deux vues *expliquent* en commentaire
+pourquoi `navigationDestination(item:)` est écarté, et un contrôle qui chercherait
+la chaîne n'importe où condamnerait la vue pour l'avoir documentée. Même piège
+qu'en §9.37.
+
+#### Deux survivantes, et ce qu'elles ont appris
+
+La première campagne a rendu **1 survivante et 1 à côté**, et les deux fautes
+étaient dans le **contrôle**, pas dans la mutation :
+
+- **M43 survivait** parce que le contrôle lisait la mauvaise tranche :
+  `corpsDe(composants, 'CardButton')` cherche `func <nom>` — il ne trouve **pas**
+  un `struct`, et le repli `?? composants` lisait alors tout le fichier, où
+  `secondary` existait comme paramètre d'**un autre** composant. Corrigé par un
+  découpage explicite de `struct CardButton` à `var body`.
+- **M42 était à côté** parce que la même erreur frappait `FriendGroup` : le
+  contrôle lisait le fichier entier, où la clé `CodingKeys` suffisait à satisfaire
+  l'assertion même après la disparition du **champ**. Corrigé par un
+  `structureDe` qui découpe la déclaration, et par une assertion sur la
+  **déclaration du champ**, non sur sa clé.
+
+C'est la troisième fois qu'une survivante se révèle être un contrôle qui lit le
+mauvais objet (§9.36, §9.37, ici). La leçon se répète : **le nom ne prouve rien ;
+c'est le corps — ici, la bonne tranche de fichier — qui décide.**
+
+#### Les nombres
+
+- **66** tests dans `Tests/MessagingTests.swift` (7 de plus), **696 → 703**.
+- `_banc/verifier-messagerie.mjs` : **234** contrôles verts (35 de plus).
+- `_banc/falsifier-messagerie.mjs` : **45** mutations, **0 survivante**, **0 à
+  côté**.
+- Un fichier d'app de plus : `Features/Friends/CirclesView.swift`.

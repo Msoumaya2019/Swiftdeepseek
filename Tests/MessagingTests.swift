@@ -503,4 +503,125 @@ final class MessagingTests: XCTestCase {
         XCTAssertEqual(DateKeys.timeText("pas une date"), "")
         XCTAssertEqual(DateKeys.dateTimeText("pas une date"), "")
     }
+
+    // MARK: - Les cercles privés
+
+    func testTheCircleNameNeedsTwoCharactersOnceTrimmed() {
+        // La borne est celle de l'original : `groupName.trim().length < 2`.
+        // Le détourage est JavaScript, qui retire les blancs Unicode — et non
+        // le seul espace ASCII. `" "` détouré vaut `""`, donc un caractère (0) :
+        // refusé, comme `""` et `"a"`.
+        XCTAssertTrue(MessagingOptions.circleNameIsAcceptable("Coran"))
+        XCTAssertTrue(MessagingOptions.circleNameIsAcceptable("  Coran  "))
+        // Deux caractères exactement : la borne est INCLUSIVE.
+        XCTAssertTrue(MessagingOptions.circleNameIsAcceptable("ab"))
+        XCTAssertTrue(MessagingOptions.circleNameIsAcceptable("  ab  "))
+
+        XCTAssertFalse(MessagingOptions.circleNameIsAcceptable(""))
+        XCTAssertFalse(MessagingOptions.circleNameIsAcceptable("a"))
+        XCTAssertFalse(MessagingOptions.circleNameIsAcceptable(" a "))
+        XCTAssertFalse(MessagingOptions.circleNameIsAcceptable("     "))
+        // Une tabulation et un saut de ligne sont des blancs, eux aussi.
+        XCTAssertFalse(MessagingOptions.circleNameIsAcceptable("\t\n"))
+        XCTAssertFalse(MessagingOptions.circleNameIsAcceptable("\ta\n"))
+    }
+
+    func testTheCircleNameIsSentTrimmedAndUnchangedOtherwise() {
+        // La règle rend le nom qu'elle a accepté : la vue n'a pas à le
+        // redétourer, sinon deux détourages pourraient diverger.
+        XCTAssertEqual(MessagingOptions.trimmedCircleName("  Coran  "), "Coran")
+        XCTAssertEqual(MessagingOptions.trimmedCircleName("Coran"), "Coran")
+        // Un espace INTÉRIEUR n'est pas touché : `trim` ne coupe que les bords.
+        XCTAssertEqual(MessagingOptions.trimmedCircleName("  Le Coran  "), "Le Coran")
+    }
+
+    func testTheCircleNameLetsTwoEmojiThroughAndRefusesOne() {
+        // `Character` compte des graphèmes, comme `String.length` de JavaScript
+        // compte des unités UTF-16 — ici « un seul caractère » des deux côtés.
+        // Un emoji hors plan multilingue pèse DEUX unités UTF-16 en JavaScript :
+        // il n'y a donc **aucun** écart à porter sur la borne, et c'est mesuré
+        // pour mémoire — une implémentation qui compterait `utf16.count`
+        // accepterait un seul emoji et divergerait.
+        let unEmoji = "📖"
+        let deuxEmoji = "📖📗"
+        XCTAssertEqual(deuxEmoji.count, 2)
+        XCTAssertEqual(unEmoji.utf16.count, 2, "un emoji hors BMP pèse deux unités UTF-16")
+        XCTAssertTrue(MessagingOptions.circleNameIsAcceptable(deuxEmoji))
+        XCTAssertFalse(MessagingOptions.circleNameIsAcceptable(unEmoji))
+    }
+
+    func testOnlyTheOwnerAndTheModeratorManageMembers() {
+        // `['owner','moderator'].includes(m.role)` — une liste FERMÉE.
+        XCTAssertTrue(MessagingOptions.managesMembers("owner"))
+        XCTAssertTrue(MessagingOptions.managesMembers("moderator"))
+        // Un membre simple ne gère rien — et c'est le cas le plus fréquent.
+        XCTAssertFalse(MessagingOptions.managesMembers("member"))
+        // Un rôle inconnu, vide ou absent ne gère rien non plus : c'est le sens
+        // d'un `includes` sur une liste fermée, là où un `!= "member"` aurait
+        // laissé passer tout le reste.
+        XCTAssertFalse(MessagingOptions.managesMembers(nil))
+        XCTAssertFalse(MessagingOptions.managesMembers(""))
+        XCTAssertFalse(MessagingOptions.managesMembers("Owner"))
+        XCTAssertFalse(MessagingOptions.managesMembers("administrateur"))
+    }
+
+    func testAnInvitationAwaitsMyAnswerOnlyWhenItIsMineAndUnaccepted() {
+        func membre(_ userId: String, _ acceptedAt: String?) -> GroupMember {
+            GroupMember(groupId: "g", userId: userId, role: "member",
+                        acceptedAt: acceptedAt, invitedBy: nil, profile: nil)
+        }
+        let moi = "moi"
+        // La mienne, sans réponse : c'est la SEULE qui affiche « Rejoindre ».
+        XCTAssertTrue(MessagingOptions.awaitsMyAnswer(membre(moi, nil), myID: moi))
+        // La mienne, déjà acceptée : rien à répondre.
+        XCTAssertFalse(MessagingOptions.awaitsMyAnswer(membre(moi, "2026-01-01T00:00:00.000Z"), myID: moi))
+        // Celle d'un autre, sans réponse : ce n'est pas la mienne.
+        XCTAssertFalse(MessagingOptions.awaitsMyAnswer(membre("autre", nil), myID: moi))
+        XCTAssertFalse(MessagingOptions.awaitsMyAnswer(membre("autre", "2026-01-01T00:00:00.000Z"), myID: moi))
+    }
+
+    func testACircleResolvesTheContactItDecorates() {
+        // Le décodage : `contact_user_id` est une colonne AJOUTÉE
+        // (`admin-contact.sql:2`) et le type de l'original la porte
+        // optionnelle. Une réponse du serveur qui l'OMET doit décoder en `nil`
+        // — sinon l'application refuserait tout groupe créé avant la colonne,
+        // et le décodage est le seul endroit qui puisse le voir.
+        let sansClef = #"{"id":"g","name":"Coran","owner_id":"o","created_at":"2026-01-01T00:00:00.000Z"}"#
+        let avecClefNulle = #"{"id":"g","name":"Coran","owner_id":"o","created_at":"2026-01-01T00:00:00.000Z","contact_user_id":null}"#
+        let avecContact = #"{"id":"g","name":"Administration","owner_id":"o","created_at":"2026-01-01T00:00:00.000Z","contact_user_id":"admin"}"#
+        let decodeur = JSONDecoder()
+        // Les trois doivent décoder — c'est le point : la clé absente n'est pas
+        // une erreur, et la clé nulle n'est pas un identifiant vide.
+        // `try?` rend `FriendGroup?` : on décode d'abord, on interroge ensuite,
+        // sinon l'optional chaining masquerait un échec de décodage sous un
+        // `nil` de valeur — deux causes, un seul verdict.
+        let groupeSansClef = try? decodeur.decode(FriendGroup.self, from: Data(sansClef.utf8))
+        let groupeClefNulle = try? decodeur.decode(FriendGroup.self, from: Data(avecClefNulle.utf8))
+        let groupeAvecContact = try? decodeur.decode(FriendGroup.self, from: Data(avecContact.utf8))
+        XCTAssertNotNil(groupeSansClef, "une clé ABSENTE ne doit pas faire échouer le décodage")
+        XCTAssertNotNil(groupeClefNulle, "une clé NULLE ne doit pas faire échouer le décodage")
+        XCTAssertEqual(groupeAvecContact?.contactUserId, "admin")
+        XCTAssertNil(groupeSansClef?.contactUserId)
+        XCTAssertNil(groupeClefNulle?.contactUserId)
+        // Et le reste du groupe survit dans les trois cas : sans quoi un
+        // décodage « réussi mais vide » passerait le test.
+        XCTAssertEqual(groupeSansClef?.name, "Coran")
+        XCTAssertEqual(groupeClefNulle?.ownerId, "o")
+    }
+
+    func testTheCircleViewNeverDecidesARuleItself() {
+        // Le contrat de l'écran des cercles : il APPELLE les règles de `Core`,
+        // il ne les réécrit pas. C'est la même frontière qu'à §9.37 pour la
+        // messagerie, et c'est ce qui empêche les deux applications de
+        // diverger sans qu'un test tombe.
+        //
+        // Le banc de contrôle refait cette lecture ; ici, c'est le NOMBRE de
+        // règles qui est épinglé — une règle qui disparaît de `Core` doit
+        // faire tomber un test, pas seulement un `grep`.
+        XCTAssertTrue(MessagingOptions.circleNameIsAcceptable("ab"))
+        XCTAssertTrue(MessagingOptions.managesMembers("owner"))
+        XCTAssertTrue(MessagingOptions.awaitsMyAnswer(
+            GroupMember(groupId: "g", userId: "m", role: "member",
+                        acceptedAt: nil, invitedBy: nil, profile: nil), myID: "m"))
+    }
 }

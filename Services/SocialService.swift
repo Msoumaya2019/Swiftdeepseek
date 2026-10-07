@@ -165,12 +165,28 @@ public struct FriendGroup: Codable, Equatable, Sendable, Identifiable {
     public var name: String
     public var ownerId: String
     public var createdAt: String
+    /// Le contact administrateur du groupe, s'il en est un.
+    ///
+    /// `supabase/admin-contact.sql:2` ajoute la colonne **hors** du schéma
+    /// initial, et le type de l'original la porte **optionnelle** en plus d'être
+    /// nulle (`contact_user_id?:string|null`, `social.ts:7`). Une clé ABSENTE et
+    /// une clé NULLE doivent donc toutes deux décoder en `nil` — c'est le
+    /// défaut de `Codable` pour un `Optional`, et il ne faut **pas** le
+    /// remplacer par un `decodeIfPresent` assorti d'une valeur par défaut, qui
+    /// écraserait la distinction.
+    ///
+    /// C'est lui qui décide d'un ÉCRAN : un groupe d'administration
+    /// (`contactUserId != nil`) n'a ni objectif partagé, ni rendez-vous, ni
+    /// membres à nommer — l'original le dit par `!!g.contact_user_id`
+    /// (`SocialScreens.tsx:162`).
+    public var contactUserId: String?
 
     enum CodingKeys: String, CodingKey {
         case id
         case name
         case ownerId = "owner_id"
         case createdAt = "created_at"
+        case contactUserId = "contact_user_id"
     }
 }
 
