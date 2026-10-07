@@ -73,6 +73,9 @@ struct ProfileView: View {
     /// `showKnowledge` / `showProgram` que `SettingsView` portait pour elles.
     @State private var showKnowledge = false
     @State private var showProgram = false
+    /// L'écran de modération — atteignable seulement depuis le profil,
+    /// comme dans l'original (« ← Profil »).
+    @State private var showAdmin = false
 
     var body: some View {
         NavigationStack {
@@ -86,6 +89,7 @@ struct ProfileView: View {
                     knowledgeCard
                     goalCard
                     learningCard
+                    adminCard
                 }
                 .padding(.horizontal, Theme.Spacing.lg)
                 .padding(.bottom, Theme.Spacing.section)
@@ -99,8 +103,16 @@ struct ProfileView: View {
                 }
             }
             .onAppear { firstName = model.state.profile?.firstName ?? "" }
+            .task { adminToken = await model.socialAccessToken() }
             .onChange(of: model.state.profile?.firstName) { value in
                 firstName = value ?? ""
+            }
+            .navigationDestination(isPresented: $showAdmin) {
+                if let token = adminToken {
+                    AdminView(myID: model.auth.userId ?? "", accessToken: token)
+                } else {
+                    EmptyLabel(text: "Connecte-toi pour modérer.")
+                }
             }
             .sheet(isPresented: $showKnowledge) { KnowledgeEditorView() }
             .sheet(isPresented: $showProgram) { ProgramEditorView(state: model.state) }
@@ -230,6 +242,36 @@ struct ProfileView: View {
     /// l'espace Révisions fait donc disparaître la rangée, et la rallumer la
     /// ramène sur la durée déjà choisie — `setReviewsEnabled` ré-épingle
     /// `cycleDays`, il ne le remet pas à 7.
+    // MARK: - La modération
+
+    /// La porte de la modération.
+    ///
+    /// Elle n'est PAS cachée aux non-administrateurs : l'original non plus
+    /// (`AdminScreen` est atteignable par quiconque ouvre le profil, et c'est
+    /// `isSocialAdmin()` qui refuse ensuite). Cacher le bouton ferait croire à
+    /// une sécurité qui n'existe pas — ce sont les politiques RLS qui décident.
+    /// L'écran, lui, explique le refus.
+    private var adminCard: some View {
+        Card {
+            VStack(alignment: .leading, spacing: Theme.Spacing.sm) {
+                Text("Modération")
+                    .font(.system(size: Theme.Typography.card, weight: .semibold))
+                    .foregroundStyle(palette.green)
+                Text("Signalements, suspensions et messages récents. Réservé aux administrateurs.")
+                    .font(.system(size: Theme.Typography.secondary))
+                    .foregroundStyle(palette.muted)
+                CardButton(title: adminToken == nil ? "Ouverture…" : "Ouvrir la modération",
+                           disabled: adminToken == nil) {
+                    showAdmin = true
+                }
+            }
+        }
+    }
+
+    /// Le jeton d'accès, obtenu à l'apparition. `nil` éteint le bouton plutôt
+    /// que d'ouvrir un écran sans réseau.
+    @State private var adminToken: String?
+
     private var learningCard: some View {
         Card {
             VStack(alignment: .leading, spacing: Theme.Spacing.sm) {

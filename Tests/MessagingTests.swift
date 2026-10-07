@@ -624,4 +624,103 @@ final class MessagingTests: XCTestCase {
             GroupMember(groupId: "g", userId: "m", role: "member",
                         acceptedAt: nil, invitedBy: nil, profile: nil), myID: "m"))
     }
+
+    // MARK: - La modération
+
+    func testTheFourSuspensionLengthsAreOrderedAndLabelled() {
+        // La liste est FERMÉE et ORDONNÉE : l'écran les affiche dans cet ordre.
+        // `allCases` suit l'ordre de déclaration, et c'est ce que l'original
+        // écrit en dur (`['1','7','30','forever']`).
+        XCTAssertEqual(
+            MessagingOptions.SuspensionLength.allCases,
+            [.oneDay, .sevenDays, .thirtyDays, .forever]
+        )
+        XCTAssertEqual(MessagingOptions.SuspensionLength.oneDay.label, "1 jour")
+        XCTAssertEqual(MessagingOptions.SuspensionLength.sevenDays.label, "7 jours")
+        XCTAssertEqual(MessagingOptions.SuspensionLength.thirtyDays.label, "30 jours")
+        XCTAssertEqual(MessagingOptions.SuspensionLength.forever.label, "Sans date de fin")
+        // Le singulier ne porte PAS de « s » : c'est `d === '1' ? '' : 's'`.
+        XCTAssertFalse(MessagingOptions.SuspensionLength.oneDay.label.hasSuffix("s"))
+    }
+
+    func testTheSuspensionEndsInWholeMillisecondsNotByCalendar() {
+        // `Date.now() + Number(duration) * 86400000` — la multiplication, pas un
+        // `Calendar`. La différence n'est visible qu'au changement d'heure :
+        // la nuit où l'on recule, ajouter un jour par calendrier donne une date
+        // décalée d'une heure. On épingle donc la **durée en secondes**, qui est
+        // exactement 86 400 par jour.
+        let now = Date(timeIntervalSince1970: 1_767_225_600) // 2026-01-01T00:00:00Z
+        let unJour = MessagingOptions.suspensionUntil(.oneDay, now: now)
+        XCTAssertNotNil(unJour)
+        let until = DateKeys.parseISO(unJour ?? "")
+        XCTAssertNotNil(until)
+        XCTAssertEqual(until?.timeIntervalSince(now), 86_400, accuracy: 0.001,
+                       "un jour vaut 86 400 secondes, pas « un jour de calendrier »")
+        XCTAssertEqual(unJour, "2026-01-02T00:00:00.000Z")
+        // Sept et trente jours : la multiplication, encore.
+        XCTAssertEqual(MessagingOptions.suspensionUntil(.sevenDays, now: now), "2026-01-08T00:00:00.000Z")
+        XCTAssertEqual(MessagingOptions.suspensionUntil(.thirtyDays, now: now), "2026-01-31T00:00:00.000Z")
+    }
+
+    func testForeverIsAnAbsentDateAndNotAnImmediateOne() {
+        // `nil` veut dire « indéfiniment ». Le confondre avec « maintenant »
+        // ferait expirer la suspension à la seconde où on la pose — et c'est le
+        // sens que `isSuspended` porte déjà, où l'absence de date bloque.
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        XCTAssertNil(MessagingOptions.suspensionUntil(.forever, now: now))
+        // Et l'absence bloque : la même valeur nulle, lue par l'autre règle.
+        let suspension = SocialSuspension(userId: "u", reason: "test", suspendedUntil: nil,
+                                          createdAt: DateKeys.iso(now))
+        XCTAssertTrue(MessagingOptions.suspensionIsActive(suspension, now: now))
+    }
+
+    func testTheSuspensionReasonNeedsThreeCharactersOnceTrimmed() {
+        // TROIS caractères, et non deux comme le nom d'un cercle : deux bornes
+        // distinctes, et les confondre laisserait passer ce que l'original refuse.
+        XCTAssertTrue(MessagingOptions.suspensionReasonIsAcceptable("abc"))
+        XCTAssertTrue(MessagingOptions.suspensionReasonIsAcceptable("  abc  "))
+        XCTAssertFalse(MessagingOptions.suspensionReasonIsAcceptable(""))
+        XCTAssertFalse(MessagingOptions.suspensionReasonIsAcceptable("ab"))
+        XCTAssertFalse(MessagingOptions.suspensionReasonIsAcceptable(" a "))
+        XCTAssertFalse(MessagingOptions.suspensionReasonIsAcceptable("   "))
+        // Et la borne est bien DISTINCTE de celle du nom de cercle.
+        XCTAssertTrue(MessagingOptions.circleNameIsAcceptable("ab"))
+        XCTAssertFalse(MessagingOptions.suspensionReasonIsAcceptable("ab"))
+    }
+
+    func testOnlyOpenReportsAreShownAndTheyAreCounted() {
+        // `status === 'open'` — le serveur ne pose que deux états, et l'écran
+        // n'en montre qu'un. Un signalement classé reste en base.
+        func rapport(_ statut: String) -> MessageReport {
+            MessageReport(id: "r", messageId: "m", reason: "motif", reporterId: "u",
+                          excerpt: "extrait", status: statut, createdAt: "2026-01-01T00:00:00.000Z")
+        }
+        XCTAssertTrue(MessagingOptions.reportIsOpen(rapport("open")))
+        XCTAssertFalse(MessagingOptions.reportIsOpen(rapport("resolved")))
+        // Un état inconnu n'est PAS ouvert : c'est le sens d'une égalité sur une
+        // valeur fermée, là où un `!= "resolved"` aurait laissé passer le reste.
+        XCTAssertFalse(MessagingOptions.reportIsOpen(rapport("closed")))
+        XCTAssertFalse(MessagingOptions.reportIsOpen(rapport("")))
+    }
+
+    func testASuspensionIsActiveUntilItsDatePasses() {
+        // `!s.suspended_until || new Date(s.suspended_until) > new Date()`
+        let now = Date(timeIntervalSince1970: 1_767_225_600)
+        func suspension(_ until: String?) -> SocialSuspension {
+            SocialSuspension(userId: "u", reason: "motif", suspendedUntil: until,
+                             createdAt: DateKeys.iso(now))
+        }
+        // Une seconde AVANT l'échéance : active.
+        XCTAssertTrue(MessagingOptions.suspensionIsActive(
+            suspension("2026-01-02T00:00:00.000Z"), now: now))
+        // Une seconde APRÈS : expirée. La comparaison est strictement plus grand,
+        // donc l'instant EXACT est déjà expiré — c'est le sens de `>`.
+        XCTAssertFalse(MessagingOptions.suspensionIsActive(
+            suspension("2025-12-31T23:59:59.999Z"), now: now))
+        // L'absence de date : active, indéfiniment.
+        XCTAssertTrue(MessagingOptions.suspensionIsActive(suspension(nil), now: now))
+        // Une date ILLISIBLE est traitée comme active : le serveur l'a écrite,
+        // et la montrer vaut mieux que la cacher.
+        XCTAssertTrue(MessagingOptions.suspensionIsActive(suspension("pas une date"), now: now))
+    }
 }

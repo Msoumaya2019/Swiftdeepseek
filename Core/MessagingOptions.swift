@@ -66,7 +66,14 @@ public enum MessagingOptions {
     /// Une conversation : l'un ou l'autre, jamais les deux — `room: {linkId?,
     /// groupId?}`. L'original choisit par `room.linkId ? … : …`, donc un `linkId`
     /// **vide** bascule sur le groupe, exactement comme `undefined`.
-    public enum Room: Equatable, Sendable {
+    ///
+    /// `Hashable` n'est pas décoratif : c'est ce qui permet à une **route** de
+    /// navigation de porter la pièce. Sans lui, `enum Route: Hashable` refuse de
+    /// se synthétiser — un compilateur l'a dit, et la CI l'a rapporté avant le
+    /// banc. Le type de la valeur associée est `String`, déjà `Hashable` : la
+    /// conformité est donc gratuite, et l'oublier est une erreur de plume, non
+    /// un choix.
+    public enum Room: Equatable, Hashable, Sendable {
         case link(String)
         case group(String)
 
@@ -401,5 +408,84 @@ public enum MessagingOptions {
     /// est bien sur `accepted_at` **nul**, non sur sa valeur.
     public static func awaitsMyAnswer(_ member: GroupMember, myID: String) -> Bool {
         member.userId == myID && member.acceptedAt == nil
+    }
+
+    // MARK: Modération
+
+    /// Les quatre durées d'une suspension, dans l'ordre de l'original
+    /// (`SocialScreens.tsx:245`).
+    ///
+    /// C'est une liste **fermée** et **ordonnée** : l'écran les affiche dans cet
+    /// ordre, et `forever` n'est pas un nombre de jours mais une absence de
+    /// date. La porter comme un `Int?` aurait fait de `0` et de `nil` deux
+    /// valeurs distinctes pour la même intention, et l'écran aurait dû
+    /// reconvertir — deux conversions pouvant diverger.
+    public enum SuspensionLength: String, CaseIterable, Sendable {
+        case oneDay = "1"
+        case sevenDays = "7"
+        case thirtyDays = "30"
+        case forever
+
+        /// Le libellé, exactement comme l'original le compose
+        /// (`d === '1' ? '' : 's'`).
+        public var label: String {
+            switch self {
+            case .oneDay: return "1 jour"
+            case .sevenDays: return "7 jours"
+            case .thirtyDays: return "30 jours"
+            case .forever: return "Sans date de fin"
+            }
+        }
+    }
+
+    /// La date de fin d'une suspension, ou `nil` pour « sans date de fin ».
+    ///
+    /// L'original : `duration === 'forever' ? null :
+    /// new Date(Date.now() + Number(duration) * 86400000).toISOString()`
+    /// (`SocialScreens.tsx:240`).
+    ///
+    /// **86 400 000 ms par jour**, en millisecondes entières — et c'est la
+    /// multiplication qu'il faut porter, pas un `Calendar`. Ajouter des jours
+    /// par calendrier donnerait la même date, **mais pas au changement d'heure** :
+    /// la nuit où l'on recule, `Date.now() + 86400000` et `+ 1 jour` diffèrent
+    /// d'une heure. L'application React Native écrit la première forme ; c'est
+    /// donc elle qu'il faut écrire, sinon les deux applications suspendraient
+    /// jusqu'à deux instants différents.
+    ///
+    /// `nil` n'est **pas** « immédiat » : c'est « indéfiniment » — le même sens
+    /// que dans `isSuspended`, où une date absente bloque sans fin.
+    public static func suspensionUntil(_ length: SuspensionLength, now: Date) -> String? {
+        guard length != .forever, let days = Double(length.rawValue) else { return nil }
+        return DateKeys.iso(now.addingTimeInterval(days * 86_400_000))
+    }
+
+    /// Le motif est-il acceptable ? L'original exige **trois caractères** une
+    /// fois détouré (`reason.trim().length < 3`, `SocialScreens.tsx:248`).
+    ///
+    /// Trois, et non deux comme le nom d'un cercle : c'est une borne
+    /// **distincte**, et les confondre laisserait passer un motif que
+    /// l'application actuelle refuse.
+    public static func suspensionReasonIsAcceptable(_ text: String) -> Bool {
+        text.trimmingCharacters(in: .whitespacesAndNewlines).count >= 3
+    }
+
+    /// Un signalement est-il **ouvert** ? C'est `status === 'open'` (le serveur
+    /// ne pose que deux états), et l'écran ne montre que ceux-là.
+    public static func reportIsOpen(_ report: MessageReport) -> Bool {
+        report.status == "open"
+    }
+
+    /// Une suspension est-elle **active** ? L'original :
+    /// `!s.suspended_until || new Date(s.suspended_until) > new Date()`
+    /// (`SocialScreens.tsx:252`).
+    ///
+    /// Deux pièges portés par la même ligne : une date **absente** compte comme
+    /// **active** (et non comme expirée), et une date **illisible** ne peut pas
+    /// être comparée — on la traite comme active, puisque le serveur l'a écrite
+    /// et que l'afficher est préférable à la cacher.
+    public static func suspensionIsActive(_ suspension: SocialSuspension, now: Date) -> Bool {
+        guard let until = suspension.suspendedUntil else { return true }
+        guard let when = DateKeys.parseISO(until) else { return true }
+        return when > now
     }
 }
