@@ -1704,6 +1704,40 @@ mauvais objet.
 Banc : **234 contrôles**. Falsificateur : **45 mutations**, **0 survivante, 0 à côté**. Tests :
 **696 → 703**, sur **trente et un** fichiers. Détail : `SWIFT_MIGRATION.md` §9.38.
 
+### L'écran de modération, et un type qui ne pouvait pas se hacher
+
+`AdminScreen` de l'original — signalements et suspensions — était le dernier écran de la chaîne
+sociale sans portage, alors que le service était **complet depuis longtemps**. Troisième capacité
+sans porte d'entrée du même bloc, après la messagerie et les cercles. `Features/Admin/AdminView.swift`
+la porte, et le profil l'ouvre.
+
+Cinq règles naissent avec l'écran. La plus fine : la durée d'une suspension multiplie par
+**86 400 000 ms** et non par un `Calendar` — les deux donnent la même date, sauf la nuit où l'on
+recule, où elles diffèrent d'une heure. L'application React Native écrit la première forme ; c'est
+elle qu'il faut écrire, sinon les deux applications suspendraient jusqu'à deux instants différents,
+sans qu'aucun écran ne le montre. Deux autres bornes sont **distinctes** et ne se confondent pas : le
+motif d'une suspension exige **trois** caractères, le nom d'un cercle **deux**. Et « sans date de
+fin » veut dire **indéfiniment**, pas « maintenant » — le `nil` de la conversion est le même sens que
+celui déjà porté par `isSuspended`.
+
+**La porte passe avant les listes.** L'original lève avant ses trois requêtes ; un écran qui
+interrogerait d'abord se lirait, en cas de refus, comme **trois listes vides** — indistinguable d'une
+base sans signalements.
+
+**Un défaut que la CI a vu avant le banc** : `type 'FriendsView.Route' does not conform to protocol
+'Hashable'`. `MessagingOptions.Room` ne déclarait qu'`Equatable`, donc `enum Route: Hashable`
+refusait de se synthétiser. Le type porté par une route **doit** être `Hashable`, et le banc le lit
+maintenant.
+
+**Deux survivantes, deux fautes de lecture.** Le contrôle du libellé cherchait la chaîne *entre
+guillemets* — une mutation peut l'écrire sans ; corrigé en exigeant l'**appel** à la règle de Core.
+Et un contrôle portait « **4** sources d'app » en dur, alors que la liste en compte 7. Corollaire,
+désormais écrit sans hésiter : **un contrôle qui nomme un nombre périme ; un contrôle qui nomme une
+propriété dure.**
+
+Banc : **267 contrôles**. Falsificateur : **54 mutations**, **0 survivante, 0 à côté**. Tests :
+**703 → 709**, sur **trente-deux** fichiers. Détail : `SWIFT_MIGRATION.md` §9.39.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a

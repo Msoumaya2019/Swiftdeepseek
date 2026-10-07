@@ -3308,3 +3308,90 @@ c'est le corps — ici, la bonne tranche de fichier — qui décide.**
 - `_banc/falsifier-messagerie.mjs` : **45** mutations, **0 survivante**, **0 à
   côté**.
 - Un fichier d'app de plus : `Features/Friends/CirclesView.swift`.
+
+### 9.39 L'écran de modération, et un type qui ne pouvait pas se hacher
+
+`AdminScreen` (`SocialScreens.tsx:212`) était le dernier écran de la chaîne
+sociale sans portage. Le service, lui, était **complet depuis longtemps** :
+`isSocialAdmin`, `adminReports`, `adminMessages`, `socialSuspensions`,
+`adminProfiles`, `resolveReport`, `suspendMember`, `unsuspendMember`. Encore
+une capacité sans porte d'entrée — la troisième du même bloc, après la
+messagerie (§9.37) et les cercles (§9.38).
+
+`Features/Admin/AdminView.swift` porte la partie **signalements et
+suspensions** ; le profil l'ouvre. Les six sous-écrans que l'original empile
+(`AdminProblemReports`, `AdminQuiz`, `AdminDailyContents`, `AdminAccounts`,
+`AdminRecitations`, `AdminNotifications`) ne sont **pas** portés, et c'est
+visible : les boutons qui les ouvrent ne sont pas rendus, plutôt que d'être
+rendus inertes.
+
+#### Cinq règles, dont une qui se joue à l'heure près
+
+- **`SuspensionLength`** — les quatre durées, **fermées** et **ordonnées**.
+  `forever` n'est pas un nombre de jours mais une **absence de date** ; porter
+  la liste comme un `Int?` aurait fait de `0` et de `nil` deux valeurs pour la
+  même intention. Les libellés viennent de l'original, y compris le singulier
+  sans « s » (`d === '1' ? '' : 's'`).
+- **`suspensionUntil`** — `now + jours × 86 400 000`, en millisecondes. **Pas
+  un `Calendar`** : les deux donnent la même date, sauf la nuit où l'on
+  recule, où elles diffèrent d'une heure. L'application React Native écrit la
+  première forme ; c'est elle qu'il faut écrire, sinon les deux applications
+  suspendraient jusqu'à deux instants différents — une divergence qu'aucun
+  écran ne montrerait, puisqu'à un jour près tout paraît identique.
+- **`suspensionReasonIsAcceptable`** — **trois** caractères une fois détouré.
+  C'est une borne **distincte** de celle du nom d'un cercle (deux) : les
+  confondre laisserait passer un motif que l'original refuse, et le test le
+  dit — « ab » est accepté comme nom de cercle et refusé comme motif.
+- **`reportIsOpen`** — `status == "open"`. Une égalité sur une **valeur
+  fermée** : un état inconnu n'est pas ouvert, là où un `!= "resolved"` aurait
+  laissé passer tout le reste.
+- **`suspensionIsActive`** — `!suspended_until || date > now`. Une date
+  **absente** est **active** (le sens déjà porté par `isSuspended`), et une
+  date **illisible** aussi : le serveur l'a écrite, la montrer vaut mieux que
+  la cacher.
+
+#### La porte avant les listes
+
+L'original lève **avant** ses trois requêtes (`:226`), et pas après :
+
+```js
+const load=async()=>{ if(!await social.isSocialAdmin())throw new Error('Accès administrateur refusé.');
+  const [r,m,s]=await Promise.all([...]); ... };
+```
+
+Ce n'est pas une optimisation. Un écran qui interroge d'abord se lirait, en
+cas de refus, comme **trois listes vides** — un état indistinguable d'une base
+sans signalements. Le banc exige donc que la position de la porte **précède**
+celle des listes, ce qui est la seule chose vérifiable sans exécuter le code.
+
+#### Deux défauts de la CI, deux contrôles de plus
+
+- **`type 'FriendsView.Route' does not conform to protocol 'Hashable'`** —
+  `MessagingOptions.Room` ne déclarait qu'`Equatable`, donc `enum Route:
+  Hashable` refusait de se **synthétiser** : le type porté par une route doit
+  être `Hashable`. Le banc lit maintenant la déclaration de `Room`, et une
+  mutation (M54) le prouve.
+- **`navigationDestination(item:)`** — déjà mesuré en §9.38, et toujours
+  contrôlé ici.
+
+#### Deux survivantes, deux fautes de lecture (encore)
+
+- **M53 survivait** : le contrôle cherchait la chaîne « Message supprimé »
+  **entre guillemets**, et la mutation l'écrit **sans**. Corrigé en exigeant
+  l'**appel** à `MessagingOptions.summaryBody` — la vraie question, et non la
+  présence d'une chaîne.
+- **Un « à côté »** sur le contrôle des sources d'app : son libellé portait
+  « **4** sources » en dur, alors que la liste en compte **7** depuis les
+  cercles. Réparé en visant un fragment **stable**, sans nombre.
+
+C'est la quatrième fois qu'une survivante se révèle être un contrôle qui lit le
+mauvais objet. Le corollaire s'écrit maintenant sans hésiter : **un contrôle qui
+nomme un nombre périme ; un contrôle qui nomme une propriété dure.**
+
+#### Les nombres
+
+- **72** tests dans `Tests/MessagingTests.swift` (6 de plus), **703 → 709**.
+- `_banc/verifier-messagerie.mjs` : **267** contrôles verts (33 de plus).
+- `_banc/falsifier-messagerie.mjs` : **54** mutations, **0 survivante**, **0 à
+  côté**.
+- Un dossier d'app de plus : `Features/Admin/`.

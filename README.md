@@ -200,7 +200,7 @@ Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blo
 **328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
 tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
 au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
-déclare aujourd'hui **703**, répartis sur **trente et un** fichiers. Le bloc des trois
+déclare aujourd'hui **709**, répartis sur **trente-deux** fichiers. Le bloc des trois
 cartes du profil en a ajouté **six** (416 → 422), mesurés au run n° 65 ; celui des
 marque-pages **trente-deux** (422 → 454) — vingt-deux sur le modèle et l'écran, dix sur
 la traduction d'un verset en page ; celui de la **liste des sourates** **quarante-huit**
@@ -298,6 +298,15 @@ n'a **pas** de paramètre `secondary`, et `navigationDestination(item:)` n'exist
 **17** alors que la cible est iOS **16** — deux classes désormais fermées par un contrôle, éprouvées
 chacune par une mutation. Le groupe porte aussi `contact_user_id`, colonne **ajoutée** hors du
 schéma initial : une clé absente décode en `nil`, et c'est un test qui le mesure.
+Voir §9.38.
+
+Et l'**écran de modération** — `Features/Admin/AdminView.swift` — **six** de plus (703 → 709) :
+`AdminScreen` de l'original, partie signalements et suspensions. Le service était prêt, rien ne
+l'affichait. Cinq règles naissent avec lui ; la plus fine est la durée d'une suspension, qui
+multiplie par **86 400 000 ms** et non par un `Calendar` — les deux donnent la même date, sauf au
+changement d'heure, où elles diffèrent d'une heure. Et un défaut que la CI a vu avant le banc :
+`MessagingOptions.Room` ne déclarait qu'`Equatable`, donc `enum Route: Hashable` refusait de se
+synthétiser — le type porté par une route doit être `Hashable`, et le banc le lit désormais. Voir §9.39.
 
 Et le run n° **69** a rappelé à quoi sert ce compte : il est **tombé**, non sur un test
 rouge mais sur une **erreur de type** — `Tests/TajweedTests.swift` lisait `verse?.surah`
