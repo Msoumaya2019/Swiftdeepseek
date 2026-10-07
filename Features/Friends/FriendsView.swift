@@ -287,7 +287,12 @@ public struct FriendsView: View {
 
     // MARK: Actions
 
-    private func open(link row: FriendRow) async {
+    // Une seule déclaration pour ce nom. Le bouton est SYNCHRONE et ne peut pas
+    // `await` : il ouvre la tâche. La partie asynchrone porte donc un autre nom
+    // — `ouvrirLaConversation` — sinon les deux surcharges porteraient le même
+    // libellé et Swift refuserait le fichier (« invalid redeclaration »). C'est
+    // exactement ce que la CI a signalé, et le banc le mesure désormais.
+    private func ouvrirLaConversation(_ row: FriendRow) async {
         guard let token = await model.socialAccessToken() else { return }
         openRoom = OpenRoom(
             id: row.id,
@@ -298,7 +303,7 @@ public struct FriendsView: View {
     }
 
     private func open(link row: FriendRow) {
-        Task { await open(link: row) }
+        Task { await ouvrirLaConversation(row) }
     }
 
     private func load() async {
@@ -345,11 +350,7 @@ public struct FriendsView: View {
 
     private func decline(_ row: FriendRow) async throws {
         guard let token = await model.socialAccessToken() else { return }
-        try await model.social.declineFriend(linkID: row.id, accessToken: token)
-    }
-
-    private func open(link row: FriendRow) {
-        Task { await open(link: row) }
+            try await model.social.declineFriend(linkID: row.id, accessToken: token)
     }
 
     private func act(_ operation: () async throws -> Void) async {
