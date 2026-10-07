@@ -239,4 +239,115 @@ public enum MessagingOptions {
         let seconds = total % 60
         return "\(minutes):" + (seconds < 10 ? "0\(seconds)" : "\(seconds)")
     }
+
+    /// La garde du bouton « Proposer cet objectif » — `SocialScreens.tsx:177` :
+    /// `!Number.isInteger(Number(targetSessions)) || Number(targetSessions) < 1
+    /// || Number(targetSessions) > 14`.
+    ///
+    /// `Number("")` vaut **0**, et `Number(" ")` aussi — un champ vide ou
+    /// d'espaces n'est donc pas « non numérique », il est **hors bornes** : le
+    /// bouton reste éteint, mais pour la seconde raison. Le porter avec
+    /// `Int(...)` seul donnerait la même décision sur ces deux entrées ; c'est
+    /// sur `"1e2"` que les deux diffèrent — `Number` rend **100** (accepté,
+    /// puisque ≤ 14 est faux… donc refusé), `Int("1e2")` rend `nil` (refusé
+    /// aussi). Les deux refusent, mais **pas par la même branche**, et c'est
+    /// exactement ce que `Tests/MessagingTests` épingle.
+    ///
+    /// Le second rôle : rendre le **nombre** que l'écran enverra. Une garde qui
+    /// valide sans rendre la valeur oblige l'appelant à la reconvertir, et les
+    /// deux conversions peuvent diverger. Ici, une seule fonction décide **et**
+    /// rend — la vue ne reconvertit rien.
+    public static func sessionCount(_ text: String) -> Int? {
+        guard let value = number(text) else { return nil }
+        guard value.rounded() == value else { return nil }
+        let count = Int(value)
+        guard count >= 1, count <= 14 else { return nil }
+        return count
+    }
+
+    /// La garde du bouton « Proposer un rendez-vous » — `SocialScreens.tsx:186-188`.
+    /// L'original teste une **expression régulière** `^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$`,
+    /// puis construit `new Date("…T…:00")`, puis refuse si la date est
+    /// **invalide** (`NaN`) ou **passée** (`<= new Date()`).
+    ///
+    /// Les trois refus sont distincts et le message d'erreur est **le même**
+    /// pour les trois : c'est une décision de l'écran, et elle est recopiée ici
+    /// pour que le refus ne dépende pas de la vue.
+    ///
+    /// **LE 31 FÉVRIER EST ACCEPTÉ, ET C'EST LA RÉFÉRENCE QUI LE VEUT.**
+    /// `new Date("2026-02-31T10:00:00")` **roule** au 3 mars en JavaScript :
+    /// mesuré, `2026-03-03T09:00:00.000Z`. L'ISO n'est rejeté que s'il est
+    /// *illisible* (`2026-02-3asdf` rend `Invalid Date`), pas s'il désigne un
+    /// jour qui n'existe pas. Le portage fait donc rouler de même — une garde
+    /// d'aller-retour qui refuserait le 31 février **divergerait** de
+    /// l'original, et enverrait un écran qui refuse une saisie que l'application
+    /// React Native accepte. C'est une histoire de mesure : une première sonde
+    /// avait conclu « invalide », et c'était la sonde qui était cassée (un `$`
+    /// mangé par le shell), pas la référence. L'oracle le mesure maintenant, et
+    /// le raconte dans `SWIFT_MIGRATION.md` §9.37.
+    public static func appointmentISO(_ text: String, now: Date) -> String? {
+        let parts = text.split(separator: " ", omittingEmptySubsequences: false)
+        guard parts.count == 2 else { return nil }
+        let day = parts[0].split(separator: "-", omittingEmptySubsequences: false)
+        let clock = parts[1].split(separator: ":", omittingEmptySubsequences: false)
+        guard day.count == 3, clock.count == 2 else { return nil }
+        guard day[0].count == 4, day[1].count == 2, day[2].count == 2 else { return nil }
+        guard clock[0].count == 2, clock[1].count == 2 else { return nil }
+        guard day.allSatisfy({ $0.allSatisfy(\.isNumber) }) else { return nil }
+        guard clock.allSatisfy({ $0.allSatisfy(\.isNumber) }) else { return nil }
+        // La garde de forme est passée : on peut maintenant lire des nombres.
+        guard let year = Int(day[0]), let month = Int(day[1]), let date = Int(day[2]) else { return nil }
+        guard let hour = Int(clock[0]), let minute = Int(clock[1]) else { return nil }
+        guard (1...12).contains(month), (1...31).contains(date) else { return nil }
+        guard (0...23).contains(hour), (0...59).contains(minute) else { return nil }
+        var components = DateComponents()
+        components.year = year
+        components.month = month
+        components.day = date
+        components.hour = hour
+        components.minute = minute
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(identifier: "UTC") ?? .gmt
+        guard let when = calendar.date(from: components) else { return nil }
+        // Pas de garde d'aller-retour : le calendrier **roule** le 31 février,
+        // comme `new Date(...)`. Refuser ici serait la divergence.
+        guard when > now else { return nil }
+        return DateKeys.iso(when)
+    }
+
+    /// Le prédicat de lecture d'un message — `SocialScreens.tsx:198` :
+    /// `m.created_at <= otherReadAt`, où la comparaison porte sur des **chaînes
+    /// ISO**. L'original écrit `<=` (et non `<`) : un message écrit à la
+    /// milliseconde exacte de la marque de lecture est **lu**.
+    ///
+    /// C'est le **miroir** de `isUnread` (`>`) et non sa négation à l'identique :
+    /// `isUnread` répond sur `createdAt > lastReadAt`, celle-ci sur
+    /// `createdAt <= otherReadAt`. Avec la même paire, `isRead(a, b) == !isUnread(a, b)`
+    /// — mais l'égalité n'est **pas** écrite ici, elle est vérifiée par un test,
+    /// parce que deux négations qui se répondent sont exactement le genre
+    /// d'accord qu'une refonte casse en silence.
+    public static func isRead(_ createdAt: String, at otherReadAt: String?) -> Bool {
+        guard let otherReadAt else { return false }
+        return createdAt <= otherReadAt
+    }
+
+    /// `Number(text)` — la conversion de JavaScript, et **non** `Int(text)`.
+    ///
+    /// Trois écarts, tous mesurés dans `_banc/oracle-messaging.mjs` :
+    ///   · `Number("")` et `Number("  ")` valent **0**, `Int("")` vaut `nil` ;
+    ///   · `Number("1e2")` vaut **100**, `Int("1e2")` vaut `nil` ;
+    ///   · `Number("0x10")` vaut **16**, `Int("0x10")` vaut `nil`.
+    ///
+    /// Les deux premiers changent les **décisions** de l'écran (voir
+    /// `sessionCount`). Le troisième ne peut pas être saisi : le champ porte
+    /// `keyboardType="number-pad"`, qui n'offre ni `x` ni `e`.
+    ///
+    /// `Number("Infinity")` rend `Infinity` et non un entier : la valeur est
+    /// écartée par `Int(value)`, qui rend `nil` sur l'infini — la garde de
+    /// `sessionCount` le refuse avant.
+    public static func number(_ text: String) -> Double? {
+        let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if trimmed.isEmpty { return 0 }
+        return Double(trimmed)
+    }
 }

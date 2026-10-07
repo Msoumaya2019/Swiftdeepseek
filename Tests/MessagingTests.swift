@@ -207,9 +207,37 @@ final class MessagingTests: XCTestCase {
     // MARK: - L'horodatage d'une marque
 
     func testTheReadStampIsInWholeMilliseconds() {
-        let now = Date(timeIntervalSince1970: 1_767_225_600.4567)
-        let stamp = MessagingOptions.readStamp(now: now)
-        XCTAssertEqual(stamp, "2026-01-01T00:00:00.456Z")
+        // CE TEST A ÉTÉ CORRIGÉ APRÈS AVOIR ÉTÉ ROUGE, et le défaut était dans
+        // le test. La version d'origine construisait `Date(timeIntervalSince1970:
+        // 1_767_225_600.4567)` et attendait la chaîne `…00.456Z`. Or un `Double`
+        // ne représente pas `.4567` exactement : la valeur la plus proche est
+        // **légèrement au-dessus**, le formateur arrondit donc **au-dessus**, et
+        // le run n° 82 a mesuré **`.457Z`**. La chaîne attendue n'était pas la
+        // chaîne que l'entrée portait — l'assertion comparait un arrondi à une
+        // valeur qui n'avait jamais existé.
+        //
+        // La propriété qui compte n'est pas une chaîne donnée : c'est que
+        // l'horodatage soit écrit **en millisecondes entières**, comme
+        // `toISOString()`. On la mesure donc sur des instants exactement
+        // représentables — ceux dont les millisecondes tombent juste.
+        let exact = Date(timeIntervalSince1970: 1_767_225_600.456)
+        XCTAssertEqual(MessagingOptions.readStamp(now: exact), "2026-01-01T00:00:00.456Z")
+
+        // Et sur une seconde ronde, trois décimales, toujours.
+        let rond = Date(timeIntervalSince1970: 1_767_225_600)
+        XCTAssertEqual(MessagingOptions.readStamp(now: rond), "2026-01-01T00:00:00.000Z")
+
+        // La propriété générale, elle, ne dépend pas de l'arrondi : la queue
+        // d'un horodatage ISO écrit par `toISOString()` fait **toujours** trois
+        // chiffres. C'est cela qu'on épingle — et cela tient pour n'importe
+        // quelle entrée, y compris celle qui avait fait échouer la première
+        // version.
+        for offset in [0.0, 0.4567, 0.9999, 0.5] {
+            let stamp = MessagingOptions.readStamp(now: Date(timeIntervalSince1970: 1_767_225_600 + offset))
+            let suffix = stamp.split(separator: ".").last.map(String.init) ?? ""
+            XCTAssertEqual(suffix.count, 3, "trois décimales pour \(offset) — mesuré « \(suffix) »")
+            XCTAssertTrue(stamp.hasSuffix("Z"), "l'horodatage ISO finit par Z")
+        }
     }
 
     // MARK: - Le résumé d'une conversation
@@ -339,5 +367,140 @@ final class MessagingTests: XCTestCase {
     func testTheMillisecondsAreTruncatedNotRounded() {
         // `Math.floor` de l'original : 1 999 ms vaut une seconde, pas deux.
         XCTAssertEqual(MessagingOptions.durationText(1_999), "0:01")
+    }
+
+    // MARK: - La garde du nombre de séances
+    //
+    // Les valeurs attendues viennent de `_banc/oracle-messaging.mjs`, qui évalue
+    // l'expression RÉELLE de `SocialScreens.tsx:177` sur chaque entrée. Le banc
+    // est cité, mais il est aussi **importé et exécuté** par le vérificateur :
+    // un oracle qu'on recopie ne prouve rien.
+
+    func testTheSessionCountRefusesWhatIsOutOfBounds() {
+        XCTAssertNil(MessagingOptions.sessionCount("0"))
+        XCTAssertNil(MessagingOptions.sessionCount("15"))
+        XCTAssertNil(MessagingOptions.sessionCount("-3"))
+    }
+
+    func testTheSessionCountAcceptsOneThroughFourteen() {
+        XCTAssertEqual(MessagingOptions.sessionCount("1"), 1)
+        XCTAssertEqual(MessagingOptions.sessionCount("3"), 3)
+        XCTAssertEqual(MessagingOptions.sessionCount("14"), 14)
+    }
+
+    func testTheSessionCountRefusesADecimal() {
+        // `Number.isInteger(2.5)` est faux — le bouton reste éteint.
+        XCTAssertNil(MessagingOptions.sessionCount("2.5"))
+    }
+
+    func testAnEmptyFieldIsRefusedByTheUpperBoundNotByTheShape() {
+        // `Number("")` vaut 0 en JavaScript, pas `NaN` : le refus vient de la
+        // borne `< 1`, pas d'une lecture impossible. Les deux refusent — mais
+        // `Int("")` rendrait `nil`, donc une AUTRE branche.
+        XCTAssertEqual(MessagingOptions.number(""), 0)
+        XCTAssertNil(MessagingOptions.sessionCount(""))
+        XCTAssertEqual(MessagingOptions.number("   "), 0)
+        XCTAssertNil(MessagingOptions.sessionCount("   "))
+    }
+
+    func testTheExponentFormIsReadByNumberAndNotByInt() {
+        // LE point de divergence : `Number("1e2")` vaut 100 (refusé par la
+        // borne haute), `Int("1e2")` rend `nil` (refusé par la forme). Les deux
+        // refusent, mais **pas par la même branche** — et c'est ce qu'on épingle.
+        XCTAssertEqual(MessagingOptions.number("1e2"), 100)
+        XCTAssertNil(MessagingOptions.sessionCount("1e2"))
+    }
+
+    func testTheHexFormIsReadByNumberAndIsUnreachable() {
+        // `Number("0x10")` vaut 16. Inatteignable : le champ porte
+        // `keyboardType(.numberPad)`, qui n'offre ni `x` ni `e`. La divergence
+        // est donc **nommée** et **déclarée inatteignable**, pas ignorée.
+        XCTAssertEqual(MessagingOptions.number("0x10"), 16)
+    }
+
+    func testANonNumericTextIsRefused() {
+        XCTAssertNil(MessagingOptions.number("abc"))
+        XCTAssertNil(MessagingOptions.sessionCount("abc"))
+    }
+
+    // MARK: - La garde du rendez-vous
+
+    private var reference: Date { DateKeys.parseISO("2026-10-07T00:00:00Z")! }
+
+    func testAFutureAppointmentIsAccepted() {
+        XCTAssertNotNil(MessagingOptions.appointmentISO("2026-12-01 18:30", now: reference))
+    }
+
+    func testAPastAppointmentIsRefused() {
+        XCTAssertNil(MessagingOptions.appointmentISO("2026-01-01 08:00", now: reference))
+    }
+
+    func testTheAppointmentShapeIsExact() {
+        // Un jour à un chiffre ne passe pas le gabarit `\d{2}`.
+        XCTAssertNil(MessagingOptions.appointmentISO("2026-10-7 18:30", now: reference))
+        // Le séparateur est une espace, jamais un `T`.
+        XCTAssertNil(MessagingOptions.appointmentISO("2027-12-01T18:30", now: reference))
+        XCTAssertNil(MessagingOptions.appointmentISO("", now: reference))
+    }
+
+    func testTheThirtyFirstOfFebruaryRollsOverAndIsAccepted() {
+        // MESURÉ, ET LE PORTAGE ÉTAIT JUSTE. `new Date("2027-02-31T10:00:00")`
+        // **roule** au 3 mars en JavaScript — l'ISO n'est rejeté que s'il est
+        // illisible. Une garde d'aller-retour, « propre » en apparence, aurait
+        // refusé cette saisie là où l'application React Native l'accepte.
+        let iso = MessagingOptions.appointmentISO("2027-02-31 10:00", now: reference)
+        XCTAssertNotNil(iso)
+        XCTAssertTrue(iso?.hasPrefix("2027-03-03") == true, "le 31 février 2027 devient le 3 mars")
+    }
+
+    func testAMonthOfThirteenIsRefused() {
+        XCTAssertNil(MessagingOptions.appointmentISO("2027-13-01 10:00", now: reference))
+    }
+
+    func testAnHourOfTwentyFiveIsRefused() {
+        XCTAssertNil(MessagingOptions.appointmentISO("2027-12-01 25:00", now: reference))
+    }
+
+    // MARK: - L'accusé de lecture
+
+    func testAMessageAtTheVeryInstantOfTheStampIsRead() {
+        // L'original écrit `<=`, et non `<`.
+        XCTAssertTrue(MessagingOptions.isRead(
+            "2026-01-01T10:00:00.000Z", at: "2026-01-01T10:00:00.000Z"))
+    }
+
+    func testAMessageOneMillisecondAfterTheStampIsSent() {
+        XCTAssertFalse(MessagingOptions.isRead(
+            "2026-01-01T10:00:00.001Z", at: "2026-01-01T10:00:00.000Z"))
+    }
+
+    func testWithoutAStampNothingIsRead() {
+        XCTAssertFalse(MessagingOptions.isRead("2026-01-01T10:00:00.000Z", at: nil))
+    }
+
+    func testTheTwoReadingPredicatesAgree() {
+        // L'accord entre `isRead` (`<=`) et `isUnread` (`>`) est **mesuré**, et
+        // non écrit : deux négations qui se répondent sont exactement ce qu'une
+        // refonte casse en silence.
+        let pairs: [(String, String)] = [
+            ("2026-01-01T10:00:00.000Z", "2026-01-01T10:00:00.000Z"),
+            ("2026-01-01T10:00:00.001Z", "2026-01-01T10:00:00.000Z"),
+            ("2026-01-01T09:59:59.999Z", "2026-01-01T10:00:00.000Z")
+        ]
+        for (created, stamp) in pairs {
+            XCTAssertEqual(
+                MessagingOptions.isRead(created, at: stamp),
+                !MessagingOptions.isUnread(createdAt: created, lastReadAt: stamp),
+                "les deux prédicats doivent se répondre sur \(created)"
+            )
+        }
+    }
+
+    // MARK: - L'heure d'un message
+
+    func testAnUnreadableTimestampRendersEmptyRatherThanRaw() {
+        // Un écran ne doit jamais afficher une chaîne ISO à la place d'une heure.
+        XCTAssertEqual(DateKeys.timeText("pas une date"), "")
+        XCTAssertEqual(DateKeys.dateTimeText("pas une date"), "")
     }
 }

@@ -24,6 +24,22 @@ public struct FriendsView: View {
     @State private var isLoading = false
     @State private var errorText: String?
     @State private var infoText: String?
+    @State private var openRoom: OpenRoom?
+
+    /// La pièce ouverte, ou rien. L'original décide par `selected` — `null`
+    /// veut dire « la liste ». Ici c'est une valeur **présentée**, ce qui laisse
+    /// SwiftUI empiler l'écran et le désempiler d'un geste, sans `useEffect` de
+    /// navigation.
+    private struct OpenRoom: Identifiable, Hashable {
+        let id: String
+        let room: MessagingOptions.Room
+        let name: String
+        let accessToken: String
+
+        static func == (lhs: OpenRoom, rhs: OpenRoom) -> Bool { lhs.id == rhs.id }
+
+        func hash(into hasher: inout Hasher) { hasher.combine(id) }
+    }
 
     public init() {}
 
@@ -45,8 +61,23 @@ public struct FriendsView: View {
             .navigationTitle("Amis")
             .refreshable { await load() }
             .task { await load() }
+            .navigationDestination(item: $openRoom) { open in
+                MessagingView(
+                    room: open.room,
+                    title: open.name,
+                    isAdminContact: false,
+                    myID: myID ?? "",
+                    accessToken: open.accessToken,
+                    onUnreadChange: { Task { await load() } },
+                    shareText: shareText
+                )
+            }
         }
     }
+
+    /// Le texte que l'ami reçoit quand on partage volontairement son étape.
+    /// L'original le fabrique dans `App.tsx` et le passe à `FriendsScreen`.
+    private var shareText: String { "" }
 
     private var myID: String? { model.auth.userId }
 
@@ -162,27 +193,32 @@ public struct FriendsView: View {
             } else {
                 ForEach(accepted) { row in
                     Card {
-                        HStack(spacing: Theme.Spacing.md) {
-                            avatar(row)
-                            VStack(alignment: .leading, spacing: 3) {
-                                Text(row.other?.displayName ?? "Compte inconnu")
-                                    .font(.system(size: Theme.Typography.body, weight: .semibold))
-                                Text(lastMessage(for: row))
-                                    .font(.system(size: Theme.Typography.metadata))
-                                    .foregroundStyle(model.palette.muted)
-                                    .lineLimit(1)
+                        Button {
+                            open(link: row)
+                        } label: {
+                            HStack(spacing: Theme.Spacing.md) {
+                                avatar(row)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(row.other?.displayName ?? "Compte inconnu")
+                                        .font(.system(size: Theme.Typography.body, weight: .semibold))
+                                    Text(lastMessage(for: row))
+                                        .font(.system(size: Theme.Typography.metadata))
+                                        .foregroundStyle(model.palette.muted)
+                                        .lineLimit(1)
+                                }
+                                Spacer()
+                                if let badge = MessagingOptions.unreadBadge(inbox[row.id]?.unreadCount ?? 0) {
+                                    Text(badge)
+                                        .font(.system(size: 11, weight: .bold))
+                                        .foregroundStyle(model.palette.paper)
+                                        .padding(.horizontal, 7)
+                                        .padding(.vertical, 3)
+                                        .background(model.palette.green, in: Capsule())
+                                }
                             }
-                            Spacer()
-                            if let unread = inbox[row.id]?.unreadCount, unread > 0 {
-                                Text("\(unread)")
-                                    .font(.system(size: 11, weight: .bold))
-                                    .foregroundStyle(model.palette.paper)
-                                    .padding(.horizontal, 7)
-                                    .padding(.vertical, 3)
-                                    .background(model.palette.green, in: Capsule())
-                            }
+                            .frame(minHeight: 56)
                         }
-                        .frame(minHeight: 56)
+                        .buttonStyle(.plain)
                     }
                 }
             }
@@ -251,6 +287,20 @@ public struct FriendsView: View {
 
     // MARK: Actions
 
+    private func open(link row: FriendRow) async {
+        guard let token = await model.socialAccessToken() else { return }
+        openRoom = OpenRoom(
+            id: row.id,
+            room: .link(row.id),
+            name: row.other?.displayName ?? "Ami",
+            accessToken: token
+        )
+    }
+
+    private func open(link row: FriendRow) {
+        Task { await open(link: row) }
+    }
+
     private func load() async {
         guard let myID, let token = await model.socialAccessToken() else {
             errorText = "Connecte-toi pour utiliser les amis."
@@ -296,6 +346,10 @@ public struct FriendsView: View {
     private func decline(_ row: FriendRow) async throws {
         guard let token = await model.socialAccessToken() else { return }
         try await model.social.declineFriend(linkID: row.id, accessToken: token)
+    }
+
+    private func open(link row: FriendRow) {
+        Task { await open(link: row) }
     }
 
     private func act(_ operation: () async throws -> Void) async {

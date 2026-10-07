@@ -87,6 +87,35 @@ public enum DateKeys {
         return fallback.date(from: value)
     }
 
+    /// L'heure d'un message, en `HH:mm` locale — ce que l'original obtient par
+    /// `new Date(m.created_at).toLocaleTimeString('fr-FR', {hour:'2-digit', minute:'2-digit'})`
+    /// (`SocialScreens.tsx:198`).
+    ///
+    /// Deux choses comptent et sont **mesurées** plutôt que supposées : le
+    /// fuseau est celui de l'appareil (pas UTC — l'original n'impose rien), et
+    /// le format est **24 heures** avec deux chiffres, ce que la locale `fr-FR`
+    /// donne. Un horodatage illisible rend une chaîne vide, jamais l'entrée
+    /// brute : un écran ne doit pas afficher une date ISO à la place d'une heure.
+    public static func timeText(_ value: String) -> String {
+        guard let date = parseISO(value) else { return "" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.dateFormat = "HH:mm"
+        return formatter.string(from: date)
+    }
+
+    /// La date **longue** d'un rendez-vous — `toLocaleString('fr-FR')`
+    /// (`SocialScreens.tsx:191`). Même règle : fuseau de l'appareil, entrée
+    /// illisible rendue vide.
+    public static func dateTimeText(_ value: String) -> String {
+        guard let date = parseISO(value) else { return "" }
+        let formatter = DateFormatter()
+        formatter.locale = Locale(identifier: "fr_FR")
+        formatter.dateStyle = .short
+        formatter.timeStyle = .short
+        return formatter.string(from: date)
+    }
+
     /// Reproduit `new Date(Math.max(Date.now(), a + 1, b + 1)).toISOString()`.
     ///
     /// Tout se calcule en **millisecondes entières**, comme le modèle JS :
