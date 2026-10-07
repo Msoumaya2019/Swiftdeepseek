@@ -200,7 +200,7 @@ Depuis, le compte a été **mesuré à chaque run**, et il a grandi avec les blo
 **328** au n° 59, **371** au n° 60 — le seul run **rouge** de la série, et pour deux
 tests fautifs, jamais pour le portage —, **373** au n° 61, **384** au n° 62, **415**
 au n° 63 et **416** au n° 64, le run qui porte l'**écran du profil**. L'arbre en
-déclare aujourd'hui **678**, répartis sur **vingt-neuf** fichiers. Le bloc des trois
+déclare aujourd'hui **696**, répartis sur **trente** fichiers. Le bloc des trois
 cartes du profil en a ajouté **six** (416 → 422), mesurés au run n° 65 ; celui des
 marque-pages **trente-deux** (422 → 454) — vingt-deux sur le modèle et l'écran, dix sur
 la traduction d'un verset en page ; celui de la **liste des sourates** **quarante-huit**
@@ -275,6 +275,18 @@ les emoji. Le client REST gagne enfin des **primitives d'écriture** : `insert`,
 sur « aucune ligne », qu'il faut rendre `nil` et non lever. Et deux divergences sont **nommées**
 plutôt que tues : `trim` de JavaScript retire `U+FEFF`, `whitespacesAndNewlines` de Swift non ;
 la formule du nombre de versets d'une récitation n'a pas de garde dans l'original. Voir §9.36.
+
+Et l'**écran** de la messagerie — `Features/Friends/MessagingView.swift` — **dix-huit** de plus
+(678 → 696) : le service était porté et prouvé, mais rien ne l'affichait. La liste d'amis ouvre
+désormais la conversation ; sans ce branchement, l'écran existerait sans être atteignable. La vue
+ne décide de rien — elle appelle les règles de `Core/`, et le banc le vérifie sur le **corps** de
+`send`, pas sur le nom. Trois règles naissent avec elle, et **deux mesures ont surpris**. La garde
+du nombre de séances emploie `Number` et non `Int` : `Number("")` vaut 0 quand `Int("")` rend `nil`,
+et `Number("1e2")` vaut 100 quand `Int("1e2")` rend `nil` — les deux **refusent**, mais pas par la
+même branche. La garde du rendez-vous a failli **diverger** : une sonde cassée (un `$` mangé par le
+shell) avait conclu que le 31 février était invalide, alors qu'il **roule au 3 mars** — et
+l'original l'accepte, donc une garde d'aller-retour aurait refusé une saisie que l'application React
+Native accepte. Voir §9.37.
 
 Et le run n° **69** a rappelé à quoi sert ce compte : il est **tombé**, non sur un test
 rouge mais sur une **erreur de type** — `Tests/TajweedTests.swift` lisait `verse?.surah`

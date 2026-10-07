@@ -1625,6 +1625,52 @@ Falsificateur : **24 mutations**, **0 survivante, 0 à côté**. Tests : **637 �
 dans `Tests/MessagingTests.swift`. Oracle : `_banc/oracle-messaging.mjs`, **56 relevés** d'accord
 avec l'original. Détail : `SWIFT_MIGRATION.md` §9.36.
 
+### L'écran de la messagerie, et trois règles nées avec lui
+
+Le service était porté et prouvé — mais **rien ne l'affichait**. C'était le trou réel, et
+`Features/Friends/MessagingView.swift` le comble. La liste d'amis ouvre désormais la conversation :
+sans ce branchement, l'écran existerait sans être atteignable, ce que ce projet a déjà vu une fois
+(`Features/Auth/` vide, l'écran écrit à la racine).
+
+La frontière est celle de tout le portage : **la vue ne décide de rien**. Elle appelle
+`MessagingOptions.pageSize`, `.outgoing`, `.isRead`, `.sessionCount`, `.appointmentISO` et
+`Kind.carriesRecitation`. Le banc le vérifie sur le **corps** de `send`, et non sur le nom de la
+règle — parce que nommer une règle pour griser un bouton ne prouve pas que le message est détouré.
+
+**Trois règles naissent avec l'écran, et deux mesures ont surpris.**
+
+`Number`, et non `Int` : `Number("")` vaut 0 quand `Int("")` rend `nil`, et `Number("1e2")` vaut 100
+quand `Int("1e2")` rend `nil`. Les deux **refusent** ces entrées, mais **pas par la même branche** —
+et c'est ce qu'un test épingle par son nom. Le cas `0x10` (16) est nommé et **déclaré
+inatteignable**, le champ portant un pavé numérique.
+
+Le 31 février **roule au 3 mars**, et l'original l'accepte. Une sonde cassée — un `$` mangé par le
+shell — avait mesuré le contraire, et le portage a failli être écrit avec une garde d'aller-retour
+qui aurait **divergé** : un écran refusant une saisie que l'application React Native accepte. C'est
+l'oracle qui l'a attrapée, en mesurant les deux sens ; le cas de 2027 est celui qui prouve le
+roulement, celui de 2026 tombant dans le passé.
+
+**Un test qui n'avait jamais tourné.** Le run n° 82 est tombé sur
+`testTheReadStampIsInWholeMilliseconds`, et il avait **raison** : `Date(timeIntervalSince1970:
+1_767_225_600.4567)` n'est pas représentable exactement, donc `.4567 × 1000` vaut
+`1767225600456.7002` et l'arrondi donne **457**. Le test attendait une chaîne que son entrée n'avait
+jamais portée. Il mesure maintenant la **propriété** — trois décimales, toujours — et non une chaîne
+donnée.
+
+**Cinq survivantes, une seule cause.** La première campagne a laissé cinq mutations vivantes, et
+toutes lisaient le **nom** des règles, jamais leur **corps** : casser `<=` en `<` ne changeait rien
+de ce que le banc relisait. Le remède est celui du bloc précédent — lire la fonction, découpée sur
+l'accolade appariée. Deux pièges de plus : `outgoing` apparaît **deux fois** dans la vue, donc muter
+la seule seconde ligne laissait la première satisfaire le contrôle ; et une mutation écrivait
+`… == value || true`, laissant la chaîne cherchée **intacte** dans le texte muté — elle se
+satisfaisait elle-même. La mutation change désormais l'**opérateur**.
+
+Banc : **199 contrôles**. Falsificateur : **33 mutations**, **0 survivante, 0 à côté** — contre cinq
+survivantes à la première passe. Tests : **678 → 696**. Oracle : **93 relevés**. Un contrôle
+**fragile** a en outre été réparé chez un prédécesseur, qui épinglait le chiffre « 41 » dans le banc
+porteur — un nombre qui a valu 41 puis 59 ; il éprouve maintenant que le porteur **dérive** la part.
+Détail : `SWIFT_MIGRATION.md` §9.37.
+
 ## 13. Problèmes rencontrés
 
 1. **Aucun compilateur Swift sur la machine de rédaction.** Tout le code Swift a

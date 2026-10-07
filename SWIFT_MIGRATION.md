@@ -3106,3 +3106,109 @@ deuxième fois que ce piège coûte un aller-retour — les fichiers Swift, eux,
 - Le compte global des tests **change de porteur** : `verifier-surah-picker` le
   rend, `verifier-messagerie` le calcule, et `verifier-source-navigation` vérifie
   la propriété durable — **un seul** banc le calcule.
+
+### 9.37 L'écran de la messagerie, et cinq survivantes qui ne lisaient pas le bon objet
+
+Le §9.36 avait porté **le service** — les règles, les douze modèles, les quatre
+primitives d'écriture — et l'avait prouvé. Il manquait **l'écran** : rien ne
+l'affichait. C'était le trou réel, et c'est ce que `Features/Friends/MessagingView.swift`
+comble (27053 octets).
+
+#### Ce que la vue ne décide pas
+
+L'original porte la liste d'amis et le fil **dans un seul composant**, pilotés
+par un état `selected` — `null` veut dire « la liste ». Le portage les sépare en
+deux vues, et le lien est un `navigationDestination(item:)` : SwiftUI empile et
+désempile d'un geste, là où l'original traîne quarante lignes de `useEffect`.
+
+La frontière est la même que partout ailleurs : **la vue ne décide de rien**.
+Elle *appelle* `MessagingOptions.pageSize`, `.outgoing`, `.isRead`,
+`.sessionCount`, `.appointmentISO` et `Kind.carriesRecitation`. C'est la
+condition pour que l'écran ne puisse pas diverger sans qu'un test tombe — et le
+banc le vérifie sur le **corps** de `send`, pas sur le nom de la règle.
+
+#### Trois règles nées avec l'écran, et deux mesures qui ont surpris
+
+**`Number(...)`, et non `Int(...)`.** La garde du nombre de séances est
+`!Number.isInteger(Number(t)) || Number(t) < 1 || Number(t) > 14`
+(`SocialScreens.tsx:177`). Mesuré : `Number("")` vaut **0** et `Int("")` rend
+`nil` ; `Number("1e2")` vaut **100** et `Int("1e2")` rend `nil` ; `Number("0x10")`
+vaut **16**. Les deux conversions **refusent** ces entrées, mais **pas par la
+même branche** — et c'est ce qu'un test épingle par son nom. Le cas hexadécimal
+est **déclaré inatteignable** : le champ porte `keyboardType(.numberPad)`.
+
+**Le 31 février roule — et c'était déjà juste.** La garde du rendez-vous
+reproduit le gabarit `^(\d{4}-\d{2}-\d{2}) (\d{2}:\d{2})$`, puis
+`new Date("…T…:00")`, puis refuse si la date est invalide **ou passée**. En
+écrivant le portage, une sonde (`node -e`) a mesuré que `2026-02-31` rendait
+`Invalid Date` — donc une garde d'aller-retour a été ajoutée. **La sonde était
+cassée** : un `$` mangé par le shell faisait porter le test sur autre chose. La
+mesure propre donne `2026-03-03T09:00:00.000Z` — **le 31 février roule au 3
+mars**, en forme ISO comme en constructeur numérique, et l'original l'**accepte**.
+La garde d'aller-retour, « propre » en apparence, aurait **divergé** : un écran
+refusant une saisie que l'application React Native accepte. L'oracle le mesure
+désormais dans les deux sens, et le cas de 2027 est celui qui le prouve — en
+2026 la date roulée tombe dans le passé, et le refus vient alors de la **borne**,
+pas du calendrier.
+
+**`isRead` est `<=`, et non `<`.** Le miroir de `isUnread` (`>`) : un message
+écrit à la milliseconde exacte de la marque de lecture est **lu**. L'accord entre
+les deux prédicats est **mesuré** sur trois paires, jamais écrit — deux négations
+qui se répondent sont exactement ce qu'une refonte casse en silence.
+
+#### Un test qui n'avait jamais tourné
+
+Le run n° **82** est tombé sur `testTheReadStampIsInWholeMilliseconds`, et il
+avait **raison**. Le test construisait `Date(timeIntervalSince1970:
+1_767_225_600.4567)` et attendait la chaîne `…00.456Z`. Or un `Double` ne
+représente pas `.4567` exactement : la valeur la plus proche est **au-dessus**,
+donc `.4567 × 1000 = 1767225600456.7002`, et l'arrondi donne **457**. Le run a
+mesuré `…00.457Z`. La chaîne attendue n'était pas celle que l'entrée portait :
+l'assertion comparait un arrondi à une valeur qui n'avait jamais existé.
+
+Le test ne portait pas sur la bonne propriété. Ce qui compte n'est pas une
+chaîne donnée — c'est que l'horodatage soit écrit **en millisecondes entières**,
+comme `toISOString()`. Le test mesure désormais trois choses : une valeur
+exactement représentable rend son horodatage exact, une seconde ronde rend
+`.000Z`, et **toute** entrée rend une queue de **trois chiffres**. La dernière
+tient même pour l'entrée qui avait fait échouer la première version.
+
+#### Cinq survivantes, et une seule cause
+
+La première campagne a laissé **cinq** mutations vivantes : M26 (`outgoing`),
+M29 (le décimal), M30 (le 31 février), M31 (`<=`), M32 (les millisecondes). Une
+seule cause : **le banc lisait le NOM des règles, jamais leur CORPS.** Casser
+`return createdAt <= otherReadAt` en `<` ne changeait rien de ce que le banc
+relisait — il cherchait l'appel, qui restait là.
+
+Le remède est celui du §9.36 : lire la **fonction**, par `corpsDe`, qui sépare
+sur l'accolade **appariée**. Six contrôles de plus lisent donc les corps réels de
+`sessionCount`, `appointmentISO`, `isRead` et `number`, plus le formateur ISO de
+`DateKeys`.
+
+Deux pièges supplémentaires, mesurés :
+
+- **`outgoing` apparaît deux fois** dans la vue — la garde du bouton et le corps
+  envoyé. Muter la seule seconde ligne laissait la première satisfaire le
+  contrôle. Le banc lit donc le **corps de `send`**.
+- **La mutation M29 se satisfaisait elle-même** : elle écrivait
+  `… == value || true`, et la chaîne cherchée `value.rounded() == value` restait
+  **intacte** dans le texte muté. La mutation change désormais l'**opérateur**
+  (`==` → `!=`), et un contrôle négatif exige qu'aucun `!=` n'apparaisse.
+
+Et **M21** — la garde des ancres de l'oracle — survivait à un seuil « ≥ 50
+relevés » : onze relevés noyés dans quatre-vingt-treize ne font pas tomber le
+total sous le seuil. L'oracle **publie** désormais le nombre d'ancres qu'il a
+réellement vérifiées (`ancresVerifiees`), compté **dans la boucle** — une boucle
+vidée laisse `ancres.length` intact.
+
+#### Les nombres
+
+- **59** tests dans `Tests/MessagingTests.swift` (18 de plus), **637 → 696**.
+- `_banc/oracle-messaging.mjs` : **93** relevés (37 de plus).
+- `_banc/verifier-messagerie.mjs` : **199** contrôles verts (34 de plus).
+- `_banc/falsifier-messagerie.mjs` : **33** mutations, **0 survivante**, **0 à
+  côté** — contre 5 survivantes à la première campagne.
+- Un contrôle **fragile** réparé chez un prédécesseur (`verifier-porte-auth`
+  épinglait « 41 dans `Tests/MessagingTests.swift` », un chiffre qui a valu 41
+  puis 59) : il éprouve maintenant que le porteur **dérive** la part.
